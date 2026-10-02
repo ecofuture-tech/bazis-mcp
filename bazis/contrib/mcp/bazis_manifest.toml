@@ -1,0 +1,29 @@
+# What the package is for and how to use it, for tools and AI agents (see AGENTS.md).
+# `import` paths and `check` ids are verified by tests/test_manifest.py.
+
+[package]
+name = "bazis-mcp"
+summary = "MCP server of a Bazis project: the catalog of the Bazis packages and the facts and checks of the project for AI agents"
+solves = [
+    "an AI agent chooses the Bazis packages a project needs and reads how to use them",
+    "an AI agent reads the models, routes and settings of the project",
+    "an AI agent checks the project after a change",
+]
+requires = ["bazis"]
+pairs_well = []
+
+[[extension_points]]
+name = "bazis-mcp"
+import = "bazis.contrib.mcp.server.main"
+use_when = "the command that MCP clients run in the project directory"
+
+[[extension_points]]
+name = "server"
+import = "bazis.contrib.mcp.server.server"
+use_when = "the MCPServer instance, to mount it in another server or test it in-process"
+
+[[pitfalls]]
+text = "the server loads the settings and the application of the project: it runs the project code, like manage.py"
+
+[[pitfalls]]
+text = "the guides of packages that are not installed come from a snapshot taken at the release of bazis-mcp"

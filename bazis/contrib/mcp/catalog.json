@@ -1,0 +1,870 @@
+[
+ {
+  "name": "bazis",
+  "version": "2.4.1",
+  "manifest": {
+   "package": {
+    "name": "bazis",
+    "summary": "JSON:API services on Django + FastAPI with schemas generated from the models",
+    "solves": [
+     "REST/JSON:API CRUD for Django models",
+     "filtering, sorting, pagination, sparse fieldsets, included resources",
+     "OpenAPI documentation",
+     "settings from environment variables and dynamic settings in the admin"
+    ],
+    "requires": [],
+    "pairs_well": [
+     "bazis-users",
+     "bazis-permit"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "JsonApiMixin",
+     "import": "bazis.core.models_abstract.JsonApiMixin",
+     "use_when": "a model is a JSON:API resource (with DtMixin, UuidMixin)"
+    },
+    {
+     "name": "JsonapiRouteBase",
+     "import": "bazis.core.routes_abstract.jsonapi.JsonapiRouteBase",
+     "use_when": "CRUD and relationships endpoints of a model"
+    },
+    {
+     "name": "SchemaFields",
+     "import": "bazis.core.schemas.fields.SchemaFields",
+     "use_when": "include or exclude fields of a route, per action (CrudApiAction)"
+    },
+    {
+     "name": "calc_property",
+     "import": "bazis.core.utils.orm.calc_property",
+     "use_when": "a calculated field fetched in the same query"
+    },
+    {
+     "name": "BazisRouter",
+     "import": "bazis.core.routing.BazisRouter",
+     "use_when": "register route classes and app routers"
+    },
+    {
+     "name": "BazisSettings",
+     "import": "bazis.core.utils.schemas.BazisSettings",
+     "use_when": "settings of an app (conf.py), read from BS_* variables"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "ALLOWED_HOSTS is ['*'] by default: set BS_ALLOWED_HOSTS in production",
+     "check": "bazis.W001"
+    },
+    {
+     "text": "the default cache must be Redis (django-redis): other backends do not support delete_pattern",
+     "check": "bazis.E001"
+    },
+    {
+     "text": "reverse relations are not in the schemas by default: add them to `fields` of the route"
+    }
+   ]
+  },
+  "agents_md": "# Bazis core — guide for AI agents\n\nBazis builds JSON:API services on Django (models, admin, migrations) and FastAPI (routing,\nOpenAPI) with Pydantic schemas generated from the models. The core is the package `bazis`\n(module `bazis.core`); every other feature is a separate package `bazis-<name>` (module\n`bazis.contrib.<name>`) with its own `AGENTS.md` and `bazis_manifest.toml`. Install only\nthe packages the project needs.\n\nFacts about a concrete project come from the project itself, not from this text:\n\n- `python manage.py bazis_introspect [packages|settings|models|routes]` prints the\n  installed Bazis packages (with their manifests), the settings, the JSON:API models and\n  the routes as JSON;\n- `python manage.py bazis_doctor [--deploy] [--json]` runs the system checks of Django and\n  of the Bazis packages and fails on errors. Run it after every change.\n\n## Project layout\n\n```\nproject.env              # BS_* environment variables (settings)\nmanage.py\nsample/settings.py       # `import bazis.core.configure` builds the Django settings\nsample/router.py         # root router, BS_BAZIS_ROUTER_MODULE=sample.router\n<app>/models.py          # models\n<app>/routes.py          # route classes\n<app>/router.py          # `router = BazisRouter(...)` of the app\n<app>/conf.py            # optional `Settings(BazisSettings)` of the app\n```\n\nSettings are environment variables with the `BS_` prefix (`BS_DEBUG`, `BS_SECRET_KEY`,\n`BS_DATABASES__DEFAULT__HOST`, lists and dicts as JSON). Apps, including Bazis packages,\nare listed in `BS_INSTALLED_APPS` (`'[\"myapp\", \"bazis.contrib.permit\"]'`). The settings of\nall installed Bazis packages are loaded unless `BS_BAZIS_APPS` lists the packages to load\nthem from: leave it unset, or list every Bazis package of the project there. Requirements:\nPostgreSQL with PostGIS and Redis (`BS_CACHES__DEFAULT__LOCATION`). `DEBUG` is true by\ndefault: set `BS_DEBUG=false` and `BS_SECRET_KEY` (required without DEBUG) in production.\n\n## Models\n\n```python\nfrom django.db import models\nfrom bazis.core.models_abstract import DtMixin, JsonApiMixin, UuidMixin\n\nclass Order(DtMixin, UuidMixin, JsonApiMixin):\n    number = models.CharField('Number', max_length=50, unique=True)\n    customer = models.ForeignKey('crm.Customer', on_delete=models.PROTECT,\n                                 related_name='orders')\n```\n\n- Every model and mixin inherits from `InitialBase` (the mixins above do). `JsonApiMixin`\n  makes the model a JSON:API resource; its type is `<app_label>.<class name in snake_case>`\n  (`CarrierTask` in the app `crm` is `crm.carrier_task`).\n- A missing `Meta` is inherited from all parents (unlike plain Django).\n- Calculated fields: `@calc_property([...])` from `bazis.core.utils.orm`, declared with the\n  fields they need (`FieldRelated`, `FieldJson`, ...) so that the query fetches them in one\n  pass; then add them to the route with `SchemaField(source=..., required=False)`.\n\n## Routes\n\n```python\nfrom django.apps import apps\nfrom bazis.core.routes_abstract.jsonapi import JsonapiRouteBase\nfrom bazis.core.schemas.enums import CrudApiAction\nfrom bazis.core.schemas.fields import SchemaField, SchemaFields\n\nclass OrderRouteSet(JsonapiRouteBase):\n    model = apps.get_model('crm.Order')\n    fields = {\n        None: SchemaFields(include={'items': None}),          # all actions\n        CrudApiAction.UPDATE: SchemaFields(exclude={'number': None}),\n    }\n```\n\n- A route class gives list, retrieve, create, update, destroy and the relationships\n  endpoints for its model. Restrict them with `as_router(actions=[...])` or\n  `actions_exclude`.\n- Reverse relations and calculated fields are not in the schemas by default: add them with\n  `SchemaFields(include=...)`. Writable relations are those of the UPDATE (CREATE) schema.\n- Logic around writes: override `hook_before_create`, `hook_after_create`,\n  `hook_before_update`, `hook_after_update` (and `hook_before/after_relationships_change`\n  for the relationships endpoints). They run inside the transaction.\n- Register: `router = BazisRouter(tags=['CRM'])`, `router.register(OrderRouteSet.as_router())`\n  in `<app>/router.py`; the root router (`BazisRouter(prefix='/api/v1')`) registers the app\n  routers by module name: `router.register('crm.router')`.\n\n## API conventions\n\n- `filter` is one expression: `filter=status=new&price__gte=20`, `filter=(a=1|b=2)`,\n  nested fields `filter=customer__name=Acme`, lookups `__gt/__gte/__lt/__lte`, full-text\n  in a field `filter=description__$search=text`; `search=text` searches the search fields of\n  the route. URL-encode the value of `filter`.\n- `sort=-dt_created,number`, `page[limit]` / `page[offset]`\n  (`BAZIS_API_PAGINATION_PAGE_SIZE_MAX` caps the limit), `include=customer,items`,\n  `fields[crm.order]=number,customer` (sparse fieldsets).\n- Errors are JSON:API error objects; validation errors are 422.\n\n## Rules\n\n- Every way of changing an object goes through the checks of an update: do not change\n  relations in custom endpoints without the route (use `relationships_change`, which\n  applies the update schema, the `filter:` restrictions and the hooks).\n- Do not access `settings.<dynamic setting>` at import time: dynamic settings are read from\n  the database (constance).\n- Do not edit generated schemas by hand; change the model or `fields` of the route.\n"
+ },
+ {
+  "name": "bazis-test-utils",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-test-utils",
+    "summary": "test helpers for Bazis: an API test client, sample models and factories",
+    "solves": [
+     "call the API of a Bazis app in pytest (JSON:API content type, bearer token)",
+     "sample parent, child, dependent and extended entities with factories"
+    ],
+    "requires": [],
+    "pairs_well": [
+     "bazis"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "get_api_client",
+     "import": "bazis_test_utils.utils.get_api_client",
+     "use_when": "a test client of the FastAPI app, optionally with a bearer token"
+    },
+    {
+     "name": "ParentEntityBase",
+     "import": "bazis_test_utils.models_abstract.ParentEntityBase",
+     "use_when": "the parent model of a sample app (with ChildEntityBase, DependentEntityBase, ExtendedEntityBase)"
+    },
+    {
+     "name": "ChildEntityBase",
+     "import": "bazis_test_utils.models_abstract.ChildEntityBase",
+     "use_when": "the child model of a sample app (many-to-many from the parent)"
+    },
+    {
+     "name": "DependentEntityBase",
+     "import": "bazis_test_utils.models_abstract.DependentEntityBase",
+     "use_when": "the dependent model of a sample app (foreign key to the parent)"
+    },
+    {
+     "name": "ExtendedEntityBase",
+     "import": "bazis_test_utils.models_abstract.ExtendedEntityBase",
+     "use_when": "the extended model of a sample app (one-to-one to the parent)"
+    },
+    {
+     "name": "ParentEntityFactoryAbstract",
+     "import": "bazis_test_utils.factories_abstract.ParentEntityFactoryAbstract",
+     "use_when": "the factory of the parent model (with the other *FactoryAbstract classes)"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "the API client takes the JSON body as json_data=, not json="
+    },
+    {
+     "text": "tests that call the API need @pytest.mark.django_db(transaction=True)"
+    },
+    {
+     "text": "ParentEntityFactoryAbstract needs tests.factories.DependentEntityFactory and tests.factories.ExtendedEntityFactory"
+    }
+   ]
+  },
+  "agents_md": "# bazis-test-utils — guide for AI agents\n\nTest helpers for Bazis packages and projects: an API test client (`get_api_client`), and\nabstract models and `factory_boy` factories of the sample entities (parent, child,\ndependent, extended) used by the test suites of the Bazis packages. Install it in the\ntest dependencies; it brings pytest, pytest-django, pytest-mock, factory_boy and the\ntest client of Starlette. It does not depend on `bazis`.\n\n## Test setup (as in the Bazis packages)\n\n```ini\n# pytest.ini at the repository root\n[pytest]\nDJANGO_SETTINGS_MODULE=sample.settings\n```\n\n```python\n# tests/conftest.py\nfrom django.core.management import call_command\nimport pytest\n\n@pytest.fixture(scope='session')\ndef django_db_setup(django_db_setup, django_db_blocker):\n    with django_db_blocker.unblock():\n        call_command('pgtrigger', 'install')   # the triggers of the Bazis models\n\n@pytest.fixture\ndef sample_app():\n    from sample.main import app                # the FastAPI app: `from bazis.core.app import app`\n    return app\n```\n\nRun with the `BS_*` environment of a test database: `cd sample && python -m pytest ../tests`.\n\n## API client\n\n```python\nimport pytest\nfrom bazis_test_utils.utils import get_api_client\n\n@pytest.mark.django_db(transaction=True)\ndef test_create(sample_app):\n    client = get_api_client(sample_app)                 # or get_api_client(app, token)\n    response = client.post('/api/v1/entity/parent_entity/', json_data={\n        'data': {'type': 'entity.parent_entity', 'bs:action': 'add',\n                 'attributes': {'name': 'Parent'}},\n    })\n    assert response.status_code == 201\n```\n\n- Methods: `get`, `post`, `patch`, `put`, `delete`, `options`, `head`; they return the\n  response of the Starlette `TestClient`. `post`, `patch`, `put` take the JSON body as\n  `json_data=` (not `json=`), multipart as `data=` + `files=` (then the `Content-Type`\n  header is left to the client); every method takes `params=` and `headers=`.\n- Requests send `Content-Type: application/vnd.api+json` (not with `files=`) and, with\n  `token`, `Authorization: Bearer <token>`. With bazis-users the token is\n  `user.jwt_build()`.\n- The client address is `127.0.0.1`. The `TestClient` is not entered as a context\n  manager, so the lifespan (startup and shutdown) of the app does not run.\n- A test that calls the API uses `@pytest.mark.django_db(transaction=True)`: the\n  endpoints run in worker threads with their own database connections and do not see the\n  uncommitted transaction of a plain `django_db` test.\n\n## Sample models and factories\n\n- `bazis_test_utils.models_abstract`: `ParentEntityBase`, `ChildEntityBase`,\n  `DependentEntityBase`, `ExtendedEntityBase` (plain abstract Django models). Combine them\n  with the Bazis mixins and add the relations, as the sample apps do:\n  `class ParentEntity(DtMixin, UuidMixin, JsonApiMixin, ParentEntityBase)` with\n  `child_entities = ManyToManyField(ChildEntity, related_name='parent_entities')`;\n  `DependentEntity.parent_entity` (ForeignKey, `related_name='dependent_entities'`);\n  `ExtendedEntity.parent_entity` (OneToOneField, `related_name='extended_entity'`).\n- `bazis_test_utils.factories_abstract`: `<Name>FactoryAbstract`; subclass each with\n  `class Meta: model = ...`. `ParentEntityFactoryAbstract` creates a dependent and an\n  extended entity through `tests.factories.DependentEntityFactory` and\n  `tests.factories.ExtendedEntityFactory`: define them under these names in\n  `tests/factories.py`.\n- `ParentEntityFactory.create(child_entities=True)` adds 1–10 new children (from the\n  child factory subclass of the same model); pass a child or a list of children to add\n  those; omit it or pass `False` for none.\n"
+ },
+ {
+  "name": "bazis-users",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-users",
+    "summary": "users, session JWT authentication and routes that know the current user",
+    "solves": [
+     "user accounts and login by username and password",
+     "authentication by JWT (header, query parameter or cookie)",
+     "routes that need the current user or require authentication"
+    ],
+    "requires": [
+     "bazis"
+    ],
+    "pairs_well": [
+     "bazis-permit",
+     "bazis-authing",
+     "bazis-author"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "UserAbstract",
+     "import": "bazis.contrib.users.models_abstract.UserAbstract",
+     "use_when": "the user model of the project (with JsonApiMixin, UuidMixin)"
+    },
+    {
+     "name": "UsersConfig",
+     "import": "bazis.contrib.users.apps.UsersConfig",
+     "use_when": "the AppConfig of the project app that holds the user model"
+    },
+    {
+     "name": "UserRouteBase",
+     "import": "bazis.contrib.users.routes_abstract.UserRouteBase",
+     "use_when": "a route that needs the current user (self.inject.user)"
+    },
+    {
+     "name": "UserRequiredRouteBase",
+     "import": "bazis.contrib.users.routes_abstract.UserRequiredRouteBase",
+     "use_when": "a route that requires authentication"
+    },
+    {
+     "name": "get_user_required",
+     "import": "bazis.contrib.users.service.get_user_required",
+     "use_when": "a FastAPI dependency for the authenticated user in a custom endpoint"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "the user model must inherit UserAbstract and be set in BS_AUTH_USER_MODEL",
+     "check": "users.E001"
+    },
+    {
+     "text": "groups, permissions and is_staff must not be writable by the user himself"
+    }
+   ]
+  },
+  "agents_md": "# bazis-users — guide for AI agents\n\nUsers and authentication by session JWT for Bazis: the user model, the token endpoint,\nand the route base classes that know the current user. Use it whenever an API has users;\nbazis-permit (permissions) and bazis-authing (login flows) build on it.\n\n## Setup\n\n1. A project app with the user model (the package does not create the table itself):\n\n   ```python\n   # users/models.py\n   from bazis.contrib.users.models_abstract import AnonymousUserAbstract, UserAbstract\n   from bazis.core.models_abstract import JsonApiMixin, UuidMixin\n\n   class User(JsonApiMixin, UuidMixin, UserAbstract):\n       pass\n\n   class AnonymousUser(AnonymousUserAbstract):\n       pass\n\n   # users/apps.py\n   from bazis.contrib.users.apps import UsersConfig as UsersConfigBase\n\n   class UsersConfig(UsersConfigBase):\n       name = 'users'\n   ```\n\n2. `BS_INSTALLED_APPS='[\"users\", ...]'`, `BS_AUTH_USER_MODEL=users.User`,\n   `BS_AUTH_ANONYMOUS_USER_MODEL=users.models.AnonymousUser`.\n3. Optionally register the user routes: `router.register('bazis.contrib.users.router')`\n   (`/user/`). With them a user sees and changes only himself, staff create, list and\n   delete users, and only a superuser changes `is_staff`, `is_superuser`, `is_active`.\n   Projects with bazis-permit protect users with a `PermitRouteBase` route instead.\n\n## Authentication\n\n- `POST BAZIS_OPENAPI_TOKEN_URL` (default `/api/openapi-token/`, OAuth2 password form)\n  returns `{\"access_token\": ..., \"token_type\": \"bearer\"}`; Swagger uses it.\n- The token is read from `Authorization: Bearer`, or the query parameter or the cookie\n  named `BAZIS_AUTH_COOKIE_NAME` (default `bazis_auth`). It is an HMAC JWT signed with\n  `SECRET_KEY` with `sub` (username), `iat` and `exp` (`BAZIS_JWT_SESSION_LIFETIME`\n  seconds). A token without\n  `exp` is anonymous; an expired or invalid token is 401.\n- `user.jwt_build()` builds a token (e.g. after a custom login).\n\n## Routes\n\n- `UserRouteBase` (`bazis.contrib.users.routes_abstract`): `self.inject.user` is the user\n  or the anonymous user; the filter context gets `_user`. Base class for routes that need\n  the user (bazis-permit routes extend it).\n- `UserRequiredRouteBase`: the same, for routes that require authentication.\n- FastAPI dependencies in `bazis.contrib.users.service`: `get_user_optional`,\n  `get_user_required`, `get_token_data`.\n\n## Rules\n\n- A user must never be able to change his own groups, permissions or staff flags: keep\n  those fields out of the update schemas of custom user routes, or check them in\n  `hook_after_update` as `UserRouteSet` does.\n- Check `bazis_doctor` after changing the user model (`users.E001`).\n"
+ },
+ {
+  "name": "bazis-ws",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-ws",
+    "summary": "WebSocket notifications over Redis pub/sub: user, anonymous and common channels",
+    "solves": [
+     "push messages from the server to a user's browser",
+     "push messages to anonymous clients identified by their own token",
+     "broadcast to all connected clients",
+     "know whether a user is online"
+    ],
+    "requires": [
+     "bazis"
+    ],
+    "pairs_well": [
+     "bazis-users",
+     "bazis-async-background"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "UserWsMixin",
+     "import": "bazis.contrib.ws.models_abstract.UserWsMixin",
+     "use_when": "the user model: user_channel, ws_publish(), is_online"
+    },
+    {
+     "name": "ws_route",
+     "import": "bazis.contrib.ws.ws.ws_route",
+     "use_when": "register the socket: app.router.routes.append(ws_route) (path /ws)"
+    },
+    {
+     "name": "WsEndpoint",
+     "import": "bazis.contrib.ws.ws.WsEndpoint",
+     "use_when": "a socket with custom behavior (subclass it and register your own WebSocketRoute)"
+    },
+    {
+     "name": "get_anonymous_channel",
+     "import": "bazis.contrib.ws.utils.get_anonymous_channel",
+     "use_when": "the channel of an anonymous client from its token (validates the token)"
+    },
+    {
+     "name": "COMMON_CHANNEL",
+     "import": "bazis.contrib.ws.COMMON_CHANNEL",
+     "use_when": "publish to all connected clients"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "a channel built by hand from a client token can address a user channel: use get_anonymous_channel"
+    },
+    {
+     "text": "published messages are delivered to clients as a JSON string in `data`, and are lost if nobody is subscribed"
+    },
+    {
+     "text": "UserWsRouteSet imports bazis-users, which bazis-ws does not install"
+    }
+   ]
+  },
+  "agents_md": "# bazis-ws — guide for AI agents\n\nWebSocket notifications for Bazis: clients connect to `/ws`, the server delivers to them\nthe messages published to Redis channels (the channel of a user, the channel of an\nanonymous client, the common channel) and keeps an online flag per session. Use it to push\nevents to browsers; bazis-async-background sends its task statuses through it.\n\n## Setup\n\n- Not a Django app: nothing to add to `BS_INSTALLED_APPS`, no settings of its own.\n- Redis: `settings.CACHES['default']['LOCATION']` (`BS_CACHES__DEFAULT__LOCATION`) must be\n  a Redis URL; it is the pub/sub server.\n- The user model gets the user channel and the online flag:\n\n  ```python\n  from bazis.contrib.ws.models_abstract import UserWsMixin\n\n  class User(UserWsMixin, ..., UserAbstract, JsonApiMixin):   # see bazis-users\n      pass\n  ```\n\n- Register the socket on the FastAPI application (it is a Starlette route, not a\n  `BazisRouter` route, so the path is `/ws` without the API prefix):\n\n  ```python\n  from bazis.contrib.ws.ws import ws_route\n  from bazis.core.app import app\n\n  app.router.routes.append(ws_route)\n  ```\n\n## Protocol\n\n- The client starts a session with `?token=<token>` or the message `{\"token\": \"<token>\"}`.\n  A session JWT of bazis-users (`exp` and `sub` required, signed with `SECRET_KEY` and\n  `BAZIS_JWT_SESSION_ALG`, default HS256) of an active user subscribes to `user_ws::<pk>`.\n  Any other token is an anonymous token: 16–128 characters `A-Z a-z 0-9 _ -`, generated\n  randomly by the client; it subscribes to `user_ws:anon:<token>`. Every session also\n  receives `user_ws:common`.\n- Server messages: `{\"type\": \"data\", \"data\": <published string>}` (the published JSON is\n  delivered as a string: parse it on the client), `{\"type\": \"pong\"}` for\n  `{\"type\": \"ping\"}`, `{\"type\": \"error\", \"code\": ..., \"detail\": ...}` with the codes\n  `expired_token`, `invalid_token`, `user_not_found`, `internal_error`.\n- If Redis fails during a session the socket is closed with code 1011; clients reconnect.\n\n## Publishing\n\n- To a user: `user.ws_publish({...})` (synchronous Redis, returns the number of\n  receivers). `user.is_online` is true while a session of the user is open.\n- To an anonymous client: publish to `get_anonymous_channel(token)` of\n  `bazis.contrib.ws.utils`; to everybody: publish to `bazis.contrib.ws.COMMON_CHANNEL`.\n- Pub/sub is not stored: a message published while the client is not subscribed is lost.\n\n## Rules\n\n- Never build a channel name from client input by hand: use `get_anonymous_channel`\n  (validates the token, keeps anonymous channels under `user_ws:anon:`) and\n  `user.user_channel`. An anonymous token must never address a user channel.\n- The user is read by the fields `username` and `is_active` of the user model.\n- The token is checked when the session starts; a session is not closed when its JWT\n  expires later.\n- `UserWsRouteSet` (`bazis.contrib.ws.routes_abstract`) extends the user routes of\n  bazis-users with `is_online`; it needs bazis-users, which bazis-ws does not install.\n  `is_online` reads Redis once per object.\n"
+ },
+ {
+  "name": "bazis-bulk",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-bulk",
+    "summary": "several API requests in one HTTP request, optionally in one transaction",
+    "solves": [
+     "create or change several related objects in one call",
+     "all-or-nothing changes of several resources (one database transaction)",
+     "fewer round trips from the client"
+    ],
+    "requires": [
+     "bazis"
+    ],
+    "pairs_well": [
+     "bazis-permit"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "router",
+     "import": "bazis.contrib.bulk.routes.router",
+     "use_when": "register the endpoint: router.register('bazis.contrib.bulk.router')"
+    },
+    {
+     "name": "BulkRequestItemSchema",
+     "import": "bazis.contrib.bulk.schemas.BulkRequestItemSchema",
+     "use_when": "the format of an item of a bulk request (endpoint, method, body, headers)"
+    },
+    {
+     "name": "BulkResponseItemSchema",
+     "import": "bazis.contrib.bulk.schemas.BulkResponseItemSchema",
+     "use_when": "the format of an item of a bulk response (endpoint, status, headers, response)"
+    },
+    {
+     "name": "in_bulk_request",
+     "import": "bazis.contrib.bulk.utils.in_bulk_request",
+     "use_when": "code that must know whether it runs inside a bulk request"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "with is_atomic=true (default) one failed item rolls back all items, but the following items still run and the response lists them with their own statuses"
+    },
+    {
+     "text": "only synchronous code run through anyio.to_thread.run_sync (FastAPI endpoints and dependencies) joins the transaction of an atomic bulk request"
+    },
+    {
+     "text": "at most BAZIS_BULK_MAX_ITEMS items (default 1000) and no nested bulk requests: 400 ERR_BULK"
+    },
+    {
+     "text": "if BS_BAZIS_APPS is set it must list bazis.contrib.bulk, or BAZIS_BULK_MAX_ITEMS is not loaded"
+    }
+   ]
+  },
+  "agents_md": "# bazis-bulk — guide for AI agents\n\nBulk requests for Bazis: `POST <prefix>/bulk/` runs a list of API requests through the\napplication one after another and returns their responses, optionally in one database\ntransaction. Use it to create or change several related objects in one call.\n\n## Setup\n\n- Register the route in the root router: `router.register('bazis.contrib.bulk.router')`\n  (with `BazisRouter(prefix='/api/v1')` the endpoint is `POST /api/v1/bulk/`).\n- The package has no models and no app config: it does not go into `BS_INSTALLED_APPS`.\n  If `BS_BAZIS_APPS` is set, list `bazis.contrib.bulk` there, or its setting is not loaded.\n- `BS_BAZIS_BULK_MAX_ITEMS`: the maximum number of requests in a bulk request\n  (default 1000).\n\n## Request\n\n```json\n[\n  {\"endpoint\": \"/api/v1/entity/parent_entity/\", \"method\": \"POST\",\n   \"body\": {\"data\": {\"type\": \"entity.parent_entity\", \"bs:action\": \"add\",\n                     \"attributes\": {\"name\": \"Parent 1\"}}}},\n  {\"endpoint\": \"/api/v1/entity/parent_entity/\"}\n]\n```\n\n- `endpoint`: the full path with the router prefix, and the query string if any.\n- `method`: `GET` (default), `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`\n  (case-insensitive). `body`: a JSON object or list, sent as `application/vnd.api+json`\n  unless the item sets `Content-Type`.\n- `headers`: `[[name, value], ...]` added to (or replacing) the headers of the bulk request.\n  Every sub-request gets the headers of the bulk request (`Authorization` included) except\n  `Content-Length`, `Content-Type`, `Transfer-Encoding`, `Expect`. Connection headers\n  (`Host`, `Connection`, ...), `Forwarded`, `X-Forwarded-For/-Host/-Proto/-Port/-Prefix` and\n  `X-Real-IP` cannot be set,\n  values must be latin-1 without line breaks; otherwise the bulk request is 422.\n- Response: a list of `{\"endpoint\", \"status\", \"headers\", \"response\"}` in request order;\n  `response` is the parsed JSON, or text for a non-JSON body.\n\n## Transactions (`is_atomic`)\n\n- `?is_atomic=true` (default): all sub-requests run in one transaction of the `default`\n  database. If any sub-request has a status >= 400 the transaction is rolled back and the\n  bulk response is 400; the remaining sub-requests still run and every item keeps its\n  own status, so the ids returned by successful items do not exist after the rollback.\n- `?is_atomic=false`: every sub-request runs in its own transaction; the bulk response is\n  200 whatever the statuses of the items.\n- In atomic mode the synchronous code of the sub-requests (FastAPI endpoints and\n  dependencies, which run through `anyio.to_thread.run_sync`) runs in one dedicated thread\n  that holds the transaction. Database code that does not go through `run_sync` (e.g.\n  `sync_to_async` in an `async def` endpoint) does not join the transaction.\n- A sub-request that raises an unhandled exception gets the status 500 and does not stop\n  the following ones (in atomic mode it causes the rollback).\n\n## Rules\n\n- The bulk endpoint checks nothing itself: each sub-request goes through its route with the\n  headers of the bulk request, so authentication and permissions apply per item.\n- More than `BAZIS_BULK_MAX_ITEMS` items fails with 400 and the error code `ERR_BULK`;\n  nothing runs. An item that is itself a bulk request gets 400 `ERR_BULK` (in atomic mode\n  the bulk request is then rolled back).\n- Responses are collected in memory: do not use bulk requests for large downloads.\n- Code that must behave differently inside a bulk request can call\n  `bazis.contrib.bulk.utils.in_bulk_request()`.\n"
+ },
+ {
+  "name": "bazis-uploadable",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-uploadable",
+    "summary": "uploaded files: the FileUpload model and a multipart upload route",
+    "solves": [
+     "upload files through the API (multipart form data)",
+     "store files in a configurable Django storage (file system, S3...)",
+     "reference uploaded files from other models"
+    ],
+    "requires": [
+     "bazis"
+    ],
+    "pairs_well": [
+     "bazis-users",
+     "bazis-permit"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "FileUploadRouteSet",
+     "import": "bazis.contrib.uploadable.routes.FileUploadRouteSet",
+     "use_when": "the base of the project's upload route (subclass it with access control)"
+    },
+    {
+     "name": "FileUploadAbstract",
+     "import": "bazis.contrib.uploadable.models_abstract.FileUploadAbstract",
+     "use_when": "a model of an uploaded file (file, name, extension, size)"
+    },
+    {
+     "name": "FileUpload",
+     "import": "bazis.contrib.uploadable.models.FileUpload",
+     "use_when": "the uploaded file referenced by other models (ForeignKey to 'uploadable.FileUpload')"
+    },
+    {
+     "name": "get_file_upload_storage",
+     "import": "bazis.contrib.uploadable.models_abstract.get_file_upload_storage",
+     "use_when": "the storage of the uploaded files (BAZIS_STORAGE_FILE_UPLOAD)"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "the bundled router (FileUploadRouteSet) has no access control: anyone can upload, list, change and delete files",
+     "check": "uploadable.W001"
+    },
+    {
+     "text": "BAZIS_FILE_UPLOAD_MAX_SIZE is checked after the whole body is received: also limit the body size on the reverse proxy"
+    },
+    {
+     "text": "BAZIS_STORAGE_FILE_UPLOAD is read once, when the models are loaded"
+    },
+    {
+     "text": "deleting a FileUpload object does not delete the file from the storage"
+    }
+   ]
+  },
+  "agents_md": "# bazis-uploadable — guide for AI agents\n\nFile uploads for Bazis: the model `uploadable.FileUpload` (a file in a Django storage with\nits name and extension) and a JSON:API route that accepts the file as multipart form data.\nOther models can reference uploaded files with a foreign key to `uploadable.FileUpload`.\n\n## Setup\n\n- `BS_INSTALLED_APPS` includes `bazis.contrib.uploadable` (the model and its migrations:\n  run `migrate`). If `BS_BAZIS_APPS` is set, list it there too.\n- Storage: `BS_BAZIS_STORAGE_FILE_UPLOAD` is the dotted path of a Django storage class,\n  created without arguments (e.g. an S3 storage configured by its own settings). Empty\n  (default): `FileSystemStorage` in `MEDIA_ROOT` (`BS_MEDIA_ROOT`). The class is imported\n  once, when the models are loaded; the field uses a callable storage, so changing the\n  setting needs no migration.\n- `BS_BAZIS_FILE_UPLOAD_MAX_SIZE`: the maximum file size in bytes, `0` (default) = no\n  limit. A larger file is rejected with 413 and the error code `ERR_FILE_TOO_LARGE`. The\n  check runs after the whole request body is received: also limit the request body size\n  on the reverse proxy.\n- Routes: `bazis.contrib.uploadable.router` registers `FileUploadRouteSet`, which has no\n  access control: anyone who reaches the API can upload, list, change and delete files\n  (`uploadable.W001`). In production register a subclass of `FileUploadRouteSet` that\n  requires a user (`UserRequiredRouteBase` of bazis-users) or permissions (bazis-permit)\n  with `router.register(MyFileRouteSet.as_router())`. List `FileUploadRouteSet` first\n  among the bases: its `action_create` reads the multipart form.\n\n## Upload\n\n`POST <prefix>/uploadable/file_upload/` (the bundled router) with `multipart/form-data`:\n\n- `file` (required): the file; `name` (optional): the file name, by default the file name\n  of the uploaded file; `id` (optional).\n- Response 201: a JSON:API item of type `uploadable.file_upload` with the attributes\n  `file`, `name`, `extension` and `size` (bytes).\n- List, retrieve, update and delete are the usual JSON:API actions of the route.\n\n## Models\n\n- `FileUploadAbstract` (`bazis.contrib.uploadable.models_abstract`): the fields `file`,\n  `name`, `extension`. `save()` fills `name` from the file name if it is empty, and\n  `extension` from `name` (without the dot). `size` reads the size from the storage and is\n  0 if the file is missing.\n- Files are stored under `files/<model class name in lower case>/` with a hashed name.\n\n## Rules\n\n- The size limit applies only to the upload action of `FileUploadRouteSet` (and its\n  subclasses), not to `FileField`s of other models.\n- Deleting a `FileUpload` object does not delete the file from the storage.\n"
+ },
+ {
+  "name": "bazis-author",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-author",
+    "summary": "author fields of records (who created, who last changed), filled from the user of the request",
+    "solves": [
+     "record who created and who last changed an object",
+     "author fields that clients cannot set",
+     "the `author` selector of bazis-permit (users see or change their own objects)"
+    ],
+    "requires": [
+     "bazis",
+     "bazis-users"
+    ],
+    "pairs_well": [
+     "bazis-permit"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "AuthorMixin",
+     "import": "bazis.contrib.author.models_abstract.AuthorMixin",
+     "use_when": "a model with the fields author and author_updated"
+    },
+    {
+     "name": "AuthorRouteBase",
+     "import": "bazis.contrib.author.routes_abstract.AuthorRouteBase",
+     "use_when": "the route of an AuthorMixin model (anonymous requests allowed)"
+    },
+    {
+     "name": "AuthorRequiredRouteBase",
+     "import": "bazis.contrib.author.routes_abstract.AuthorRequiredRouteBase",
+     "use_when": "the route of an AuthorMixin model that requires authentication"
+    },
+    {
+     "name": "AuthorRouteMixin",
+     "import": "bazis.contrib.author.routes_abstract.AuthorRouteMixin",
+     "use_when": "combine with another route base that knows the user (PermitRouteBase)"
+    },
+    {
+     "name": "AuthorAdminMixin",
+     "import": "bazis.contrib.author.admin_abstract.AuthorAdminMixin",
+     "use_when": "the admin of an AuthorMixin model (and its inlines)"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "a route of an AuthorMixin model without AuthorRouteMixin lets clients set author and author_updated",
+     "check": "author.W001"
+    },
+    {
+     "text": "outside a request (tasks, shell, commands) AuthorMixin.save() has no user and leaves the author fields as they are"
+    }
+   ]
+  },
+  "agents_md": "# bazis-author — guide for AI agents\n\nAuthor fields for Bazis models: `author` (who created the record) and `author_updated`\n(who changed it last), filled from the user of the request. Clients cannot set them.\nNeeds bazis-users. bazis-permit uses `author` as the selector `author`\n(`entity.document.item.change.author`).\n\n## Setup\n\n```python\nfrom bazis.contrib.author.admin_abstract import AuthorAdminMixin\nfrom bazis.contrib.author.models_abstract import AuthorMixin\nfrom bazis.contrib.author.routes_abstract import AuthorRequiredRouteBase, AuthorRouteBase\n\nclass Document(AuthorMixin, DtMixin, UuidMixin, JsonApiMixin):\n    title = models.CharField('Title', max_length=255)\n\nclass DocumentRouteSet(AuthorRouteBase):         # or AuthorRequiredRouteBase (401 for anonymous)\n    model = apps.get_model('docs.Document')\n\n@admin.register(Document)\nclass DocumentAdmin(AuthorAdminMixin, DtAdminMixin, admin.ModelAdmin):\n    ...\n```\n\n- Add `bazis.contrib.author` to `BS_INSTALLED_APPS` (it registers the system check). The\n  package has no models and no settings; `makemigrations` adds the two foreign keys\n  (`on_delete=SET_NULL`, nullable) to each model with `AuthorMixin`.\n- With bazis-permit: `class DocumentRouteSet(PermitRouteBase, AuthorRouteBase)`.\n\n## How the fields are filled\n\n- `AuthorRouteMixin` (in `AuthorRouteBase`, `AuthorRequiredRouteBase`) excludes `author`\n  and `author_updated` from the CREATE and UPDATE schemas, so neither the attributes nor\n  the relationships endpoints accept them, and sets `author` in `hook_before_create`,\n  `author_updated` in `hook_before_update`. An anonymous request does not set them.\n- `AuthorMixin.save()` sets `author` (if empty) and `author_updated` from\n  `UserMixin.CTX_USER_REQUEST` of bazis-users: the user routes set it (`UserRouteBase`),\n  Django views only with `bazis.contrib.users.middleware.UserRequestMiddleware` in\n  `MIDDLEWARE`. Without a user in the context (Celery tasks, shell, management commands)\n  the fields stay as they are: set them explicitly there.\n- `AuthorAdminMixin` sets `author` from `request.user` if it is empty, `author_updated`\n  otherwise (also in inline formsets), makes both fields read-only, adds the search by\n  `author__username` and an autocomplete filter by author (the admin of the user model\n  needs `search_fields`).\n\n## Rules\n\n- Every JSON:API route of an `AuthorMixin` model inherits `AuthorRouteMixin` (usually\n  through `AuthorRouteBase`): with a plain route a client sets the author to any user\n  (`author.W001`, `manage.py bazis_doctor`).\n- Never add `author` or `author_updated` to the `include` of a CREATE or UPDATE schema.\n"
+ },
+ {
+  "name": "bazis-authing",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-authing",
+    "summary": "sign-in flows (password, Google OAuth) that end in a session JWT of bazis-users",
+    "solves": [
+     "sign in by username and password from a web or mobile client",
+     "sign in with Google (redirect flow or tokens of a Google SDK)",
+     "one endpoint that tells the client whether it is signed in and how to sign in",
+     "add an own sign-in method (SSO, external provider)"
+    ],
+    "requires": [
+     "bazis",
+     "bazis-users"
+    ],
+    "pairs_well": [
+     "bazis-permit"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "auth router",
+     "import": "bazis.contrib.authing.routes.router",
+     "use_when": "always: GET /auth/ (register bazis.contrib.authing.router)"
+    },
+    {
+     "name": "password router",
+     "import": "bazis.contrib.authing.services.password.routes.router",
+     "use_when": "password login (register bazis.contrib.authing.services.password.router)"
+    },
+    {
+     "name": "Google router",
+     "import": "bazis.contrib.authing.services.google.routes.router",
+     "use_when": "Google login (register bazis.contrib.authing.services.google.router)"
+    },
+    {
+     "name": "AuthStoreTokenRequired",
+     "import": "bazis.contrib.authing.service.AuthStoreTokenRequired",
+     "use_when": "the dependency of the login endpoint of an own sign-in service"
+    },
+    {
+     "name": "AuthStore",
+     "import": "bazis.contrib.authing.service.AuthStore",
+     "use_when": "the authorization store: login(), set_error(), response_set_cookie()"
+    },
+    {
+     "name": "google_get_user",
+     "import": "bazis.contrib.authing.services.google.routes.google_get_user",
+     "use_when": "how a verified Google account is matched to a user (to restrict the accounts)"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "a module of BAZIS_AUTH_KINDS that does not import is skipped silently",
+     "check": "authing.W001"
+    },
+    {
+     "text": "a service in BAZIS_AUTH_KINDS whose router is not registered makes GET /auth/ fail",
+     "check": "authing.E001"
+    },
+    {
+     "text": "the Google OAuth client is built once per process: restart after changing BAZIS_G_AUTH_CLIENT_ID or BAZIS_G_AUTH_CLIENT_SECRET"
+    },
+    {
+     "text": "without BAZIS_G_AUTH_REDIRECT_URI the Google redirect URI is HOST_URL + the callback path: set HOST_URL"
+    },
+    {
+     "text": "until the store expires (BAZIS_AUTH_COOKIE_LIFETIME) GET /auth/ with the store token returns a new session token: drop it on logout"
+    },
+    {
+     "text": "the authorization store lives in the default cache: all processes must share it (Redis)"
+    }
+   ]
+  },
+  "agents_md": "# bazis-authing — guide for AI agents\n\nSign-in flows for Bazis on top of bazis-users: login by password and by Google OAuth,\ncollected in an authorization store and exchanged for a session JWT by `GET /auth/`.\nUse it when clients (web, mobile) sign in interactively; bazis-users alone only has the\ntoken endpoint `BAZIS_OPENAPI_TOKEN_URL`.\n\n## Setup\n\n```python\n# router.py of the project (paths below are relative to this router)\nrouter = BazisRouter(prefix='/api/v1')\nrouter.register('/authing', 'bazis.contrib.authing.router')                    # /auth/\nrouter.register('/authing', 'bazis.contrib.authing.services.password.router')  # /password/\nrouter.register('/authing', 'bazis.contrib.authing.services.google.router')    # Google\n```\n\n- `BS_INSTALLED_APPS` includes `bazis.contrib.authing` (it registers the system checks;\n  the package has no models). If `BS_BAZIS_APPS` (or `BS_BAZIS_CONFIG_APPS`) is set, it\n  must list `bazis.contrib.authing` and, for Google, `bazis.contrib.authing.services.google`:\n  only the settings of the listed modules are loaded.\n- `BS_BAZIS_AUTH_KINDS='[\"bazis.contrib.authing.services.password\",\n  \"bazis.contrib.authing.services.google\"]'`: the services `/auth/` offers (default: password\n  only). Register the router of every listed service (`authing.E001`); a module that does not\n  import is skipped silently (`authing.W001`).\n- `BS_BAZIS_AUTH_COOKIE_LIFETIME` (default 600): seconds the store data lives in the cache.\n  The store is in the Django default cache (`auth_store_<key>`): every process must share it\n  (Redis).\n- `BS_AUTHENTICATION_BACKENDS` (default `[\"django.contrib.auth.backends.ModelBackend\"]`):\n  used by the password login.\n- Google: dynamic settings (Constance, stored in the database, edited in the admin)\n  `BAZIS_G_AUTH_CLIENT_ID`, `BAZIS_G_AUTH_CLIENT_SECRET`, optional\n  `BAZIS_G_AUTH_REDIRECT_URI` (default `HOST_URL` + the path of `/google-auth-callback/`:\n  set `BS_HOST_URL`). Register that redirect URI in the Google OAuth client. The OAuth\n  client is built once per process: restart after changing these settings.\n\n## Flows\n\n1. `GET /auth/` without a session: HTTP 400 with an error `status: 401`,\n   `code: UNAUTHORIZED`, `meta.actions` (the login actions: `code`, `name`, `url`,\n   `method`) and `meta.token` (the store token, also set as the cookie\n   `BAZIS_AUTH_COOKIE_NAME`, default `bazis_auth`). Failed attempts of this store follow\n   as errors with `status: 422` (`USERNAME_PASSWORD_ERROR`, `GOOGLE_AUTH_ERROR`).\n2. Sign in with the store token (cookie, `Authorization: Bearer` or the query parameter\n   `BAZIS_AUTH_COOKIE_NAME`; missing or expired: 401):\n   - `POST /password/` JSON `{\"username\", \"password\"}`;\n   - Google in a browser: open `GET /google-auth-init/?bazis_auth=<store token>`; Google\n     returns to `/google-auth-callback/`;\n   - Google SDK (mobile): `POST /google-auth-verify/` JSON `{\"id_token\", \"access_token\"}`.\n   Each answers 303 to `/auth/?bazis_auth=<store token>` (and sets the cookie).\n3. `GET /auth/` with a signed-in store or a valid session token: 200\n   `{user_id, username, first_name, last_name, email, token, logout_actions}`; `token` is\n   the session JWT of bazis-users (with `auth_type`). Send it as `Authorization: Bearer`.\n- `POST /password/token/` (OAuth2 password form) returns\n  `{\"access_token\", \"token_type\": \"bearer\"}` directly, without the store.\n\n## Security properties\n\n- The store token is a JWT with only `sub` (a random key), no `exp`: bazis-users treats it\n  as anonymous on HTTP, bazis-ws rejects it; a session token is never accepted as a store\n  token. Until the store expires, `GET /auth/` with it returns a new session token: on\n  logout drop the store cookie as well as the session token.\n- Google: the ID token is verified (signature, issuer, audience, expiration) and identifies\n  the account; the email must have `email_verified: true`. The user is found by email\n  (case-insensitive) or created (`username` = Google `sub`, unusable password). An existing\n  user with that email, staff included, is signed in; to restrict accounts change\n  `google_get_user` (`bazis.contrib.authing.services.google.routes`).\n- Inactive users cannot sign in (`ModelBackend`, `google_get_user`, and `/auth/` loads only\n  active users from the store).\n- Never log tokens or Google profile data.\n\n## Own service\n\nA module listed in `BAZIS_AUTH_KINDS` with `AUTH_CODE`, `get_login_action()` (optional\n`get_logout_actions()`) and a router whose endpoint takes\n`auth_store: AuthStoreTokenRequired = Depends()`, calls\n`auth_store.login(user, request, AUTH_CODE)` (or `auth_store.set_error(code, detail)`) and\nreturns `auth_store.response_set_cookie(RedirectResponse(app.router.url_path_for('auth') +\nf'?{auth_store.as_param}', status_code=303))` (`app` from `bazis.core.app`), as\n`services/password/routes.py` does.\n"
+ },
+ {
+  "name": "bazis-permit",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-permit",
+    "summary": "permissions of users on objects, fields and relations, by roles",
+    "solves": [
+     "users see and change only their own or their organization's objects",
+     "roles and groups of permissions managed in the admin or the API",
+     "hide or protect fields per user",
+     "restrict which objects a relation may reference"
+    ],
+    "requires": [
+     "bazis",
+     "bazis-users"
+    ],
+    "pairs_well": [
+     "bazis-author",
+     "bazis-statusy"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "PermitRouteBase",
+     "import": "bazis.contrib.permit.routes_abstract.PermitRouteBase",
+     "use_when": "every route of a model protected by permissions"
+    },
+    {
+     "name": "PermitModelMixin",
+     "import": "bazis.contrib.permit.models_abstract.PermitModelMixin",
+     "use_when": "a model protected by permissions (selectors)"
+    },
+    {
+     "name": "UserPermitMixin",
+     "import": "bazis.contrib.permit.models_abstract.UserPermitMixin",
+     "use_when": "the user model: roles and the current role"
+    },
+    {
+     "name": "AnonymousUserPermitMixin",
+     "import": "bazis.contrib.permit.models_abstract.AnonymousUserPermitMixin",
+     "use_when": "the anonymous user model: the roles for anonymous users"
+    },
+    {
+     "name": "PermitSelectorMixin",
+     "import": "bazis.contrib.permit.models_abstract.PermitSelectorMixin",
+     "use_when": "a model that is a selector source: the user model (for `author`), an organization"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "BAZIS_PERMIT_RELATIONS_VIEW_CHECK is off by default: relations are not checked",
+     "check": "permit.W001"
+    },
+    {
+     "text": "a JSON:API route that does not inherit PermitRouteBase serves its model without permissions",
+     "check": "permit.W002"
+    },
+    {
+     "text": "QuerySet.update() and bulk_create() on roles, groups and permissions do not invalidate the permission cache"
+    }
+   ]
+  },
+  "agents_md": "# bazis-permit — guide for AI agents\n\nPermissions for Bazis routes: which objects a user sees and changes, which fields he sees\nand writes, which objects a relation may reference. Needs bazis-users. Use it for any API\nwhere users must not see or change everything.\n\n## Model of permissions\n\nUser → `roles` (one active: `role_current`) → `Role.groups_permission` →\n`GroupPermission.permissions` → `Permission` (a slug):\n\n```\n<app>.<model>.<level>.<operation>.<selector>[.<additional>]\nentity.document.item.view.org_owner            # documents of the user's organization\nentity.document.item.change.author             # documents the user is the author of\nentity.document.item.view.author=__selector__&is_active=true\nentity.document.field.view.all.description.enable\nentity.document.field.add.all.name.filter:^[A-Z]+$        # value must match\nentity.parent.field.change.all.children.filter:is_active=true  # relation may reference\n```\n\n- level `item` (objects) or `field` (fields of objects);\n- operations `add`, `view`, `change`, `delete`, `check` (verified on the saved item, after\n  triggers filled its selectors) and custom ones;\n- selector `all`, `author` (bazis-author) or a field linking the object to the user\n  (`org_owner`, through a `PermitSelectorMixin` model with `get_selector_for_user`).\n\nRoles for anonymous users: `Role(for_anonymous=True)`. Anonymous users never match a\nselector other than `all`.\n\n## Setup\n\n```python\nfrom bazis.contrib.permit.models_abstract import (\n    AnonymousUserPermitMixin, PermitModelMixin, PermitSelectorMixin, UserPermitMixin,\n)\nfrom bazis.contrib.permit.routes_abstract import PermitRouteBase\n\n# users/models.py: the user is the source of the `author` selector (PermitSelectorMixin),\n# the anonymous user gets the roles for anonymous users\nclass User(UserPermitMixin, PermitSelectorMixin, UuidMixin, UserAbstract, JsonApiMixin):\n    pass\n\nclass AnonymousUser(AnonymousUserPermitMixin, AnonymousUserAbstract):\n    pass\n\nclass Document(PermitModelMixin, AuthorMixin, DtMixin, UuidMixin, JsonApiMixin):\n    autogen_selectors_fields = ['author']    # selector fields with GIN indexes\n    ...\n\nclass DocumentRouteSet(PermitRouteBase):\n    model = apps.get_model('docs.Document')\n```\n\n- `BS_INSTALLED_APPS` includes `bazis.contrib.permit`; register `bazis.contrib.permit.router`\n  for the roles, groups and permissions API.\n- `PermitRouteBase` filters the querysets, hides fields, builds the schemas per user, checks\n  every CRUD action and the relationships endpoints, and adds the meta fields\n  `for_change`, `for_delete`, `for_create`, `crud_actions`.\n- Anonymous users can only read (create, update and delete are 403), within the roles\n  marked `for_anonymous`.\n- Selector fields are generated only for foreign keys to `PermitSelectorMixin` models\n  (the user, an organization...); `autogen_selectors_fields` lists them.\n- In custom actions check explicitly: `self.check_access(CrudAccessAction.VIEW, item)`.\n\n## Rules\n\n- Every route of a protected model inherits `PermitRouteBase` (`permit.W002` lists the\n  JSON:API routes that do not). A route of public data declares `permit_public = True`.\n- Enable `BS_BAZIS_PERMIT_RELATIONS_VIEW_CHECK=true` (`permit.W001`): otherwise an item can\n  reference objects the user cannot see, and a reverse relation can unlink objects the user\n  cannot change.\n- Permissions are cached per user for `BAZIS_PERMISSION_CACHE_EXPIRE` seconds and\n  invalidated when roles, groups or permissions change through the ORM (`save`, `delete`,\n  m2m); `QuerySet.update()` and `bulk_create()` do not invalidate the cache.\n"
+ },
+ {
+  "name": "bazis-statusy",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-statusy",
+    "summary": "statuses of objects and transitions between them, with validators, actions and permissions",
+    "solves": [
+     "a workflow of an object: statuses and the allowed transitions between them",
+     "validate an object and run actions on a status change",
+     "who may perform which transition from which status (bazis-permit)",
+     "the history of status changes"
+    ],
+    "requires": [
+     "bazis",
+     "bazis-users",
+     "bazis-permit"
+    ],
+    "pairs_well": [
+     "bazis-author",
+     "bazis-bulk"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "StatusyMixin",
+     "import": "bazis.contrib.statusy.models_abstract.StatusyMixin",
+     "use_when": "a model with a status and transitions"
+    },
+    {
+     "name": "StatusyChildMixin",
+     "import": "bazis.contrib.statusy.models_abstract.StatusyChildMixin",
+     "use_when": "a model whose status is the status of its parent (get_status_field)"
+    },
+    {
+     "name": "StatusyRouteSetBase",
+     "import": "bazis.contrib.statusy.routes_abstract.StatusyRouteSetBase",
+     "use_when": "every route of a StatusyMixin model: the transit endpoint and the permissions by status"
+    },
+    {
+     "name": "StatusySimpleRouteSetBase",
+     "import": "bazis.contrib.statusy.routes_abstract.StatusySimpleRouteSetBase",
+     "use_when": "the route of a StatusyChildMixin model"
+    },
+    {
+     "name": "transit_validator",
+     "import": "bazis.contrib.statusy.transit_validator",
+     "use_when": "a model method that checks a transit and raises TransitError"
+    },
+    {
+     "name": "transit_before",
+     "import": "bazis.contrib.statusy.transit_before",
+     "use_when": "a model method that runs before the status changes"
+    },
+    {
+     "name": "transit_after",
+     "import": "bazis.contrib.statusy.transit_after",
+     "use_when": "a model method that runs after the status changes"
+    },
+    {
+     "name": "TransitError",
+     "import": "bazis.contrib.statusy.TransitError",
+     "use_when": "the error a validator raises (422)"
+    },
+    {
+     "name": "StatusyAdminMixin",
+     "import": "bazis.contrib.statusy.admin_abstract.StatusyAdminMixin",
+     "use_when": "the admin of a StatusyMixin model: read-only status fields and the transit history"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "the CREATE schema accepts an initial `status`: restrict it with `add` permissions by status, or exclude it"
+    },
+    {
+     "text": "a route of a StatusyMixin model that does not inherit StatusyRouteSetBase has no transits and ignores the permissions by status",
+     "check": "statusy.W001"
+    },
+    {
+     "text": "validators are also called with payload_validate_none (to build state_actions)"
+    },
+    {
+     "text": "transit_apply() in code does not check the permissions of the user"
+    }
+   ]
+  },
+  "agents_md": "# bazis-statusy — guide for AI agents\n\nStatuses of objects and transitions between them (workflows): transitions (`Transit`) are\nconfigured per model as data, run validators and actions that are methods of the model, and\nare permissions of bazis-permit. Needs bazis-permit (and so bazis-users).\n\n## Setup\n\n```python\nfrom bazis.contrib.statusy import TransitError, transit_after, transit_before, transit_validator\nfrom bazis.contrib.statusy.models_abstract import StatusyMixin, StatusyTransit, TransitBase\nfrom bazis.contrib.statusy.routes_abstract import StatusyRouteSetBase\nfrom bazis.contrib.statusy.schemas import payload_validate_none\nfrom bazis.core.schemas import CrudApiAction, SchemaFields\n\nclass Order(StatusyMixin, DtMixin, UuidMixin, JsonApiMixin):\n    is_paid = models.BooleanField(default=False)\n\n    @transit_validator('Order is paid')            # the label shown in the admin\n    def validator_paid(self, transit: TransitBase, user, payload):\n        if not self.is_paid:\n            raise TransitError('The order is not paid')\n\n    @transit_before('Set the date')    # ClosePayload: a Pydantic model, the payload is required\n    def before_date(self, statusy_transit: StatusyTransit, payload: ClosePayload):\n        self.dt_closed = payload.dt_closed\n        self.save()\n\nclass OrderRouteSet(StatusyRouteSetBase):\n    model = apps.get_model('shop.Order')\n```\n\n- `BS_INSTALLED_APPS` includes `bazis.contrib.permit`, `bazis.contrib.statusy` and\n  `translated_fields`. Run `makemigrations`: `StatusyMixin` adds `status`, `status_dt`,\n  `status_author` and a history model `<Model>StatusyTransit` in the same app\n  (`item.statusy_transits`).\n- The initial status of new objects is `BAZIS_STATUS_INITIAL` (default `[\"draft\", \"Draft\"]`,\n  `BS_BAZIS_STATUS_INITIAL='[\"new\", \"New\"]'`); its `Status` row is created on first use.\n- Statuses and transitions are data (`bazis.contrib.statusy.models`): create `Status`\n  (string `id`) and `Transit` (`id`, `model` =\n  `StatusyContentType.objects.get_for_model(Order)`, `status_src`, `status_dst`, lists of\n  method names `validators`, `actions_before`, `actions_after`) in code or in the admin\n  (Statusy > Status models: the transitions inline offers the decorated methods).\n- Optionally `router.register('bazis.contrib.statusy.router')` (read-only statuses, transits).\n\n## API of a StatusyRouteSetBase route\n\n- `POST /{item_id}/transit/` with `{\"transit\": \"<transit id>\", \"payload\": {...}}`: 200 with\n  the item (204 if the user can no longer view it); 403 if the user has no permission for\n  the transit or it does not start from the current status; 400 without a required\n  payload; 422 with the errors of the payload and the validators.\n- `GET /{item_id}/schema_transit/`: the schema the object must satisfy before a transit with\n  `is_schema_validate` (default true).\n- Meta: `state_actions` (retrieve: allowed transits, their body and `restricts` = the\n  validator errors), `status_aggs` and `status_allowed` (list).\n\n**Permissions.** On a statusy model the item permissions take the status of the object after the selector\n(`all` or a status id); a transit is the operation `transit` with the transit id last:\n\n```\nshop.order.item.view.all.all\nshop.order.item.change.author.draft              # change only in `draft`\nshop.order.item.transit.author.draft.to_paid     # transit `to_paid` from `draft`\n```\n\n## Rules\n\n- The status changes only through `POST /{item_id}/transit/`: the UPDATE schema of\n  `StatusyRouteSetBase` has no `status` (a `PATCH` with it is ignored), and neither schema\n  has `status_author`. The CREATE schema accepts an initial `status`\n  (`BAZIS_STATUS_INITIAL` if omitted): restrict it with `add` permissions by status, or\n  exclude it (`CrudApiAction.CREATE: SchemaFields(exclude={'status': None})`).\n- Every JSON:API route that changes a statusy model inherits `StatusyRouteSetBase` (`statusy.W001`);\n  the routes of `StatusyChildMixin` models inherit `StatusySimpleRouteSetBase`.\n- Validators are also called with `payload is payload_validate_none` (to build\n  `state_actions`): check it before reading the payload.\n- Decorated methods are defined directly in a model class (or its mixin); `Transit` lists\n  their method names. A transit runs in a transaction.\n- A child object whose status is the parent's: `StatusyChildMixin` with\n  `get_status_field()` returning the path (`'order__status_id'`); list its route in\n  `routes_child` of the parent route to validate the children with it on a transit.\n- `item.transit_apply(transit, user, payload)` in code validates but does not check\n  permissions; `@transit_link` returns it bound to the transit whose `source_link` is the\n  method.\n"
+ },
+ {
+  "name": "bazis-bg",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-bg",
+    "summary": "background tasks in PostgreSQL with a scheduler, periodic tasks and xlsx exports and imports",
+    "solves": [
+     "run long work outside the request (delay) with progress, logs, result and interruption",
+     "periodic tasks by interval or cron expression",
+     "limit the parallel tasks of a kind and make tasks wait for others",
+     "export querysets to xlsx and import xlsx files in the background"
+    ],
+    "requires": [
+     "bazis",
+     "bazis-users",
+     "bazis-author"
+    ],
+    "pairs_well": []
+   },
+   "extension_points": [
+    {
+     "name": "BgBase",
+     "import": "bazis.contrib.bg.basic.base.BgBase",
+     "use_when": "a background task: handle(), queued with delay()"
+    },
+    {
+     "name": "BgBaseDownloadModel",
+     "import": "bazis.contrib.bg.basic.base_download_model.BgBaseDownloadModel",
+     "use_when": "export the objects of a model to xlsx (model, fields_read)"
+    },
+    {
+     "name": "BgBaseDownload",
+     "import": "bazis.contrib.bg.basic.base_download.BgBaseDownload",
+     "use_when": "export any rows to xlsx (get_queryset, get_count, get_titles)"
+    },
+    {
+     "name": "BgBaseLoad",
+     "import": "bazis.contrib.bg.basic.base_load.BgBaseLoad",
+     "use_when": "import the rows of an xlsx or zip file given as delay(fp=...) (load(reader))"
+    },
+    {
+     "name": "LoadDownloadAdminMixin",
+     "import": "bazis.contrib.bg.admin_abstract.LoadDownloadAdminMixin",
+     "use_when": "admin actions that start export, import or other tasks"
+    },
+    {
+     "name": "TaskCron",
+     "import": "bazis.contrib.bg.models.TaskCron",
+     "use_when": "a periodic task (period in seconds or a cron expression in UTC)"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "tasks run only while `manage.py bg_scheduler` runs (from the directory of manage.py)"
+    },
+    {
+     "text": "with is_transaction, next_phase, progress syncs and set_result commit the work done so far"
+    },
+    {
+     "text": "the scheduler deletes waiting tasks whose class path no longer imports"
+    },
+    {
+     "text": "a task class without `name` cannot be queued and is not listed in the admin"
+    }
+   ]
+  },
+  "agents_md": "# bazis-bg — guide for AI agents\n\nBackground tasks stored in PostgreSQL (no broker): a task class is queued with `delay()`\nas a `Task` row, the `bg_scheduler` process starts handler processes that run the tasks,\nschedules periodic tasks (`TaskCron`) and enforces the limits of each class. Also bases for\nxlsx exports and imports. Needs bazis-author (tasks have an `author`).\n\n## Setup\n\n- `BS_INSTALLED_APPS` includes `bazis.contrib.bg`; `python manage.py migrate`.\n- Put the task classes in `<app>/bg/*.py`: every module of the `bg` package of an installed\n  app is imported at startup.\n- Run one `python manage.py bg_scheduler` in the directory of `manage.py`: it starts\n  `manage.py bg_handler --host 127.0.0.1 --port <port>` processes to keep\n  `BAZIS_TASK_HANDLERS_LOCAL` (5) registered handlers, on free ports from\n  `BAZIS_TASK_HANDLER_PORT` (49100), and serves `/healthcheck` on\n  `BAZIS_TASK_SCHEDULER_PORT` (49001). A handler runs one task at a time and exits after\n  2–4 hours (the scheduler starts another). Without the scheduler, tasks stay `waiting`.\n- `python manage.py bg_task --task_id <id>` runs one task in the current process (tests,\n  debugging).\n- Files of tasks: `BS_BAZIS_STORAGE_BG` (import path of a storage class; default the file\n  system storage in `MEDIA_ROOT`), in the folder `BAZIS_TASK_FOLDER` (`bg`).\n\n## Tasks\n\n```python\nfrom bazis.contrib.bg.basic.base import BgBase\n\nclass Recalc(BgBase):\n    name = 'Recalculate prices'     # required (the admin lists only named classes)\n    parallel = 1                    # at most N running tasks of this class\n    blocked = ['shop.bg.tasks.Import']   # wait while these classes (module.Class) run\n\n    def __init__(self, category_id):    # the args/kwargs of delay()\n        self.category_id = category_id\n\n    def handle(self):\n        qs = Product.objects.filter(category_id=self.category_id)\n        self.next_phase('Prices', expected=qs.count())\n        for product in qs:\n            ...\n            self.progress()          # saved to the task every 3 s; checks the interruption\n        self.set_result({'count': qs.count()})\n\ntask = Recalc.delay(category_id, author=user)   # -> Task (state `waiting`)\n```\n\n- `delay()` arguments are stored as JSON. Reserved keyword arguments: `name`, `fp` (a file\n  saved to `task.file`), `author`, `envs` (stored, not applied).\n- States: `waiting` → `starting` → `running` → `done`; `task.is_success`, `is_error`\n  (`error` holds the traceback), `is_interrupt`; `phase`, `log`, `result`, `file`.\n- Hooks: `pre_handle`, `post_handle`, `excepting` (error), `interrupting`, `finishing`\n  (always). The admin \"Interrupt\" button sets `interrupt`; the task stops at its next\n  `progress` sync, `next_phase`, `flush` or `set_result`.\n- `is_transaction = True` (default) runs the task with autocommit off, but every\n  `next_phase`, `flush`, `set_result` (and synced `progress`) commits the work done so far;\n  an error rolls back only since the last commit.\n- Exports: `BgBaseDownloadModel` (`model`, `fields_read`; all objects, override\n  `get_queryset`) or `BgBaseDownload` (`fields_read`, `get_queryset`, `get_count`,\n  `get_titles`, `file_name`) write xlsx to `task.file` (a zip above `limit_rows_split`\n  rows). Imports: `BgBaseLoad` reads the `.xlsx` (or `.zip` of them) given as `delay(fp=...)` and passes\n  the rows as dicts keyed by `fields_read` to `load(reader)`; `skip_titles = True` skips\n  the header row.\n- Admin: `LoadDownloadAdminMixin` with `tasks_download`, `tasks_load`, `tasks_handler`\n  (task classes, in the admin class body) adds actions that start them without arguments\n  (`tasks_load` with the uploaded file).\n\n## Periodic tasks and cleanup\n\n- `TaskCron(name, cls_path, args, kwargs, period, is_enable)` in the admin or in code:\n  `period` is seconds after the previous run finished (`\"3600\"`) or a cron expression in\n  UTC (`\"0 3 * * *\"`); an invalid one is written to its `error`. Setting `dt_run` runs it\n  at that time.\n- `python manage.py cleanup_init` creates the cleanup cron task: it deletes the tasks (and\n  their files) not updated for `BAZIS_TASK_LIFETIME` (manual) or `BAZIS_TASK_CRON_LIFETIME`\n  (periodic) seconds; its period is `BAZIS_TASK_CRON_CLEANUP` when the command runs. These\n  three settings are dynamic (edited in the admin).\n\n## Rules\n\n- The task route of `bazis.contrib.bg.router` requires authentication and shows a user only\n  the tasks whose `author` he is (staff see all): tasks hold arguments, logs and files.\n  The author is set by `delay(author=user)` or, inside the API routes, from the current\n  user; tasks queued elsewhere (admin, scheduler, scripts) have no author and only staff\n  see them. Keep custom task routes as restrictive.\n- A task class is found by its path (`module.Class`): the scheduler deletes waiting tasks\n  whose class does not import, so keep the path when tasks may be queued.\n- A task with the same arguments as a running task of its class waits for it.\n- A handler runs many tasks in one process: release what a task attaches to global state\n  (loggers, settings, connections).\n"
+ },
+ {
+  "name": "bazis-async-background",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-async-background",
+    "summary": "background tasks over Kafka with statuses in Redis pushed over WebSocket",
+    "solves": [
+     "run long tasks outside the HTTP request and return a task id (202)",
+     "notify the client of the task status over WebSocket",
+     "let the client fetch the result of its task"
+    ],
+    "requires": [
+     "bazis",
+     "bazis-ws"
+    ],
+    "pairs_well": [
+     "bazis-async-request",
+     "bazis-users"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "enqueue_task_async",
+     "import": "bazis.contrib.async_background.producer.enqueue_task_async",
+     "use_when": "queue a task from an endpoint"
+    },
+    {
+     "name": "resolve_channel_name_async",
+     "import": "bazis.contrib.async_background.utils.resolve_channel_name_async",
+     "use_when": "the WS channel (and owner of the results) of the client of a request"
+    },
+    {
+     "name": "get_broker_for_consumer",
+     "import": "bazis.contrib.async_background.broker.get_broker_for_consumer",
+     "use_when": "register a task subscriber in a module listed in KAFKA_TASKS"
+    },
+    {
+     "name": "subscriber_kwargs",
+     "import": "bazis.contrib.async_background.broker.subscriber_kwargs",
+     "use_when": "the arguments of every subscriber(...), from the KAFKA_* settings"
+    },
+    {
+     "name": "KafkaTask",
+     "import": "bazis.contrib.async_background.schemas.KafkaTask",
+     "use_when": "the message type of a subscriber: KafkaTask[MyPayload]"
+    },
+    {
+     "name": "set_and_publish_status_async",
+     "import": "bazis.contrib.async_background.utils.set_and_publish_status_async",
+     "use_when": "store a task status (and result) and notify the client"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "consumers must be run (kafka_consumer_single / kafka_consumer_multiple) and import the task modules from KAFKA_TASKS"
+    },
+    {
+     "text": "a task that raises stays `processing`: set TaskStatus.FAILED yourself"
+    },
+    {
+     "text": "with BS_BAZIS_APPS set but not listing bazis.contrib.async_background, the KAFKA_* settings are missing"
+    },
+    {
+     "text": "a channel name taken from client input exposes the results of other clients: use resolve_channel_name_async"
+    },
+    {
+     "text": "without KAFKA_GROUP_ID every consumer receives every task and offsets are not committed"
+    }
+   ]
+  },
+  "agents_md": "# bazis-async-background — guide for AI agents\n\nBackground tasks over Kafka (FastStream) for Bazis. An endpoint queues a task with\n`enqueue_task_async` and returns its id; consumer processes run the task; the statuses are\nstored in Redis and pushed to the WebSocket channel of the client (bazis-ws); the client\nreads the result at `GET <router prefix>/async_background_response/{task_id}/`\n(`/api/v1/...` with `BazisRouter(prefix='/api/v1')`).\n\n## Setup\n\n```bash\nBS_INSTALLED_APPS='[\"bazis.contrib.async_background\", ...]'\nBS_KAFKA_BOOTSTRAP_SERVERS=kafka1:9092,kafka2:9092\nBS_KAFKA_TOPIC_ASYNC_BG=myproject_async_background\nBS_KAFKA_GROUP_ID=myproject\nBS_KAFKA_TASKS='[\"myapp.tasks\"]'        # modules the consumer imports\n```\n\n- Services: Kafka, and Redis as `BS_CACHES__DEFAULT__LOCATION` (statuses and pub/sub).\n- If `BS_BAZIS_APPS` (or `BS_BAZIS_CONFIG_APPS`) is set, list\n  `bazis.contrib.async_background` there, or its `KAFKA_*` settings do not exist.\n- Register the result route: `router.register('bazis.contrib.async_background.router')`.\n- Run consumers with the same settings as the API, from the directory of `manage.py`:\n  `python manage.py kafka_consumer_single` (one process, e.g. per pod) or\n  `python manage.py kafka_consumer_multiple --consumers-count=N` (default 15;\n  `--restart-delay-sec` default 1.0, `--max-restarts` default unlimited). Without\n  `KAFKA_BOOTSTRAP_SERVERS` and `KAFKA_TOPIC_ASYNC_BG` the consumer exits with an error.\n  With `KAFKA_CONSUMER_LIFETIME_SEC` (+ `_JITTER_SEC`) a consumer exits after its lifetime;\n  `kafka_consumer_multiple` starts a new one.\n\n## Queue a task\n\n```python\nfrom django.conf import settings\nfrom fastapi import Request\nfrom bazis.contrib.async_background.producer import enqueue_task_async\nfrom bazis.contrib.async_background.utils import ChannelNameError, resolve_channel_name_async\nfrom bazis.core.errors import JsonApi401Exception\n\n@router.post('/report/', status_code=202)\nasync def report(request: Request, payload: ReportPayload) -> dict:   # pydantic model\n    try:\n        channel_name = await resolve_channel_name_async(request)\n    except ChannelNameError as err:\n        raise JsonApi401Exception from err\n    task = await enqueue_task_async(topic_name=settings.KAFKA_TOPIC_ASYNC_BG,\n                                    channel_name=channel_name, payload=payload)\n    return {'data': None, 'meta': {'task_id': task.task_id}}\n```\n\n`resolve_channel_name_async` reads `Authorization: Bearer <token>`: a session JWT gives the\nuser channel, any other token the anonymous channel of bazis-ws. Tasks with the same\n`partition_marker` (the Kafka key) go to the same partition.\n\n## Run a task (a module listed in `KAFKA_TASKS`)\n\n```python\nfrom django.conf import settings\nfrom bazis.contrib.async_background.broker import get_broker_for_consumer, subscriber_kwargs\nfrom bazis.contrib.async_background.schemas import KafkaTask, TaskStatus\nfrom bazis.contrib.async_background.utils import set_and_publish_status_async\n\n@get_broker_for_consumer().subscriber(settings.KAFKA_TOPIC_ASYNC_BG, **subscriber_kwargs())\nasync def run_report(task: KafkaTask[ReportPayload]):\n    await set_and_publish_status_async(task_id=task.task_id, channel_name=task.channel_name,\n                                       status=TaskStatus.PROCESSING)\n    ...\n    await set_and_publish_status_async(task_id=task.task_id, channel_name=task.channel_name,\n                                       status=TaskStatus.COMPLETED, response={...})\n```\n\n## Results\n\n- Statuses: `pending` (set before publishing), `processing`, `completed`, `failed`.\n  Stored under `async_bg:task:<task_id>` for `KAFKA_RESPONSE_HOLD_SEC` (default 86400).\n- The WS channel receives `{\"status\", \"task_id\", \"action\": \"async_bg\"}`, not the result.\n- `GET /async_background_response/{task_id}/` needs the same token as the request that\n  queued the task: no or invalid token 401, another channel 403, unknown task 404. It returns\n  `response`, or `{\"status\": \"not ready\"}`; `?full_response=true` returns the stored status.\n\n## Rules\n\n- Set `KAFKA_GROUP_ID`: without a consumer group offsets are not committed and every\n  consumer receives every task.\n- Get the channel only from `resolve_channel_name_async`: it owns the results.\n- A task sets its final status itself: on an exception, set `TaskStatus.FAILED` with a\n  generic error, or the task stays `processing`. Do not store exception texts.\n- Always pass `**subscriber_kwargs()` to `subscriber(...)`. With the default\n  `KAFKA_ACK_POLICY=ack` a failed message is not redelivered; `nack_on_error` redelivers it\n  and blocks its partition. `KAFKA_ENABLE_AUTO_COMMIT=true` can lose messages.\n"
+ },
+ {
+  "name": "bazis-async-request",
+  "version": "2.4.0",
+  "manifest": {
+   "package": {
+    "name": "bazis-async-request",
+    "summary": "run any HTTP request of the API in the background through Kafka (X-Async-Background)",
+    "solves": [
+     "move slow requests or bulk changes to the background without new endpoints",
+     "restrict an endpoint to requests executed in the background"
+    ],
+    "requires": [
+     "bazis",
+     "bazis-async-background"
+    ],
+    "pairs_well": [
+     "bazis-users",
+     "bazis-permit"
+    ]
+   },
+   "extension_points": [
+    {
+     "name": "AsyncRequestMiddleware",
+     "import": "bazis.contrib.async_request.middleware.AsyncRequestMiddleware",
+     "use_when": "add to the application: app.add_middleware(AsyncRequestMiddleware)"
+    },
+    {
+     "name": "require_async",
+     "import": "bazis.contrib.async_request.utils.require_async",
+     "use_when": "a dependency that allows an endpoint only for background requests (409 otherwise)"
+    },
+    {
+     "name": "is_internal_request",
+     "import": "bazis.contrib.async_request.utils.is_internal_request",
+     "use_when": "whether a request (ASGI scope) is executed by the consumer"
+    },
+    {
+     "name": "consumer_async_requests",
+     "import": "bazis.contrib.async_request.tasks.consumer_async_requests",
+     "use_when": "the consumer of the requests: list bazis.contrib.async_request.tasks in KAFKA_TASKS"
+    }
+   ],
+   "pitfalls": [
+    {
+     "text": "without Kafka settings the requests with X-Async-Background are executed synchronously",
+     "check": "async_request.W001"
+    },
+    {
+     "text": "without the route of bazis.contrib.async_background.router the middleware fails on every HTTP request",
+     "check": "async_request.E001"
+    },
+    {
+     "text": "the middleware is not added automatically: app.add_middleware(AsyncRequestMiddleware)"
+    },
+    {
+     "text": "a header must never mark a request as internal: use is_internal_request(scope)"
+    },
+    {
+     "text": "only JSON bodies are queued: multipart, form and binary bodies are replayed as {}"
+    },
+    {
+     "text": "a dependency in an inject_make class without a type annotation is ignored"
+    }
+   ]
+  },
+  "agents_md": "# bazis-async-request — guide for AI agents\n\nRuns any HTTP request of a Bazis API in the background: a request with the header\n`X-Async-Background` is queued in Kafka (bazis-async-background) and answered 202; a\nconsumer replays it through the ASGI application and stores the response for\n`GET /async_background_response/{task_id}/`. Use it for slow endpoints and bulk changes.\n\n## Setup\n\n```bash\nBS_INSTALLED_APPS='[..., \"bazis.contrib.async_request\", \"bazis.contrib.async_background\"]'\nBS_KAFKA_TASKS='[\"bazis.contrib.async_request.tasks\"]'   # the consumer of the requests\nBS_KAFKA_BOOTSTRAP_SERVERS=kafka:9092\nBS_KAFKA_TOPIC_ASYNC_BG=myproject_async_request\nBS_KAFKA_GROUP_ID=myproject\n```\n\n```python\n# the main module of the application (as sample/sample/main.py)\nfrom bazis.contrib.async_request.middleware import AsyncRequestMiddleware\nfrom bazis.core.app import app\n\napp.add_middleware(AsyncRequestMiddleware)      # not added automatically\n\n# the root router\nrouter.register('bazis.contrib.async_background.router')    # async_request.E001\n```\n\n- Services and consumers as in bazis-async-background: Kafka, Redis, and\n  `python manage.py kafka_consumer_single` (or `kafka_consumer_multiple`) with the same\n  settings and database as the API.\n- Without Kafka settings the middleware executes these requests synchronously and only\n  logs a warning (`async_request.W001`).\n\n## Client\n\n- Send the request as usual plus `X-Async-Background: true` (the header's presence is\n  enough) and `Authorization: Bearer <token>`: a session JWT, or an anonymous token of\n  bazis-ws (16–128 characters `A-Z a-z 0-9 _ -`). Without a valid token: 401. The request\n  is replayed with the same header: routes that read the user (bazis-users, permit, author)\n  answer 401 to an anonymous token, so use it only for routes that do not.\n- Answer: 202 `{\"data\": null, \"meta\": {\"async_request_id\": <id>, \"async_background_id\": <id>}}`\n  (the same task id). Status updates arrive on the WebSocket channel of the token.\n- Result: `GET .../async_background_response/{task_id}/` with the same token returns\n  `{\"task_id\", \"endpoint\", \"status\", \"headers\", \"response\"}` of the replayed request\n  (an HTTP error is a `completed` task with its status); `{\"status\": \"not ready\"}` before.\n\n## Endpoints only for background requests\n\n```python\nfrom fastapi import Depends\nfrom bazis.contrib.async_request.utils import require_async\n\n@router.post('/reports/generate/', dependencies=[Depends(require_async)])\nasync def generate_report(...): ...\n\nclass ShopRouteSet(JsonapiRouteBase):\n    @inject_make(CrudApiAction.UPDATE)          # bazis.core.routes_abstract.initial\n    class InjectRequireAsync:\n        async_request: None = Depends(require_async)   # the annotation is required\n```\n\nA direct request to such an endpoint is 409.\n\n## Rules\n\n- Recognize the requests of the consumer only with `is_internal_request(scope)`\n  (`SCOPE_INTERNAL_KEY` in the ASGI scope, which clients cannot set). Never trust a\n  header: `X-Async-Background-Internal` is ignored.\n- Only JSON bodies (an object or a list of objects) are queued: another body (multipart,\n  form, binary) is replayed as `{}`.\n- The queued request keeps all headers, `Authorization` included, in the Kafka topic; it\n  runs with the client's token, so the token must still be valid when the consumer runs it.\n- Requests with the same `data.id` in the body go to the same Kafka partition.\n- WebSocket requests and the results route are never queued.\n"
+ }
+]
