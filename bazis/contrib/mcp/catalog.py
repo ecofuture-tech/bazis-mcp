@@ -39,14 +39,17 @@ def catalog() -> dict[str, dict]:
 
 def packages() -> dict[str, dict]:
     """
-    All known packages by name. An installed package is described by its own files,
-    a package that is not installed by the catalog.
+    All known packages by name. The guide (manifest and AGENTS.md) of an installed package
+    comes from its files; a package that is not installed, or installed in a version
+    without a guide (before 2.4), is described by the catalog. `guide_version` is the
+    version the guide describes.
     """
     result = {
         name: {
             'name': name,
             'installed_version': None,
             'catalog_version': entry['version'],
+            'guide_version': entry['version'],
             'manifest': entry['manifest'],
             'agents_md': entry['agents_md'],
         }
@@ -54,14 +57,16 @@ def packages() -> dict[str, dict]:
     }
     for installed in introspect.packages():
         name = installed['name']
-        agents_md = installed['agents_md']
-        result[name] = {
-            'name': name,
-            'installed_version': installed['version'],
-            'catalog_version': result.get(name, {}).get('catalog_version'),
-            'manifest': installed['manifest'],
-            'agents_md': Path(agents_md).read_text(encoding='utf-8') if agents_md else None,
-        }
+        package = result.setdefault(
+            name,
+            {'name': name, 'catalog_version': None, 'guide_version': None,
+             'manifest': None, 'agents_md': None},
+        )
+        package['installed_version'] = installed['version']
+        if installed['manifest'] and installed['agents_md']:
+            package['guide_version'] = installed['version']
+            package['manifest'] = installed['manifest']
+            package['agents_md'] = Path(installed['agents_md']).read_text(encoding='utf-8')
     return result
 
 
@@ -74,6 +79,7 @@ def summary(package: dict) -> dict:
         'name': package['name'],
         'installed_version': package['installed_version'],
         'catalog_version': package['catalog_version'],
+        'guide_version': package['guide_version'],
         'summary': info.get('summary'),
         'solves': info.get('solves', []),
         'requires': info.get('requires', []),

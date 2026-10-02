@@ -21,22 +21,25 @@ Install it as a development dependency of the project:
 pip install bazis-mcp
 ```
 
-Register the server for the MCP client; it runs in the directory of `manage.py`:
+Register the server for the MCP client with the directory of `manage.py` (MCP clients
+start servers in their own working directory, usually the repository root):
 
 ```bash
-# Claude Code
-claude mcp add bazis -- .venv/bin/bazis-mcp
+# Claude Code, run in the repository root
+claude mcp add bazis -- .venv/bin/bazis-mcp --project-dir app
 ```
 
-or in `.mcp.json` of the project:
+or in `.mcp.json` of the repository:
 
 ```json
 {
   "mcpServers": {
-    "bazis": {"command": ".venv/bin/bazis-mcp", "args": []}
+    "bazis": {"command": ".venv/bin/bazis-mcp", "args": ["--project-dir", "app"]}
   }
 }
 ```
+
+(`app` is the directory of `manage.py`; leave `--project-dir` out if it is the root.)
 
 `bazis-mcp [--project-dir DIR] [--settings MODULE]`:
 
@@ -57,7 +60,7 @@ error.
 
 | Tool | Returns |
 |---|---|
-| `list_packages` | Every Bazis package: `summary`, `solves`, `requires`, `pairs_well`, `installed_version`, `catalog_version` |
+| `list_packages` | Every Bazis package: `summary`, `solves`, `requires`, `pairs_well`, `installed_version`, `catalog_version`, `guide_version` |
 | `package_guide(name)` | The `AGENTS.md` and the manifest of a package (`bazis` for the core) |
 | `project_info(sections)` | `packages`, `settings`, `models`, `routes` of the project |
 | `run_doctor(deploy)` | The messages of the system checks; `ok` is false if there is an error |
@@ -67,5 +70,11 @@ and make the checks pass) and `audit_project` (review the project against the gu
 checks of its packages).
 
 An installed package is described by its installed files. The packages that are not
-installed come from `catalog.json`, a snapshot of the latest releases taken at the release
-of bazis-mcp.
+installed, and those installed in a version without a guide (before 2.4), come from
+`catalog.json`, a snapshot of the latest releases taken at the release of bazis-mcp;
+`guide_version` is the version the guide describes.
+
+The settings are shown with the secrets hidden by `bazis.core.introspect` (by the names
+of the settings and keys, the passwords of URLs and the credentials of `Authorization`
+values). The tool results go to the model of the MCP client: review what the project keeps
+in its settings before connecting it.

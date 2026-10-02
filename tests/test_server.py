@@ -59,6 +59,7 @@ async def test_list_packages(client):
     permit = packages['bazis-permit']
     assert permit['installed_version'] is None
     assert permit['catalog_version'] == catalog.catalog()['bazis-permit']['version']
+    assert permit['guide_version'] == permit['catalog_version']
     assert 'bazis-users' in permit['requires']
     assert permit['solves']
 
@@ -81,6 +82,19 @@ async def test_package_guide_of_an_installed_package_is_read_from_it(client):
     assert guide['installed_version'] == metadata.version('bazis')
     assert guide['agents_md'] == installed
     assert guide['manifest']['package']['name'] == 'bazis'
+
+
+async def test_package_guide_of_a_package_installed_without_a_guide(client, monkeypatch):
+    # bazis-permit before 2.4 ships no AGENTS.md and no manifest: the catalog describes it
+    old = {'name': 'bazis-permit', 'version': '2.3.1', 'module': 'bazis.contrib.permit',
+           'manifest': None, 'agents_md': None}
+    monkeypatch.setattr(catalog.introspect, 'packages', lambda: [old])
+
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis-permit'}))
+
+    assert guide['installed_version'] == '2.3.1'
+    assert guide['guide_version'] == catalog.catalog()['bazis-permit']['version']
+    assert guide['agents_md'] == catalog.catalog()['bazis-permit']['agents_md']
 
 
 async def test_package_guide_of_an_unknown_package(client):
@@ -123,13 +137,38 @@ async def test_run_doctor(client):
 async def test_project_tools_report_a_project_that_cannot_load(client, monkeypatch):
     monkeypatch.setattr(project, '_setup_error', 'The settings x cannot be loaded: boom')
 
-    for name in ('project_info', 'run_doctor'):
-        call_result = await client.call_tool(name, {})
+    for name, args in [
+        ('project_info', {}), ('project_info', {'sections': ['models']}), ('run_doctor', {})
+    ]:
+        call_result = await client.call_tool(name, args)
         assert call_result.is_error
         assert 'boom' in call_result.content[0].text
 
-    # the catalog works without the project
+    # the catalog and the installed packages work without the project
     assert result(await client.call_tool('list_packages', {}))
+    info = result(await client.call_tool('project_info', {'sections': ['packages']}))
+    assert 'bazis' in {it['name'] for it in info['packages']}
+
+
+@pytest.fixture
+def isolated_setup(monkeypatch, tmp_path):
+    # setup() changes the working directory, sys.path and the module state
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, 'path', list(sys.path))
+    monkeypatch.setattr(project, '_setup_error', None)
+    monkeypatch.delenv('DJANGO_SETTINGS_MODULE', raising=False)
+
+
+@pytest.mark.usefixtures('isolated_setup')
+@pytest.mark.parametrize('case', ['no manage.py', 'no directory'])
+def test_setup_errors_are_kept(tmp_path, case):
+    project_dir = tmp_path / 'missing' if case == 'no directory' else tmp_path
+
+    project.setup(project_dir)
+
+    assert project._setup_error
+    with pytest.raises(project.ProjectError):
+        project.require_settings()
 
 
 async def test_agents_md_resource(client):
@@ -162,8 +201,7 @@ def test_find_settings(tmp_path, monkeypatch):
 
 async def test_stdio_server():
     """
-    The command `bazis-mcp` serves the project in its directory over stdio: whatever the
-    project prints while loading must not break the protocol.
+    The command `bazis-mcp` serves the project in its directory over stdio.
     """
     env = {key: value for key, value in os.environ.items() if key != 'DJANGO_SETTINGS_MODULE'}
     params = StdioServerParameters(
@@ -180,18 +218,42 @@ async def test_stdio_server():
     assert 'shop.Product' in {it['model'] for it in info['models']}
 
 
-def test_main_keeps_stdout_for_the_protocol(monkeypatch, capsys, tmp_path):
+async def test_stdio_server_with_settings_that_fail():
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=['-m', 'bazis.contrib.mcp.server', '--project-dir', str(SAMPLE_DIR),
+              '--settings', 'missing.settings'],
+        env={key: value for key, value in os.environ.items() if key != 'DJANGO_SETTINGS_MODULE'},
+    )
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+        doctor = await session.call_tool('run_doctor', {})
+        packages = result(await session.call_tool('list_packages', {}))
+
+    assert doctor.is_error
+    assert 'missing.settings' in doctor.content[0].text
+    assert packages['packages']
+
+
+def test_main_keeps_stdout_for_the_protocol(monkeypatch, capfd, tmp_path):
     from bazis.contrib.mcp import server as server_module
 
+    def setup(*args):
+        print('loading the project')
+        os.write(1, b'written to the file descriptor\n')
+        calls.append(args)
+
     calls = []
-    monkeypatch.setattr(
-        project, 'setup', lambda *args: (print('loading the project'), calls.append(args))
-    )
+    monkeypatch.setattr(project, 'setup', setup)
     monkeypatch.setattr(server_module.server, 'run', lambda: calls.append('run'))
 
     server_module.main(['--project-dir', str(tmp_path), '--settings', 'myproject.settings'])
 
     assert calls == [(tmp_path.resolve(), 'myproject.settings'), 'run']
-    captured = capsys.readouterr()
+    captured = capfd.readouterr()
     assert captured.out == ''
     assert 'loading the project' in captured.err
+    assert 'written to the file descriptor' in captured.err
+    # stdout is restored for the protocol
+    print('after')
+    assert capfd.readouterr().out == 'after\n'

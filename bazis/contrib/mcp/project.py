@@ -44,7 +44,7 @@ def find_settings(project_dir: Path) -> str | None:
     if module := os.environ.get('DJANGO_SETTINGS_MODULE'):
         return module
     manage = project_dir / 'manage.py'
-    if manage.is_file() and (match := SETTINGS_RE.search(manage.read_text(encoding='utf-8'))):
+    if manage.is_file() and (match := SETTINGS_RE.search(manage.read_text(encoding='utf-8', errors='replace'))):
         return match.group(1)
     return None
 
@@ -56,22 +56,29 @@ def setup(project_dir: Path, settings_module: str | None = None) -> None:
     """
     global _setup_error
 
+    try:
+        _setup_error = _setup(project_dir, settings_module)
+    except (Exception, SystemExit) as err:
+        _setup_error = f'The project in {project_dir} cannot be loaded: {err!r}'
+
+
+def _setup(project_dir: Path, settings_module: str | None) -> str | None:
     import django
 
     os.chdir(project_dir)
     sys.path.insert(0, str(project_dir))
     settings_module = settings_module or find_settings(project_dir)
     if not settings_module:
-        _setup_error = (
+        return (
             f'No settings module: {project_dir} has no manage.py that sets '
-            'DJANGO_SETTINGS_MODULE. Pass --settings or set DJANGO_SETTINGS_MODULE.'
+            'DJANGO_SETTINGS_MODULE. Pass --project-dir, --settings or set DJANGO_SETTINGS_MODULE.'
         )
-        return
     os.environ['DJANGO_SETTINGS_MODULE'] = settings_module
     try:
         django.setup()
-    except Exception as err:
-        _setup_error = f'The settings {settings_module} cannot be loaded: {err!r}'
+    except (Exception, SystemExit) as err:
+        return f'The settings {settings_module} cannot be loaded: {err!r}'
+    return None
 
 
 def require_settings() -> None:
@@ -90,17 +97,30 @@ def load_app():
     require_settings()
     try:
         from bazis.core.app import app
-    except Exception as err:
+    except (Exception, SystemExit) as err:
         raise ProjectError(f'The application cannot be loaded: {err!r}') from err
     return app
 
 
 def info(sections: list[str] | None = None) -> dict:
+    """
+    The requested sections of `bazis.core.introspect.project_info` (default: all). The
+    packages need neither the settings nor the application, the routes need the application.
+    """
     from bazis.core import introspect
 
-    data = introspect.project_info(load_app())
-    if sections:
-        data = {key: value for key, value in data.items() if key in sections}
+    sections = sections or ['packages', 'settings', 'models', 'routes']
+    data = {}
+    if 'packages' in sections:
+        data['packages'] = introspect.packages()
+    if 'settings' in sections:
+        require_settings()
+        data['settings'] = introspect.settings_info()
+    if 'models' in sections:
+        require_settings()
+        data['models'] = introspect.models_info()
+    if 'routes' in sections:
+        data['routes'] = introspect.routes_info(load_app())
     return data
 
 
@@ -108,29 +128,11 @@ def doctor(deploy: bool = False) -> dict:
     """
     The Django system checks of the project, as `manage.py bazis_doctor --json` runs them.
     """
-    from django.core import checks
+    from bazis.core import introspect
 
     load_app()
-    messages = [m for m in checks.run_checks(include_deployment_checks=deploy) if not m.is_silenced()]
+    messages = introspect.check_messages(deploy)
     return {
-        'ok': not any(m.level >= checks.ERROR for m in messages),
-        'messages': [
-            {
-                'id': m.id,
-                'level': _level_name(m.level),
-                'message': m.msg,
-                'hint': m.hint,
-                'object': str(m.obj) if m.obj is not None else None,
-            }
-            for m in messages
-        ],
+        'ok': not any(it['level'] in ('error', 'critical') for it in messages),
+        'messages': messages,
     }
-
-
-def _level_name(level: int) -> str:
-    from django.core import checks
-
-    for name in ('CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'):
-        if level >= getattr(checks, name):
-            return name.lower()
-    return 'debug'
