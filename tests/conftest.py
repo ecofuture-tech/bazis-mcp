@@ -23,6 +23,16 @@ def anyio_backend():
     return 'asyncio'
 
 
+@pytest.fixture(autouse=True)
+def sample_project(monkeypatch):
+    from pathlib import Path
+
+    from bazis.contrib.mcp import project
+
+    monkeypatch.setattr(project, 'project_dir', Path(__file__).resolve().parent.parent / 'sample')
+    monkeypatch.setattr(project, 'settings_module', None)
+
+
 @pytest.fixture
 async def client():
     async with Client(server, raise_exceptions=True) as client:

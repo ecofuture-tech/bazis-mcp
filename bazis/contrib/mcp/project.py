@@ -13,17 +13,27 @@
 # limitations under the License.
 
 """
-The Bazis project the server runs in: loading its settings and application, its facts and
-its system checks.
+The Bazis project the server serves. Its facts and checks come from the management
+commands `bazis_introspect` and `bazis_doctor`, run in a new process at every call: the
+result reflects the code as it is now (an agent changes it while the server runs), and a
+project that fails to load cannot break the server.
 """
 
+import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 
 SETTINGS_RE = re.compile(r"""DJANGO_SETTINGS_MODULE['"]\s*,\s*['"]([\w.]+)['"]""")
+TIMEOUT = 300
+
+#: the project directory (the directory of manage.py and project.env)
+project_dir: Path = Path.cwd()
+#: the settings module given on the command line, if any
+settings_module: str | None = None
 
 
 class ProjectError(Exception):
@@ -32,80 +42,75 @@ class ProjectError(Exception):
     """
 
 
-#: the error of loading the settings, if any (the catalog still works without them)
-_setup_error: str | None = None
+def configure(directory: Path, settings: str | None = None) -> None:
+    global project_dir, settings_module
+    project_dir = directory.resolve()
+    settings_module = settings
 
 
-def find_settings(project_dir: Path) -> str | None:
+def find_settings(directory: Path) -> str | None:
     """
     The settings module of the project: `DJANGO_SETTINGS_MODULE`, or the default that
     `manage.py` sets.
     """
     if module := os.environ.get('DJANGO_SETTINGS_MODULE'):
         return module
-    manage = project_dir / 'manage.py'
-    if manage.is_file() and (match := SETTINGS_RE.search(manage.read_text(encoding='utf-8', errors='replace'))):
-        return match.group(1)
+    manage = directory / 'manage.py'
+    if manage.is_file():
+        match = SETTINGS_RE.search(manage.read_text(encoding='utf-8', errors='replace'))
+        if match:
+            return match.group(1)
     return None
 
 
-def setup(project_dir: Path, settings_module: str | None = None) -> None:
+def manage(command: str, *args: str):
     """
-    Loads the Django settings of the project in `project_dir` (the directory of
-    `manage.py` and `project.env`). An error is kept and reported by the project tools.
+    The JSON printed by `python -m django <command> <args>` in the project directory, run
+    with the Python of the server (the environment of the project).
     """
-    global _setup_error
-
-    try:
-        _setup_error = _setup(project_dir, settings_module)
-    except (Exception, SystemExit) as err:
-        _setup_error = f'The project in {project_dir} cannot be loaded: {err!r}'
-
-
-def _setup(project_dir: Path, settings_module: str | None) -> str | None:
-    import django
-
-    os.chdir(project_dir)
-    sys.path.insert(0, str(project_dir))
-    settings_module = settings_module or find_settings(project_dir)
-    if not settings_module:
-        return (
+    if not project_dir.is_dir():
+        raise ProjectError(f'The project directory {project_dir} does not exist.')
+    settings = settings_module or find_settings(project_dir)
+    if not settings:
+        raise ProjectError(
             f'No settings module: {project_dir} has no manage.py that sets '
             'DJANGO_SETTINGS_MODULE. Pass --project-dir, --settings or set DJANGO_SETTINGS_MODULE.'
         )
-    os.environ['DJANGO_SETTINGS_MODULE'] = settings_module
+    env = dict(os.environ, DJANGO_SETTINGS_MODULE=settings)
+    env['PYTHONPATH'] = os.pathsep.join(filter(None, [str(project_dir), env.get('PYTHONPATH')]))
     try:
-        django.setup()
-    except (Exception, SystemExit) as err:
-        return f'The settings {settings_module} cannot be loaded: {err!r}'
+        done = subprocess.run(
+            [sys.executable, '-m', 'django', command, *args],
+            cwd=project_dir, env=env, capture_output=True, text=True, timeout=TIMEOUT,
+            stdin=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise ProjectError(f'{command} did not finish in {TIMEOUT} seconds.') from err
+    data = _json(done.stdout)
+    if data is None:
+        # the end of a traceback says what went wrong
+        error = '\n'.join((done.stderr.strip() or done.stdout.strip()).splitlines()[-15:])
+        raise ProjectError(f'{command} failed (exit code {done.returncode}):\n{error}')
+    return data
+
+
+def _json(text: str):
+    """
+    The JSON document in the output: the first line that starts one (the project may print
+    other lines before it).
+    """
+    for match in re.finditer(r'^[\[{]', text, re.MULTILINE):
+        try:
+            return json.JSONDecoder().raw_decode(text, match.start())[0]
+        except ValueError:
+            continue
     return None
-
-
-def require_settings() -> None:
-    if _setup_error:
-        raise ProjectError(_setup_error)
-    from django.conf import settings
-
-    if not settings.configured:
-        raise ProjectError('The Django settings are not loaded.')
-
-
-def load_app():
-    """
-    The FastAPI application of the project (the checks and the facts of the routes need it).
-    """
-    require_settings()
-    try:
-        from bazis.core.app import app
-    except (Exception, SystemExit) as err:
-        raise ProjectError(f'The application cannot be loaded: {err!r}') from err
-    return app
 
 
 def info(sections: list[str] | None = None) -> dict:
     """
-    The requested sections of `bazis.core.introspect.project_info` (default: all). The
-    packages need neither the settings nor the application, the routes need the application.
+    The requested sections of `manage.py bazis_introspect` (default: all). The installed
+    packages are read without loading the project.
     """
     from bazis.core import introspect
 
@@ -113,25 +118,17 @@ def info(sections: list[str] | None = None) -> dict:
     data = {}
     if 'packages' in sections:
         data['packages'] = introspect.packages()
-    if 'settings' in sections:
-        require_settings()
-        data['settings'] = introspect.settings_info()
-    if 'models' in sections:
-        require_settings()
-        data['models'] = introspect.models_info()
-    if 'routes' in sections:
-        data['routes'] = introspect.routes_info(load_app())
+    rest = [it for it in sections if it != 'packages']
+    if rest:
+        data.update(manage('bazis_introspect', *rest))
     return data
 
 
 def doctor(deploy: bool = False) -> dict:
     """
-    The Django system checks of the project, as `manage.py bazis_doctor --json` runs them.
+    The system checks of the project, as `manage.py bazis_doctor --json` reports them.
     """
-    from bazis.core import introspect
-
-    load_app()
-    messages = introspect.check_messages(deploy)
+    messages = manage('bazis_doctor', '--json', *(['--deploy'] if deploy else []))
     return {
         'ok': not any(it['level'] in ('error', 'critical') for it in messages),
         'messages': messages,

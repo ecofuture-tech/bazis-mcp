@@ -10,9 +10,9 @@ project, for AI agents. All tools only read.
   system checks;
 - `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI.
 
-stdout is the protocol channel of the stdio transport: nothing may print to it.
-`main()` sends the output of loading the project to stderr, and the SDK diverts stdout
-while it serves.
+The project tools run `python -m django bazis_introspect/bazis_doctor` in a new process
+at every call, so that they see the current code of the project, and the server never
+imports the project (stdout is the protocol channel of the stdio transport).
 
 The sample project used by the tests is in `sample/`, the tests are in `tests/`.
 

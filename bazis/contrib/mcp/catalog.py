@@ -20,6 +20,7 @@ AGENTS.md, and the others from `catalog.json`, a snapshot of the latest releases
 Needs no Django settings: an agent can choose packages before the project works.
 """
 
+import importlib
 import json
 from functools import cache
 from importlib import resources
@@ -55,6 +56,7 @@ def packages() -> dict[str, dict]:
         }
         for name, entry in catalog().items()
     }
+    importlib.invalidate_caches()  # packages installed while the server runs
     for installed in introspect.packages():
         name = installed['name']
         package = result.setdefault(
