@@ -23,7 +23,7 @@ import = "bazis.contrib.mcp.server.server"
 use_when = "the MCPServer instance, to mount it in another server or test it in-process"
 
 [[pitfalls]]
-text = "the server loads the settings and the application of the project: it runs the project code, like manage.py"
+text = "the project tools run the management commands with .venv of the project (or --python); without one they use the Python of the server, which must then have the packages of the project"
 
 [[pitfalls]]
 text = "the guides of packages that are not installed come from a snapshot taken at the release of bazis-mcp"

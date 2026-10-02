@@ -129,20 +129,18 @@ async def test_run_doctor(client):
     report = result(await client.call_tool('run_doctor', {'deploy': True}))
     messages = {it['id']: it for it in report['messages']}
     assert messages['bazis.W001']['level'] == 'warning'  # the sample allows any host
-    # pytest-django sets the locmem email backend, an error of the deployment checks
-    assert messages['mail.E001']['level'] == 'error'
-    assert report['ok'] is False
+    assert report['ok'] is True
 
 
 async def test_project_tools_report_a_project_that_cannot_load(client, monkeypatch):
-    monkeypatch.setattr(project, '_setup_error', 'The settings x cannot be loaded: boom')
+    monkeypatch.setattr(project, 'settings_module', 'missing.settings')
 
     for name, args in [
         ('project_info', {}), ('project_info', {'sections': ['models']}), ('run_doctor', {})
     ]:
         call_result = await client.call_tool(name, args)
         assert call_result.is_error
-        assert 'boom' in call_result.content[0].text
+        assert 'missing' in call_result.content[0].text
 
     # the catalog and the installed packages work without the project
     assert result(await client.call_tool('list_packages', {}))
@@ -150,25 +148,42 @@ async def test_project_tools_report_a_project_that_cannot_load(client, monkeypat
     assert 'bazis' in {it['name'] for it in info['packages']}
 
 
-@pytest.fixture
-def isolated_setup(monkeypatch, tmp_path):
-    # setup() changes the working directory, sys.path and the module state
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, 'path', list(sys.path))
-    monkeypatch.setattr(project, '_setup_error', None)
-    monkeypatch.delenv('DJANGO_SETTINGS_MODULE', raising=False)
-
-
-@pytest.mark.usefixtures('isolated_setup')
 @pytest.mark.parametrize('case', ['no manage.py', 'no directory'])
-def test_setup_errors_are_kept(tmp_path, case):
-    project_dir = tmp_path / 'missing' if case == 'no directory' else tmp_path
+def test_project_errors(tmp_path, monkeypatch, case):
+    monkeypatch.delenv('DJANGO_SETTINGS_MODULE', raising=False)
+    monkeypatch.setattr(project, 'settings_module', None)
+    monkeypatch.setattr(
+        project, 'project_dir', tmp_path / 'missing' if case == 'no directory' else tmp_path
+    )
 
-    project.setup(project_dir)
-
-    assert project._setup_error
     with pytest.raises(project.ProjectError):
-        project.require_settings()
+        project.doctor()
+
+
+async def test_project_changes_are_seen_without_restarting(client, monkeypatch, tmp_path):
+    """
+    An agent changes the project while the server runs: the next call sees the change.
+    """
+    import shutil
+
+    copy = tmp_path / 'sample'
+    shutil.copytree(SAMPLE_DIR, copy, ignore=shutil.ignore_patterns('__pycache__'))
+    monkeypatch.setattr(project, 'project_dir', copy)
+    monkeypatch.setattr(project, 'settings_module', 'sample.settings')
+
+    def models():
+        return {it['model'] for it in project.info(['models'])['models']}
+
+    assert 'shop.Coupon' not in models()
+    with (copy / 'shop' / 'models.py').open('a') as file:
+        file.write("\n\nclass Coupon(DtMixin, UuidMixin, JsonApiMixin):\n"
+                   "    code = models.CharField('Code', max_length=20)\n")
+    assert 'shop.Coupon' in models()
+
+
+def test_json_after_other_output():
+    assert project._json('loading...\n[{"id": "x"}]\n') == [{'id': 'x'}]
+    assert project._json('nothing') is None
 
 
 async def test_agents_md_resource(client):
@@ -231,29 +246,33 @@ async def test_stdio_server_with_settings_that_fail():
         packages = result(await session.call_tool('list_packages', {}))
 
     assert doctor.is_error
-    assert 'missing.settings' in doctor.content[0].text
+    assert "No module named 'missing'" in doctor.content[0].text
     assert packages['packages']
 
 
-def test_main_keeps_stdout_for_the_protocol(monkeypatch, capfd, tmp_path):
+def test_main(monkeypatch, tmp_path):
     from bazis.contrib.mcp import server as server_module
 
-    def setup(*args):
-        print('loading the project')
-        os.write(1, b'written to the file descriptor\n')
-        calls.append(args)
-
-    calls = []
-    monkeypatch.setattr(project, 'setup', setup)
-    monkeypatch.setattr(server_module.server, 'run', lambda: calls.append('run'))
+    monkeypatch.setattr(server_module.server, 'run', lambda: None)
+    monkeypatch.setattr(project, 'project_dir', project.project_dir)
+    monkeypatch.setattr(project, 'settings_module', None)
+    monkeypatch.setattr(project, 'python', None)
 
     server_module.main(['--project-dir', str(tmp_path), '--settings', 'myproject.settings'])
 
-    assert calls == [(tmp_path.resolve(), 'myproject.settings'), 'run']
-    captured = capfd.readouterr()
-    assert captured.out == ''
-    assert 'loading the project' in captured.err
-    assert 'written to the file descriptor' in captured.err
-    # stdout is restored for the protocol
-    print('after')
-    assert capfd.readouterr().out == 'after\n'
+    assert project.project_dir == tmp_path.resolve()
+    assert project.settings_module == 'myproject.settings'
+    assert project.python is None
+
+
+def test_find_python(tmp_path, monkeypatch):
+    monkeypatch.setattr(project, 'python', None)
+    assert project.find_python(tmp_path / 'app') == sys.executable
+
+    venv_python = tmp_path / '.venv' / 'bin' / 'python'
+    venv_python.parent.mkdir(parents=True)
+    venv_python.touch()
+    assert project.find_python(tmp_path / 'app') == str(venv_python)  # the venv of the parent
+
+    monkeypatch.setattr(project, 'python', '/usr/bin/python3')
+    assert project.find_python(tmp_path / 'app') == '/usr/bin/python3'

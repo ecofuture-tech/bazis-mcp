@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 import pytest
 from mcp import Client
 
@@ -21,6 +23,17 @@ from bazis.contrib.mcp.server import server
 @pytest.fixture
 def anyio_backend():
     return 'asyncio'
+
+
+@pytest.fixture(autouse=True)
+def sample_project(monkeypatch):
+    from pathlib import Path
+
+    from bazis.contrib.mcp import project
+
+    monkeypatch.setattr(project, 'project_dir', Path(__file__).resolve().parent.parent / 'sample')
+    monkeypatch.setattr(project, 'settings_module', None)
+    monkeypatch.setattr(project, 'python', sys.executable)
 
 
 @pytest.fixture

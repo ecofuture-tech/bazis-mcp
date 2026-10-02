@@ -20,9 +20,6 @@ Run in the project directory: `bazis-mcp` (see the README).
 """
 
 import argparse
-import contextlib
-import os
-import sys
 from pathlib import Path
 from typing import Literal
 
@@ -170,29 +167,15 @@ def main(argv: list[str] | None = None) -> None:
         '--settings',
         help='The settings module (default: DJANGO_SETTINGS_MODULE or the one of manage.py).',
     )
+    parser.add_argument(
+        '--python',
+        help='The Python of the project (default: .venv of the project directory or of its '
+        'parent, else the Python of the server).',
+    )
     args = parser.parse_args(argv)
 
-    with _stdout_to_stderr():
-        project.setup(args.project_dir.resolve(), args.settings)
+    project.configure(args.project_dir, args.settings, args.python)
     server.run()
-
-
-@contextlib.contextmanager
-def _stdout_to_stderr():
-    """
-    stdout is the protocol channel: whatever the project writes while loading (also to the
-    file descriptor, e.g. a subprocess) goes to stderr. The SDK diverts stdout while it serves.
-    """
-    sys.stdout.flush()
-    saved = os.dup(1)
-    try:
-        os.dup2(2, 1)
-        with contextlib.redirect_stdout(sys.stderr):
-            yield
-    finally:
-        sys.stderr.flush()
-        os.dup2(saved, 1)
-        os.close(saved)
 
 
 if __name__ == '__main__':
