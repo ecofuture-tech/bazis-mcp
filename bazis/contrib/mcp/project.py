@@ -34,6 +34,8 @@ TIMEOUT = 300
 project_dir: Path = Path.cwd()
 #: the settings module given on the command line, if any
 settings_module: str | None = None
+#: the Python of the project given on the command line, if any
+python: str | None = None
 
 
 class ProjectError(Exception):
@@ -42,10 +44,25 @@ class ProjectError(Exception):
     """
 
 
-def configure(directory: Path, settings: str | None = None) -> None:
-    global project_dir, settings_module
+def configure(directory: Path, settings: str | None = None, interpreter: str | None = None):
+    global project_dir, settings_module, python
     project_dir = directory.resolve()
     settings_module = settings
+    python = interpreter
+
+
+def find_python(directory: Path) -> str:
+    """
+    The Python of the project: the one given with --python, else the virtual environment
+    `.venv` of the project directory or of its parent, else the Python of the server.
+    """
+    if python:
+        return python
+    for base in (directory, directory.parent):
+        for path in (base / '.venv' / 'bin' / 'python', base / '.venv' / 'Scripts' / 'python.exe'):
+            if path.is_file():
+                return str(path)
+    return sys.executable
 
 
 def find_settings(directory: Path) -> str | None:
@@ -66,7 +83,7 @@ def find_settings(directory: Path) -> str | None:
 def manage(command: str, *args: str):
     """
     The JSON printed by `python -m django <command> <args>` in the project directory, run
-    with the Python of the server (the environment of the project).
+    with the Python of the project (`find_python`).
     """
     if not project_dir.is_dir():
         raise ProjectError(f'The project directory {project_dir} does not exist.')
@@ -80,7 +97,7 @@ def manage(command: str, *args: str):
     env['PYTHONPATH'] = os.pathsep.join(filter(None, [str(project_dir), env.get('PYTHONPATH')]))
     try:
         done = subprocess.run(
-            [sys.executable, '-m', 'django', command, *args],
+            [find_python(project_dir), '-m', 'django', command, *args],
             cwd=project_dir, env=env, capture_output=True, text=True, timeout=TIMEOUT,
             stdin=subprocess.DEVNULL,
         )

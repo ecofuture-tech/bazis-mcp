@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 import pytest
 from mcp import Client
 
@@ -31,6 +33,7 @@ def sample_project(monkeypatch):
 
     monkeypatch.setattr(project, 'project_dir', Path(__file__).resolve().parent.parent / 'sample')
     monkeypatch.setattr(project, 'settings_module', None)
+    monkeypatch.setattr(project, 'python', sys.executable)
 
 
 @pytest.fixture

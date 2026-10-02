@@ -256,8 +256,23 @@ def test_main(monkeypatch, tmp_path):
     monkeypatch.setattr(server_module.server, 'run', lambda: None)
     monkeypatch.setattr(project, 'project_dir', project.project_dir)
     monkeypatch.setattr(project, 'settings_module', None)
+    monkeypatch.setattr(project, 'python', None)
 
     server_module.main(['--project-dir', str(tmp_path), '--settings', 'myproject.settings'])
 
     assert project.project_dir == tmp_path.resolve()
     assert project.settings_module == 'myproject.settings'
+    assert project.python is None
+
+
+def test_find_python(tmp_path, monkeypatch):
+    monkeypatch.setattr(project, 'python', None)
+    assert project.find_python(tmp_path / 'app') == sys.executable
+
+    venv_python = tmp_path / '.venv' / 'bin' / 'python'
+    venv_python.parent.mkdir(parents=True)
+    venv_python.touch()
+    assert project.find_python(tmp_path / 'app') == str(venv_python)  # the venv of the parent
+
+    monkeypatch.setattr(project, 'python', '/usr/bin/python3')
+    assert project.find_python(tmp_path / 'app') == '/usr/bin/python3'

@@ -50,11 +50,11 @@ or in `.mcp.json` of the repository:
 
 The environment of the project (`project.env`, `BS_*` variables) is read as by
 `manage.py`. The project tools run `bazis_introspect` and `bazis_doctor` in a new process
-at every call (with the Python of the server, so install bazis-mcp in the environment of
-the project): they see the code as it is now, while an agent changes it, and they run the
-project code like `manage.py` does. They need neither the database nor Redis. If the
-project cannot be loaded, the catalog tools still work and the project tools return the
-error.
+at every call (with the Python of the project: `--python`, else `.venv` of the project
+directory or of its parent, else the Python of the server): they see the code as it is
+now, while an agent changes it, and they run the project code like `manage.py` does. They
+need neither the database nor Redis. If the project cannot be loaded, the catalog tools
+still work and the project tools return the error.
 
 `bazis-mcp` is not a Django app: do not add it to `BS_INSTALLED_APPS`.
 

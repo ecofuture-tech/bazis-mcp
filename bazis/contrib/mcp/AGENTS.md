@@ -16,9 +16,9 @@ claude mcp add bazis -- .venv/bin/bazis-mcp --project-dir <directory of manage.p
 
 `bazis-mcp [--project-dir DIR] [--settings MODULE]` serves the project in `DIR` (default:
 the current directory) with `project.env` and the settings module of `manage.py` (or
-`DJANGO_SETTINGS_MODULE`). Install it in the environment of the project: the project tools
-run its management commands with the Python of the server, at every call, so they see the
-current code. It is not a Django app: do not add it to `BS_INSTALLED_APPS`.
+`DJANGO_SETTINGS_MODULE`). The project tools run its management commands at every call (so they
+see the current code) with the Python of the project: `--python`, else `.venv` of `DIR` or
+of its parent, else the Python of the server. It is not a Django app: do not add it to `BS_INSTALLED_APPS`.
 
 ## Tools
 
