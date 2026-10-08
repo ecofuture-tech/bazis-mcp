@@ -77,10 +77,12 @@ def fake_run(monkeypatch):
     """
     class Fake:
         calls: list[list[str]] = []
+        settings: list[str | None] = []
         outputs: list[tuple[int, str, str]] = []
 
     def run(args, **kwargs):
         Fake.calls.append(args[1:])
+        Fake.settings.append(kwargs['env'].get('DJANGO_SETTINGS_MODULE'))
         code, stdout, stderr = Fake.outputs.pop(0)
         return subprocess.CompletedProcess(args, code, stdout, stderr)
 
@@ -88,35 +90,43 @@ def fake_run(monkeypatch):
     return Fake
 
 
-def probe_output(version=None, registry=None):
-    return 0, json.dumps({'version': version, 'registry': registry}) + '\n', ''
+def probe_output(version='1.0.0', registry=REGISTRY, enabled=True):
+    return 0, json.dumps({'version': version, 'registry': registry, 'enabled': enabled}) + '\n', ''
+
+
+#: the probe of a project without bazis-front
+NOT_INSTALLED = probe_output(None, None, None)
 
 
 async def test_front_check_reports_the_issues(client, fake_run):
     report = {'contract': True, 'errors': 1, 'warnings': 0, 'issues': [SPEC_ISSUE]}
-    fake_run.outputs = [(1, json.dumps(report), 'CommandError: The specs have 1 errors.\n')]
+    fake_run.outputs = [
+        probe_output(), (1, json.dumps(report), 'CommandError: The specs have 1 errors.\n')
+    ]
 
     checked = result(await client.call_tool('front_check', {'layer': 'product'}))
 
-    assert fake_run.calls == [
+    assert fake_run.calls[1:] == [
         ['-m', 'django', 'bazis_front', 'check', '--json', '--layer', 'product']
     ]
+    # the probe reads the settings of the project
+    assert fake_run.settings == ['sample.settings', 'sample.settings']
     assert checked == {'checked': True, 'ok': False, **report}
 
 
 async def test_front_check_of_valid_specs(client, fake_run):
     report = {'contract': False, 'errors': 0, 'warnings': 0, 'issues': []}
-    fake_run.outputs = [(0, json.dumps(report), '')]
+    fake_run.outputs = [probe_output(), (0, json.dumps(report), '')]
 
     checked = result(await client.call_tool('front_check', {}))
 
-    assert fake_run.calls == [['-m', 'django', 'bazis_front', 'check', '--json']]
+    assert fake_run.calls[1:] == [['-m', 'django', 'bazis_front', 'check', '--json']]
     assert checked['checked'] is True and checked['ok'] is True
 
 
 async def test_front_check_without_spec(client, fake_run):
     refusal = '/app/spec does not exist: `manage.py bazis_front init` creates it with the frontend.'
-    fake_run.outputs = [(1, '', f'CommandError: {refusal}\n')]
+    fake_run.outputs = [probe_output(), (1, '', f'CommandError: {refusal}\n')]
 
     checked = result(await client.call_tool('front_check', {}))
 
@@ -129,11 +139,47 @@ async def test_front_check_of_a_layer_that_does_not_exist(client):
     assert call_result.is_error
 
 
-async def test_front_check_without_bazis_front(client):
-    # the sample has no "bazis.contrib.front" in its INSTALLED_APPS: Django has no command
-    checked = result(await client.call_tool('front_check', {}))
+@pytest.mark.parametrize(
+    ('probe', 'reason'),
+    [(NOT_INSTALLED, front.NOT_INSTALLED), (probe_output(enabled=False), front.NOT_ENABLED)],
+    ids=['not installed', 'not enabled'],
+)
+@pytest.mark.parametrize('tool', ['front_check', 'front_status'])
+async def test_front_tools_without_bazis_front(client, fake_run, tool, probe, reason):
+    fake_run.outputs = [probe]
 
-    assert checked == {'checked': False, 'reason': front.NOT_ENABLED}
+    assert result(await client.call_tool(tool, {})) == {'checked': False, 'reason': reason}
+    assert len(fake_run.calls) == 1  # bazis_front and the system checks are not run
+
+
+async def test_front_check_with_settings_that_fail(client, fake_run):
+    # the probe cannot read the settings: the command reports why
+    fake_run.outputs = [
+        probe_output(enabled=None), (1, '', "ModuleNotFoundError: No module named 'missing'\n")
+    ]
+
+    call_result = await client.call_tool('front_check', {})
+
+    assert call_result.is_error
+    assert "No module named 'missing'" in call_result.content[0].text
+
+
+@requires_front
+async def test_front_tools_with_settings_that_fail(client, monkeypatch):
+    monkeypatch.setattr(project, 'settings_module', 'missing.settings')
+
+    for tool in ('front_check', 'front_status'):
+        call_result = await client.call_tool(tool, {})
+        assert call_result.is_error
+        assert "No module named 'missing'" in call_result.content[0].text
+
+
+@requires_front
+async def test_front_tools_on_the_sample_without_its_app(client):
+    # bazis-front is installed, the sample has no "bazis.contrib.front" in INSTALLED_APPS
+    for tool in ('front_check', 'front_status'):
+        checked = result(await client.call_tool(tool, {}))
+        assert checked == {'checked': False, 'reason': front.NOT_ENABLED}
 
 
 async def test_front_status(client, fake_run):
@@ -146,8 +192,9 @@ async def test_front_status(client, fake_run):
         message('front.I001', 'The contract is not checked: the database is not migrated.',
                 level='info'),
         message('bazis.W001', 'ALLOWED_HOSTS allows any host.'),
+        message(None, 'A check of the project without an id.'),
     ]
-    fake_run.outputs = [probe_output('1.0.0', REGISTRY), (0, json.dumps(doctor), '')]
+    fake_run.outputs = [probe_output(), (0, json.dumps(doctor), '')]
 
     status = result(await client.call_tool('front_status', {}))
 
@@ -163,26 +210,17 @@ async def test_front_status(client, fake_run):
 
 
 async def test_front_status_up_to_date(client, fake_run):
-    fake_run.outputs = [probe_output('1.0.0', REGISTRY), (0, '[]', '')]
+    fake_run.outputs = [probe_output(), (0, '[]', '')]
 
     status = result(await client.call_tool('front_status', {}))
 
     assert status['up_to_date'] is True and status['stale'] == {}
 
 
-async def test_front_status_without_bazis_front(client, fake_run):
-    fake_run.outputs = [probe_output()]
-
-    status = result(await client.call_tool('front_status', {}))
-
-    assert status == {'checked': False, 'reason': front.NOT_INSTALLED}
-    assert len(fake_run.calls) == 1  # the system checks are not run
-
-
 async def test_front_status_of_an_application_that_cannot_load(client, fake_run):
     doctor = [message('bazis.app', "The application cannot be loaded: ImportError('x')",
                       level='critical')]
-    fake_run.outputs = [probe_output('1.0.0', REGISTRY), (1, json.dumps(doctor), '')]
+    fake_run.outputs = [probe_output(), (1, json.dumps(doctor), '')]
 
     call_result = await client.call_tool('front_status', {})
 
@@ -192,7 +230,7 @@ async def test_front_status_of_an_application_that_cannot_load(client, fake_run)
 
 async def test_front_catalog_of_the_installed_bazis_front(client, fake_run, monkeypatch):
     monkeypatch.setattr(catalog, 'catalog', lambda: {})
-    fake_run.outputs = [probe_output('1.0.0', REGISTRY)]
+    fake_run.outputs = [probe_output(enabled=False)]  # the registry needs no app
 
     assets = result(await client.call_tool('front_catalog', {}))
 
@@ -213,7 +251,7 @@ async def test_front_catalog_from_the_catalog(client, fake_run, monkeypatch):
     entry = {'name': 'bazis-front', 'version': '1.1.0', 'manifest': {}, 'agents_md': '',
              'registry': REGISTRY}
     monkeypatch.setattr(catalog, 'catalog', lambda: {'bazis-front': entry})
-    fake_run.outputs = [probe_output()]
+    fake_run.outputs = [NOT_INSTALLED]
 
     assets = result(await client.call_tool('front_catalog', {}))
 
@@ -225,7 +263,7 @@ async def test_front_catalog_from_the_catalog(client, fake_run, monkeypatch):
 
 async def test_front_catalog_without_bazis_front(client, fake_run, monkeypatch):
     monkeypatch.setattr(catalog, 'catalog', lambda: {})
-    fake_run.outputs = [probe_output()]
+    fake_run.outputs = [NOT_INSTALLED]
 
     assets = result(await client.call_tool('front_catalog', {}))
 
@@ -362,3 +400,13 @@ async def test_package_guide_of_bazis_front(client):
     installed = (resources.files('bazis.contrib.front') / 'AGENTS.md').read_text(encoding='utf-8')
     assert guide['installed_version'] == metadata.version('bazis-front')
     assert guide['agents_md'] == installed
+
+
+@requires_front
+def test_layers_are_those_of_bazis_front():
+    from typing import get_args
+
+    from bazis.contrib.front.spec import validate
+    from bazis.contrib.mcp import server
+
+    assert get_args(server.LAYERS) == validate.LAYERS

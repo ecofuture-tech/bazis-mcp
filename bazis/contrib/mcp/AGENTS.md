@@ -46,10 +46,9 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
   the `capabilities` they need in the contract, the assets they `requires`, `init`; from the
   bazis-front of the project, else from the catalog (`source`).
 
-Without bazis-front (or without `spec/` for `front_check`) they return `checked: false`
-(`source: null` for `front_catalog`) with the `reason` and the fix, not an error.
-`front_status` sees the checks only when `"bazis.contrib.front"` is in `INSTALLED_APPS`
-(`front_check` reports when it is not).
+Without bazis-front, installed and with `"bazis.contrib.front"` in `INSTALLED_APPS` (or
+without `spec/` for `front_check`), they return `checked: false` (`source: null` for
+`front_catalog`) with the `reason` and the fix, not an error.
 
 The resource `bazis://packages/{name}/agents.md` is the AGENTS.md of a package; the prompts
 `add_package(name)`, `audit_project` and `build_frontend` describe these tasks step by step.

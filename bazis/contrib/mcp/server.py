@@ -116,8 +116,8 @@ def front_check(layer: LAYERS | None = None) -> dict:
     and the contract (`manage.py bazis_front check --json`): `issues` with stable `code`,
     `severity`, `file`, `path` and the fix in `hint`; `ok` is false if there is an error,
     `contract` false if they were not checked against contract/contract.json. `layer`
-    reports one layer only. Without bazis-front or spec/, `checked` is false and `reason`
-    says what to do.
+    reports one layer only. Without bazis-front (installed, in INSTALLED_APPS) or spec/,
+    `checked` is false and `reason` says what to do.
     """
     return _project_call(front.check, layer)
 
@@ -128,8 +128,8 @@ def front_status() -> dict:
     What of the frontend is stale, without Node (the system checks `front.*` of
     `manage.py bazis_doctor`): `stale` by the `manage.py bazis_front` command that updates
     it (`contract`, `design`, `e2e`, `update`), each with the messages and their hints;
-    `spec_issues` counts the issues of the specs (see `front_check`). The checks run only
-    when "bazis.contrib.front" is in INSTALLED_APPS; without bazis-front, `checked` is false.
+    `spec_issues` counts the issues of the specs (see `front_check`). Without bazis-front
+    (installed, in INSTALLED_APPS), `checked` is false and `reason` says what to do.
     """
     return _project_call(front.status)
 
@@ -219,8 +219,9 @@ Build the frontend of this Bazis project with bazis-front.
    screens in frontend/src/screens/ from them, and generate the theme
    (`manage.py bazis_front design`) and the end-to-end tests (`manage.py bazis_front e2e`).
 6. Run `front_status` and update what is stale, then in frontend/ `npx tsc --noEmit`,
-   `npm run lint`, `npm test` and `npm run e2e` against the running backend; fix every
-   failure.
+   `npm run lint`, `npm test` and `npm run e2e` against the running backend, with the
+   test users of the roles (`test_user` in spec/product.yaml) in its data and their
+   password in E2E_PASSWORD; fix every failure.
 """
 
 

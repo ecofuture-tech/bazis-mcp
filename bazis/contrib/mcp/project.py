@@ -86,8 +86,7 @@ def run(name: str, *args: str, **env: str) -> subprocess.CompletedProcess:
     (`find_python`), the project directory on the path and the variables `env`. `name`
     names the call in the errors.
     """
-    if not project_dir.is_dir():
-        raise ProjectError(f'The project directory {project_dir} does not exist.')
+    _check_dir()
     env = dict(os.environ, **env)
     env['PYTHONPATH'] = os.pathsep.join(filter(None, [str(project_dir), env.get('PYTHONPATH')]))
     interpreter = find_python(project_dir)
@@ -103,11 +102,24 @@ def run(name: str, *args: str, **env: str) -> subprocess.CompletedProcess:
         raise ProjectError(f'{name} cannot run the Python of the project {interpreter}: {err}') from err
 
 
+def _check_dir():
+    if not project_dir.is_dir():
+        raise ProjectError(f'The project directory {project_dir} does not exist.')
+
+
+def settings_name() -> str | None:
+    """
+    The settings module of the project: the one given with --settings, else `find_settings`.
+    """
+    return settings_module or find_settings(project_dir)
+
+
 def django(command: str, *args: str) -> subprocess.CompletedProcess:
     """
     `python -m django <command> <args>` with the settings of the project.
     """
-    settings = settings_module or find_settings(project_dir)
+    _check_dir()
+    settings = settings_name()
     if not settings:
         raise ProjectError(
             f'No settings module: {project_dir} has no manage.py that sets '

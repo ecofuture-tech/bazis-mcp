@@ -27,8 +27,9 @@ from . import catalog, project
 
 FRONT = 'bazis-front'
 
-#: prints the version of bazis-front in the Python of the project and its registry of the
-#: assets (`assets/registry.json`), without Django
+#: prints the version of bazis-front in the Python of the project, its registry of the
+#: assets (`assets/registry.json`) and whether its app is in the INSTALLED_APPS of the
+#: settings (null when they cannot be read), without setting Django up
 PROBE = """\
 import json
 from importlib import metadata, resources
@@ -36,26 +37,33 @@ from importlib import metadata, resources
 try:
     version = metadata.version('bazis-front')
 except metadata.PackageNotFoundError:
-    version = registry = None
+    version = registry = enabled = None
 else:
     path = resources.files('bazis.contrib.front').joinpath('assets', 'registry.json')
     registry = json.loads(path.read_text(encoding='utf-8')) if path.is_file() else None
-print(json.dumps({'version': version, 'registry': registry}))
+    try:
+        from django.conf import settings
+
+        enabled = any(
+            it == 'bazis.contrib.front' or it.startswith('bazis.contrib.front.')
+            for it in settings.INSTALLED_APPS
+        )
+    except Exception:
+        enabled = None
+print(json.dumps({'version': version, 'registry': registry, 'enabled': enabled}))
 """
 
 PROBE_NAME = 'Reading bazis-front'
 
-SETUP = (
-    'install it in the project (`pip install bazis-front`), add "bazis.contrib.front" to '
+NOT_INSTALLED = (
+    'bazis-front is not installed in the Python of the project: install it (`pip install '
+    'bazis-front`), add "bazis.contrib.front" to BS_INSTALLED_APPS and create the frontend '
+    'with `manage.py bazis_front init`.'
+)
+NOT_ENABLED = (
+    '"bazis.contrib.front" is not in the INSTALLED_APPS of the project: add it to '
     'BS_INSTALLED_APPS and create the frontend with `manage.py bazis_front init`.'
 )
-NOT_INSTALLED = f'bazis-front is not installed in the Python of the project: {SETUP}'
-NOT_ENABLED = (
-    'The project has no command bazis_front: bazis-front is not installed in its Python or '
-    f'"bazis.contrib.front" is not in its INSTALLED_APPS; {SETUP}'
-)
-#: what Django prints for a management command that no app of the project provides
-UNKNOWN_COMMAND = "Unknown command: 'bazis_front'"
 #: the prefix of the message of a management command that refuses to run
 COMMAND_ERROR = 'CommandError: '
 
@@ -74,14 +82,28 @@ SPEC_CHECK = 'front.W002'
 
 def package() -> dict | None:
     """
-    The version of bazis-front in the Python of the project and its registry (null for a
-    version without one), or None if it is not installed there.
+    The version of bazis-front in the Python of the project, its registry (null for a
+    version without one) and `enabled`, or None if it is not installed there.
     """
-    done = project.run(PROBE_NAME, '-c', PROBE)
+    settings = project.settings_name()
+    env = {'DJANGO_SETTINGS_MODULE': settings} if settings else {}
+    done = project.run(PROBE_NAME, '-c', PROBE, **env)
     data = project.parse_json(done.stdout)
     if data is None:
         raise project.failure(PROBE_NAME, done)
     return data if data['version'] else None
+
+
+def _unavailable(installed: dict | None) -> dict | None:
+    """
+    The result of a tool for a project whose bazis-front cannot run, else None. Settings
+    that cannot be read (`enabled` null) are left to the command, which reports why.
+    """
+    if installed is None:
+        return {'checked': False, 'reason': NOT_INSTALLED}
+    if installed['enabled'] is False:
+        return {'checked': False, 'reason': NOT_ENABLED}
+    return None
 
 
 def check(layer: str | None = None) -> dict:
@@ -89,14 +111,14 @@ def check(layer: str | None = None) -> dict:
     The issues of the specs, as `manage.py bazis_front check --json` reports them (`ok`
     is false if there is an error), or why they are not checked.
     """
+    if unavailable := _unavailable(package()):
+        return unavailable
     done = project.django('bazis_front', 'check', '--json', *(['--layer', layer] if layer else []))
     data = project.parse_json(done.stdout)
     if data is not None:
         # the specs are checked; exit code 1 means they have errors
         return {'checked': True, 'ok': not data['errors'], **data}
     lines = done.stderr.strip().splitlines()
-    if any(it.startswith(UNKNOWN_COMMAND) for it in lines):
-        return {'checked': False, 'reason': NOT_ENABLED}
     if lines and lines[-1].startswith(COMMAND_ERROR):
         # the command refused to check, such as without spec/
         return {'checked': False, 'reason': lines[-1].removeprefix(COMMAND_ERROR)}
@@ -110,8 +132,8 @@ def status() -> dict:
     updates them.
     """
     installed = package()
-    if installed is None:
-        return {'checked': False, 'reason': NOT_INSTALLED}
+    if unavailable := _unavailable(installed):
+        return unavailable
     messages = project.manage('bazis_doctor', '--json')
     if failed := [it for it in messages if it['id'] == 'bazis.app']:
         # the application did not load: the checks did not run
@@ -124,7 +146,7 @@ def status() -> dict:
             stale.setdefault(STALE_CHECKS[message['id']], []).append(message)
         elif message['id'] == SPEC_CHECK:
             spec_issues += 1
-        elif message['id'].startswith('front.'):
+        elif (message['id'] or '').startswith('front.'):
             other.append(message)
     return {
         'checked': True,

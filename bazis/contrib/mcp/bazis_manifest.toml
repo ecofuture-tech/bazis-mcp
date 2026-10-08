@@ -28,6 +28,3 @@ text = "the project tools run the management commands with .venv of the project 
 
 [[pitfalls]]
 text = "the guides of packages that are not installed come from a snapshot taken at the release of bazis-mcp"
-
-[[pitfalls]]
-text = "front_status reads the system checks of bazis-front, which run only when \"bazis.contrib.front\" is in INSTALLED_APPS; front_check reports when it is not"

@@ -137,8 +137,7 @@ async def test_project_tools_report_a_project_that_cannot_load(client, monkeypat
     monkeypatch.setattr(project, 'settings_module', 'missing.settings')
 
     for name, args in [
-        ('project_info', {}), ('project_info', {'sections': ['models']}), ('run_doctor', {}),
-        ('front_check', {}),
+        ('project_info', {}), ('project_info', {'sections': ['models']}), ('run_doctor', {})
     ]:
         call_result = await client.call_tool(name, args)
         assert call_result.is_error
@@ -158,8 +157,12 @@ def test_project_errors(tmp_path, monkeypatch, case):
         project, 'project_dir', tmp_path / 'missing' if case == 'no directory' else tmp_path
     )
 
-    with pytest.raises(project.ProjectError):
+    with pytest.raises(project.ProjectError) as error:
         project.doctor()
+    if case == 'no directory':
+        assert 'does not exist' in str(error.value)
+    else:
+        assert 'No settings module' in str(error.value)
 
 
 async def test_project_changes_are_seen_without_restarting(client, monkeypatch, tmp_path):
