@@ -41,7 +41,8 @@ def result(call_result):
 async def test_tools_are_read_only(client):
     tools = (await client.list_tools()).tools
     assert {it.name for it in tools} == {
-        'list_packages', 'package_guide', 'project_info', 'run_doctor'
+        'list_packages', 'package_guide', 'project_info', 'run_doctor',
+        'front_check', 'front_status', 'front_catalog',
     }
     assert all(it.annotations.read_only_hint for it in tools)
 
@@ -136,7 +137,8 @@ async def test_project_tools_report_a_project_that_cannot_load(client, monkeypat
     monkeypatch.setattr(project, 'settings_module', 'missing.settings')
 
     for name, args in [
-        ('project_info', {}), ('project_info', {'sections': ['models']}), ('run_doctor', {})
+        ('project_info', {}), ('project_info', {'sections': ['models']}), ('run_doctor', {}),
+        ('front_check', {}),
     ]:
         call_result = await client.call_tool(name, args)
         assert call_result.is_error
@@ -182,8 +184,8 @@ async def test_project_changes_are_seen_without_restarting(client, monkeypatch, 
 
 
 def test_json_after_other_output():
-    assert project._json('loading...\n[{"id": "x"}]\n') == [{'id': 'x'}]
-    assert project._json('nothing') is None
+    assert project.parse_json('loading...\n[{"id": "x"}]\n') == [{'id': 'x'}]
+    assert project.parse_json('nothing') is None
 
 
 async def test_agents_md_resource(client):
@@ -195,7 +197,7 @@ async def test_agents_md_resource(client):
 
 async def test_prompts(client):
     assert {it.name for it in (await client.list_prompts()).prompts} == {
-        'add_package', 'audit_project'
+        'add_package', 'audit_project', 'build_frontend'
     }
     prompt = await client.get_prompt('add_package', {'name': 'bazis-author'})
     assert 'package_guide("bazis-author")' in prompt.messages[0].content.text

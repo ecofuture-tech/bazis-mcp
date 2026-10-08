@@ -32,8 +32,27 @@ of its parent, else the Python of the server. It is not a Django app: do not add
 - `run_doctor(deploy)` — the Django system checks with the checks of the Bazis packages
   (`manage.py bazis_doctor`); `ok` is false if there is an error.
 
+The frontend layer of the project (bazis-front, its guide is `package_guide("bazis-front")`):
+
+- `front_check(layer)` — the issues of the specs in `spec/` (`manage.py bazis_front check
+  --json`): `ok`, `contract` (false: not checked against `contract/contract.json`),
+  `errors`, `warnings` and `issues` with `code`, `severity`, `file`, `path` and `hint`;
+  `layer` (`product`, `screens`, `design`) reports one layer.
+- `front_status()` — what is stale, without Node: the checks `front.*` of `bazis_doctor`
+  in `stale` by the `bazis_front` command that updates the part (`contract`, `design`,
+  `e2e`, `update`), `spec_issues` (the number of issues, see `front_check`), the other
+  `front.*` messages (such as a contract not checked before `migrate`).
+- `front_catalog()` — the assets that `bazis_front init` and `add` copy: `kind`, `target`,
+  the `capabilities` they need in the contract, the assets they `requires`, `init`; from the
+  bazis-front of the project, else from the catalog (`source`).
+
+Without bazis-front (or without `spec/` for `front_check`) they return `checked: false`
+(`source: null` for `front_catalog`) with the `reason` and the fix, not an error.
+`front_status` sees the checks only when `"bazis.contrib.front"` is in `INSTALLED_APPS`
+(`front_check` reports when it is not).
+
 The resource `bazis://packages/{name}/agents.md` is the AGENTS.md of a package; the prompts
-`add_package(name)` and `audit_project` describe these tasks step by step.
+`add_package(name)`, `audit_project` and `build_frontend` describe these tasks step by step.
 
 ## Rules
 

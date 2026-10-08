@@ -8,6 +8,7 @@ solves = [
     "an AI agent chooses the Bazis packages a project needs and reads how to use them",
     "an AI agent reads the models, routes and settings of the project",
     "an AI agent checks the project after a change",
+    "an AI agent checks the frontend specs, finds the stale parts of the frontend and chooses its components (bazis-front)",
 ]
 requires = ["bazis"]
 pairs_well = []
@@ -27,3 +28,6 @@ text = "the project tools run the management commands with .venv of the project 
 
 [[pitfalls]]
 text = "the guides of packages that are not installed come from a snapshot taken at the release of bazis-mcp"
+
+[[pitfalls]]
+text = "front_status reads the system checks of bazis-front, which run only when \"bazis.contrib.front\" is in INSTALLED_APPS; front_check reports when it is not"

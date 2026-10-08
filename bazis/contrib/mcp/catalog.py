@@ -32,7 +32,8 @@ from bazis.core import introspect
 @cache
 def catalog() -> dict[str, dict]:
     """
-    The snapshot of the released packages by name: version, manifest and AGENTS.md text.
+    The snapshot of the released packages by name: version, manifest and AGENTS.md text
+    (and `registry`, the assets of bazis-front).
     """
     text = (resources.files(__package__) / 'catalog.json').read_text(encoding='utf-8')
     return {entry['name']: entry for entry in json.loads(text)}

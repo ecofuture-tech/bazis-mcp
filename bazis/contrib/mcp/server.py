@@ -27,7 +27,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
 from mcp.types import ToolAnnotations
 
-from . import __version__, catalog, project
+from . import __version__, catalog, front, project
 
 
 INSTRUCTIONS = """\
@@ -42,9 +42,13 @@ packages the project needs.
   `project_info`.
 - After every change run `run_doctor` and the tests of the project, and fix what they
   report.
+- The frontend layer (bazis-front, guide `package_guide("bazis-front")`): check the specs
+  with `front_check`, find what is stale with `front_status`, and choose the components
+  with `front_catalog`.
 """
 
 SECTIONS = Literal['packages', 'settings', 'models', 'routes']
+LAYERS = Literal['product', 'screens', 'design']
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 
 server = MCPServer('bazis', instructions=INSTRUCTIONS, version=__version__)
@@ -105,6 +109,44 @@ def run_doctor(deploy: bool = False) -> dict:
     return _project_call(project.doctor, deploy)
 
 
+@server.tool(annotations=READ_ONLY)
+def front_check(layer: LAYERS | None = None) -> dict:
+    """
+    Validates the specs of the frontend (spec/: product, screens, design) against each other
+    and the contract (`manage.py bazis_front check --json`): `issues` with stable `code`,
+    `severity`, `file`, `path` and the fix in `hint`; `ok` is false if there is an error,
+    `contract` false if they were not checked against contract/contract.json. `layer`
+    reports one layer only. Without bazis-front or spec/, `checked` is false and `reason`
+    says what to do.
+    """
+    return _project_call(front.check, layer)
+
+
+@server.tool(annotations=READ_ONLY)
+def front_status() -> dict:
+    """
+    What of the frontend is stale, without Node (the system checks `front.*` of
+    `manage.py bazis_doctor`): `stale` by the `manage.py bazis_front` command that updates
+    it (`contract`, `design`, `e2e`, `update`), each with the messages and their hints;
+    `spec_issues` counts the issues of the specs (see `front_check`). The checks run only
+    when "bazis.contrib.front" is in INSTALLED_APPS; without bazis-front, `checked` is false.
+    """
+    return _project_call(front.status)
+
+
+@server.tool(annotations=READ_ONLY)
+def front_catalog() -> dict:
+    """
+    The assets that `manage.py bazis_front init` and `add` copy into the frontend (the
+    components, the hooks, the shadcn/ui components): `kind`, `target` directory,
+    `capabilities` the contract must have (packages such as statusy), the assets it
+    `requires` (copied with it) and `init` (copied by `init`). Read from the bazis-front
+    installed in the project (`source` "installed"), else from the catalog of its latest
+    release ("catalog").
+    """
+    return _project_call(front.assets)
+
+
 @server.resource(
     'bazis://packages/{name}/agents.md',
     title='AGENTS.md of a Bazis package',
@@ -150,6 +192,35 @@ Audit this Bazis project.
    package solves but the project implements by hand.
 3. Report the problems ordered by severity, each with the file to change and the fix.
    Change nothing until the report is confirmed.
+"""
+
+
+@server.prompt(title='Build the frontend')
+def build_frontend() -> str:
+    """
+    Builds the frontend of the project with bazis-front, from its specs to the end-to-end
+    tests.
+    """
+    return """\
+Build the frontend of this Bazis project with bazis-front.
+
+1. Read `package_guide("bazis-front")` and `front_catalog`. If `front_check` says that
+   bazis-front is missing, install it, add "bazis.contrib.front" to BS_INSTALLED_APPS and
+   run `manage.py bazis_front init` (frontend/ and the starters of spec/).
+2. Describe the product in spec/product.yaml (roles, entities, access, scenarios), its
+   screens in spec/screens/ and its design in spec/design/, as the guide says; run
+   `front_check` after each layer.
+3. Build the backend the specs need (models, route sets, roles with their permissions,
+   statuses and transits, migrations), run `run_doctor` and the tests, migrate, and
+   export the contract with `manage.py bazis_front contract`.
+4. Run `front_check` until it reports no errors; fix the spec or the backend as each
+   `hint` says.
+5. Copy the components the screens need with `manage.py bazis_front add`, write the
+   screens in frontend/src/screens/ from them, and generate the theme
+   (`manage.py bazis_front design`) and the end-to-end tests (`manage.py bazis_front e2e`).
+6. Run `front_status` and update what is stale, then in frontend/ `npx tsc --noEmit`,
+   `npm run lint`, `npm test` and `npm run e2e` against the running backend; fix every
+   failure.
 """
 
 
