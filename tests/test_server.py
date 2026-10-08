@@ -365,3 +365,27 @@ def test_find_python(tmp_path, monkeypatch):
 
     monkeypatch.setattr(project, 'python', '/usr/bin/python3')
     assert project.find_python(tmp_path / 'app') == '/usr/bin/python3'
+
+
+@pytest.mark.parametrize('guide_text', [
+    pytest.param('# bazis-long\n\n' + PARAGRAPH * 2, id='no-headings'),
+    pytest.param(
+        '# bazis-long\n\n' + PARAGRAPH * 2 + '## Rules\n\nShort.\n', id='long-introduction'
+    ),
+])
+def test_every_listed_section_of_a_guide_is_retrievable(guide_text):
+    """
+    The parts of an introduction longer than the limit are listed under the title
+    `Introduction (i/n)` and can be requested by it; the parts make up the whole guide.
+    """
+    package = {'name': 'bazis-long', 'installed_version': '1.0.0', 'catalog_version': None,
+               'guide_version': '1.0.0', 'manifest': None, 'agents_md': guide_text}
+    listed = catalog.guide(package)['sections']
+
+    assert listed[:2] == ['Introduction (1/2)', 'Introduction (2/2)']
+    texts = [catalog.guide(package, title)['agents_md'] for title in listed]
+    assert ''.join(texts) == guide_text
+    assert catalog.guide(package, 'introduction (2/2)')['agents_md'] == texts[1]
+    with pytest.raises(KeyError) as error:
+        catalog.guide(package, 'Missing')
+    assert error.value.args == ('Missing', listed)

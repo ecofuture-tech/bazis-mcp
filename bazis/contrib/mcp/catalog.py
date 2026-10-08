@@ -78,15 +78,18 @@ def packages() -> dict[str, dict]:
 #: limits of the MCP clients on the output of a tool (Claude Code: 25,000 tokens)
 GUIDE_LIMIT = 30_000
 
+#: the title of the text of a guide before its first `## ` heading
+INTRODUCTION = 'Introduction'
+
 
 def sections(text: str) -> list[tuple[str, str]]:
     """
     An AGENTS.md as its sections, in order: the introduction (title '') before the first
     `## ` heading outside a code block, then each `## ` section with its heading and its
     subsections. A section longer than GUIDE_LIMIT is cut at line ends into parts titled
-    `<title> (1/n)`.
+    `<title> (1/n)`. The introduction is titled INTRODUCTION.
     """
-    found: list[list] = [['', '']]
+    found: list[list] = [[INTRODUCTION, '']]
     fenced = False
     for line in text.splitlines(keepends=True):
         if line.startswith('```'):
@@ -114,12 +117,13 @@ def guide(package: dict, section: str | None = None) -> dict:
     """
     The guide of a package: its manifest and its AGENTS.md, whole when it is no longer than
     GUIDE_LIMIT, else its introduction (`complete` false); `sections` lists the titles of
-    its sections. With a `section`, the text of that section only (KeyError if there is no
-    such section).
+    its sections (a long introduction is listed as `Introduction (1/n)` and so on). With a
+    `section`, the text of that section only (KeyError of the section and the titles if
+    there is no such section).
     """
     text = package['agents_md'] or ''
     parts = sections(text)
-    titles = [title for title, _ in parts if title]
+    titles = [title for title, _ in parts if title != INTRODUCTION]
     info = {
         key: package[key]
         for key in ('name', 'installed_version', 'catalog_version', 'guide_version')
@@ -127,9 +131,9 @@ def guide(package: dict, section: str | None = None) -> dict:
     if section is not None:
         wanted = section.strip().removeprefix('## ').strip().casefold()
         for title, body in parts:
-            if title and title.casefold() == wanted:
+            if title.casefold() == wanted:
                 return {**info, 'section': title, 'agents_md': body, 'sections': titles}
-        raise KeyError(section)
+        raise KeyError(section, titles)
     complete = len(text) <= GUIDE_LIMIT
     return {
         **info,

@@ -96,8 +96,8 @@ def package_guide(name: str, section: str | None = None) -> dict:
     package = _package(name)
     try:
         return catalog.guide(package, section)
-    except KeyError:
-        titles = [title for title, _ in catalog.sections(package['agents_md'] or '') if title]
+    except KeyError as error:
+        titles = error.args[1]
         raise ToolError(
             f'No section {section!r} in the guide of {name}; the sections are: '
             f'{", ".join(titles) or "none"}.'
