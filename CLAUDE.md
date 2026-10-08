@@ -5,7 +5,10 @@ SDK 2.x): the catalog of the Bazis packages and the facts and system checks of t
 project, for AI agents. All tools only read.
 
 - `bazis/contrib/mcp/server.py` — the tools, the resource, the prompts and `main()`;
-- `bazis/contrib/mcp/catalog.py` — the installed packages and the snapshot `catalog.json`;
+- `bazis/contrib/mcp/catalog.py` — the installed packages and the snapshot `catalog.json`,
+  and the guides by sections (`GUIDE_LIMIT`: a longer AGENTS.md is read section by
+  section, so that a result of `package_guide` stays under the output limit of the MCP
+  clients, 25,000 tokens in Claude Code);
 - `bazis/contrib/mcp/project.py` — loading the project, `bazis.core.introspect` and the
   system checks;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`, the

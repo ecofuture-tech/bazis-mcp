@@ -82,6 +82,8 @@ async def test_package_guide_of_an_installed_package_is_read_from_it(client):
     installed = (resources.files('bazis.core') / 'AGENTS.md').read_text(encoding='utf-8')
     assert guide['installed_version'] == metadata.version('bazis')
     assert guide['agents_md'] == installed
+    assert guide['complete'] is True
+    assert {'Models', 'Routes', 'Rules'} <= set(guide['sections'])
     assert guide['manifest']['package']['name'] == 'bazis'
 
 
@@ -103,6 +105,88 @@ async def test_package_guide_of_an_unknown_package(client):
 
     assert call_result.is_error
     assert 'bazis-permit' in call_result.content[0].text
+
+
+#: a paragraph of a guide, about 16,000 characters
+PARAGRAPH = 'A line of the guide that says what to do and why it matters.\n' * 260
+
+#: a guide longer than the limit of a result: the introduction, a `## ` line in a code block
+#: (not a heading), a section with a subsection longer than the limit, a short section
+LONG_GUIDE = (
+    '# bazis-long\n\nThe introduction.\n\n'
+    f'## Setup\n\n{PARAGRAPH}\n```markdown\n## not a heading\n```\n\n'
+    f'## Models\n\n{PARAGRAPH}\n### Details\n\n{PARAGRAPH}\n'
+    '## Rules\n\nShort.\n'
+)
+
+
+@pytest.fixture
+def long_guide(monkeypatch):
+    package = {'name': 'bazis-long', 'installed_version': '1.0.0', 'catalog_version': None,
+               'guide_version': '1.0.0', 'manifest': {'package': {'name': 'bazis-long'}},
+               'agents_md': LONG_GUIDE}
+    monkeypatch.setattr(catalog, 'packages', lambda: {'bazis-long': package})
+
+
+async def test_a_long_guide_is_read_by_sections(client, long_guide):
+    """
+    A guide longer than the limit comes as its introduction and the titles of its sections,
+    which are read one by one; together they are the whole guide.
+    """
+    call_result = await client.call_tool('package_guide', {'name': 'bazis-long'})
+    guide = result(call_result)
+
+    assert len(LONG_GUIDE) > catalog.GUIDE_LIMIT
+    assert len(call_result.content[0].text) < catalog.GUIDE_LIMIT
+    assert guide['complete'] is False
+    assert guide['agents_md'] == '# bazis-long\n\nThe introduction.\n\n'
+    assert guide['manifest'] == {'package': {'name': 'bazis-long'}}
+    assert guide['sections'] == ['Setup', 'Models (1/2)', 'Models (2/2)', 'Rules']
+
+    texts = [guide['agents_md']]
+    for title in guide['sections']:
+        call_result = await client.call_tool(
+            'package_guide', {'name': 'bazis-long', 'section': title}
+        )
+        section = result(call_result)
+        assert len(call_result.content[0].text) < catalog.GUIDE_LIMIT + 2_000
+        assert section['section'] == title and 'manifest' not in section
+        assert section['sections'] == guide['sections']
+        texts.append(section['agents_md'])
+    assert ''.join(texts) == LONG_GUIDE
+    assert texts[1].startswith('## Setup\n') and '## not a heading' in texts[1]
+    assert texts[2].startswith('## Models\n') and '### Details' in texts[2] + texts[3]
+
+    # the title as written in the guide, in any case
+    for title in ('rules', '## Rules', ' RULES '):
+        rules = result(await client.call_tool(
+            'package_guide', {'name': 'bazis-long', 'section': title}
+        ))
+        assert rules['agents_md'] == '## Rules\n\nShort.\n'
+
+
+async def test_an_unknown_section_of_a_guide(client, long_guide):
+    call_result = await client.call_tool(
+        'package_guide', {'name': 'bazis-long', 'section': 'Models'}
+    )
+
+    assert call_result.is_error
+    assert 'Setup, Models (1/2), Models (2/2), Rules' in call_result.content[0].text
+
+
+async def test_every_guide_fits_in_a_result(client):
+    """
+    The guides of the catalog and of the installed packages: the default result and every
+    section stay under the limits of the MCP clients on the output of a tool.
+    """
+    for name, package in catalog.packages().items():
+        call_result = await client.call_tool('package_guide', {'name': name})
+        guide = result(call_result)
+        assert len(call_result.content[0].text) < 40_000, name
+        assert guide['complete'] == (len(package['agents_md'] or '') <= catalog.GUIDE_LIMIT)
+        for title in guide['sections']:
+            call_result = await client.call_tool('package_guide', {'name': name, 'section': title})
+            assert len(call_result.content[0].text) < 40_000, (name, title)
 
 
 async def test_project_info(client):

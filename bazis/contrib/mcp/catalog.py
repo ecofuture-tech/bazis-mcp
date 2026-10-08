@@ -73,6 +73,73 @@ def packages() -> dict[str, dict]:
     return result
 
 
+#: the longest text of an AGENTS.md in one result of `package_guide` (characters, about 8,000
+#: tokens): a longer guide is read section by section, so that a result stays well under the
+#: limits of the MCP clients on the output of a tool (Claude Code: 25,000 tokens)
+GUIDE_LIMIT = 30_000
+
+
+def sections(text: str) -> list[tuple[str, str]]:
+    """
+    An AGENTS.md as its sections, in order: the introduction (title '') before the first
+    `## ` heading outside a code block, then each `## ` section with its heading and its
+    subsections. A section longer than GUIDE_LIMIT is cut at line ends into parts titled
+    `<title> (1/n)`.
+    """
+    found: list[list] = [['', '']]
+    fenced = False
+    for line in text.splitlines(keepends=True):
+        if line.startswith('```'):
+            fenced = not fenced
+        elif not fenced and line.startswith('## '):
+            found.append([line[3:].strip(), ''])
+        found[-1][1] += line
+    if not found[0][1]:
+        del found[0]
+    result = []
+    for title, body in found:
+        parts = ['']
+        for line in body.splitlines(keepends=True):
+            if parts[-1] and len(parts[-1]) + len(line) > GUIDE_LIMIT:
+                parts.append('')
+            parts[-1] += line
+        if len(parts) == 1:
+            result.append((title, body))
+        else:
+            result += [(f'{title} ({i}/{len(parts)})', part) for i, part in enumerate(parts, 1)]
+    return result
+
+
+def guide(package: dict, section: str | None = None) -> dict:
+    """
+    The guide of a package: its manifest and its AGENTS.md, whole when it is no longer than
+    GUIDE_LIMIT, else its introduction (`complete` false); `sections` lists the titles of
+    its sections. With a `section`, the text of that section only (KeyError if there is no
+    such section).
+    """
+    text = package['agents_md'] or ''
+    parts = sections(text)
+    titles = [title for title, _ in parts if title]
+    info = {
+        key: package[key]
+        for key in ('name', 'installed_version', 'catalog_version', 'guide_version')
+    }
+    if section is not None:
+        wanted = section.strip().removeprefix('## ').strip().casefold()
+        for title, body in parts:
+            if title and title.casefold() == wanted:
+                return {**info, 'section': title, 'agents_md': body, 'sections': titles}
+        raise KeyError(section)
+    complete = len(text) <= GUIDE_LIMIT
+    return {
+        **info,
+        'manifest': package['manifest'],
+        'agents_md': package['agents_md'] if complete else parts[0][1],
+        'complete': complete,
+        'sections': titles,
+    }
+
+
 def summary(package: dict) -> dict:
     """
     The short description of a package for choosing packages.

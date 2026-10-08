@@ -37,7 +37,9 @@ packages the project needs.
 
 - Choose packages with `list_packages` (what each one solves and requires), then read the
   guide of each chosen package with `package_guide` before using it, also for the core
-  (`bazis`). Follow the guides, not your memory of Bazis.
+  (`bazis`). Follow the guides, not your memory of Bazis. A long guide comes as its
+  introduction (`complete` false) with the titles of its `sections`: read them with
+  `package_guide(name, section)`.
 - Facts about this project (installed packages, settings, models, routes) come from
   `project_info`.
 - After every change run `run_doctor` and the tests of the project, and fix what they
@@ -79,14 +81,27 @@ def list_packages() -> dict:
 
 
 @server.tool(annotations=READ_ONLY)
-def package_guide(name: str) -> dict:
+def package_guide(name: str, section: str | None = None) -> dict:
     """
     How to use a Bazis package (`bazis` for the core): its AGENTS.md (setup, the classes
     to extend, the rules) and its manifest (`extension_points` with import paths,
     `pitfalls` with the ids of the checks that detect them). Read it before using the
     package. An installed package is described by its installed version.
+
+    `sections` lists the titles of the sections of the AGENTS.md. A long one is not
+    returned whole: `complete` is false and `agents_md` is its introduction; read the
+    sections you need with `section` (a title of `sections`), which returns the text of
+    that section only.
     """
-    return _package(name)
+    package = _package(name)
+    try:
+        return catalog.guide(package, section)
+    except KeyError:
+        titles = [title for title, _ in catalog.sections(package['agents_md'] or '') if title]
+        raise ToolError(
+            f'No section {section!r} in the guide of {name}; the sections are: '
+            f'{", ".join(titles) or "none"}.'
+        ) from None
 
 
 @server.tool(annotations=READ_ONLY)
@@ -204,9 +219,10 @@ def build_frontend() -> str:
     return """\
 Build the frontend of this Bazis project with bazis-front.
 
-1. Read `package_guide("bazis-front")` and `front_catalog`. If `front_check` says that
-   bazis-front is missing, install it, add "bazis.contrib.front" to BS_INSTALLED_APPS and
-   run `manage.py bazis_front init` (frontend/ and the starters of spec/).
+1. Read `package_guide("bazis-front")` with all its sections, and `front_catalog`. If
+   `front_check` says that bazis-front is missing, install it, add "bazis.contrib.front" to
+   BS_INSTALLED_APPS and run `manage.py bazis_front init` (frontend/ and the starters of
+   spec/).
 2. Describe the product in spec/product.yaml (roles, entities, access, scenarios), its
    screens in spec/screens/ and its design in spec/design/, as the guide says; run
    `front_check` after each layer.

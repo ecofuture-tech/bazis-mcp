@@ -65,7 +65,7 @@ still work and the project tools return the error.
 | Tool | Returns |
 |---|---|
 | `list_packages` | Every Bazis package: `summary`, `solves`, `requires`, `pairs_well`, `installed_version`, `catalog_version`, `guide_version` |
-| `package_guide(name)` | The `AGENTS.md` and the manifest of a package (`bazis` for the core) |
+| `package_guide(name, section)` | The `AGENTS.md` and the manifest of a package (`bazis` for the core), with the titles of its `sections`; a guide longer than 30,000 characters comes as its introduction (`complete` false), and `section` returns one section |
 | `project_info(sections)` | `packages`, `settings`, `models`, `routes` of the project |
 | `run_doctor(deploy)` | The messages of the system checks; `ok` is false if there is an error |
 | `front_check(layer)` | The issues of the frontend specs (`bazis_front check --json`); `ok` is false if there is an error |
