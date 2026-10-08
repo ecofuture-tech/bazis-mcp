@@ -8,11 +8,14 @@ project, for AI agents. All tools only read.
 - `bazis/contrib/mcp/catalog.py` — the installed packages and the snapshot `catalog.json`;
 - `bazis/contrib/mcp/project.py` — loading the project, `bazis.core.introspect` and the
   system checks;
+- `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`, the
+  checks `front.*` and the registry of the assets;
 - `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI.
 
-The project tools run `python -m django bazis_introspect/bazis_doctor` in a new process
-at every call, so that they see the current code of the project, and the server never
-imports the project (stdout is the protocol channel of the stdio transport).
+The project tools run `python -m django bazis_introspect/bazis_doctor/bazis_front` (and
+read the registry of bazis-front with `python -c`) in a new process at every call, so
+that they see the current code of the project, and the server never imports the project
+(stdout is the protocol channel of the stdio transport).
 
 The sample project used by the tests is in `sample/`, the tests are in `tests/`.
 

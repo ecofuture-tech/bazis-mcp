@@ -8,7 +8,9 @@ check a Bazis project from the project itself rather than from memory:
   what it requires, and its guide for agents (`AGENTS.md` and `bazis_manifest.toml`);
 - the facts about the project: installed packages, settings (secrets hidden), models and
   routes (`bazis.core.introspect`);
-- the system checks of the project and of its Bazis packages (`manage.py bazis_doctor`).
+- the system checks of the project and of its Bazis packages (`manage.py bazis_doctor`);
+- its frontend layer made by bazis-front: the issues of the specs, what is stale and the
+  components that can be added (`manage.py bazis_front`).
 
 All tools only read. The agent changes the files itself and checks the result with the
 server.
@@ -66,10 +68,19 @@ still work and the project tools return the error.
 | `package_guide(name)` | The `AGENTS.md` and the manifest of a package (`bazis` for the core) |
 | `project_info(sections)` | `packages`, `settings`, `models`, `routes` of the project |
 | `run_doctor(deploy)` | The messages of the system checks; `ok` is false if there is an error |
+| `front_check(layer)` | The issues of the frontend specs (`bazis_front check --json`); `ok` is false if there is an error |
+| `front_status()` | The parts of the frontend that are stale (the checks `front.*`), by the `bazis_front` command that updates them |
+| `front_catalog()` | The assets of bazis-front (components, hooks) with the capabilities and assets they require |
 
 Resource: `bazis://packages/{name}/agents.md`. Prompts: `add_package(name)` (add a package
-and make the checks pass) and `audit_project` (review the project against the guides and
-checks of its packages).
+and make the checks pass), `audit_project` (review the project against the guides and
+checks of its packages) and `build_frontend` (build the frontend with bazis-front, from the
+specs to the end-to-end tests).
+
+The frontend tools run `bazis_front` and `bazis_doctor` like the other project tools, and
+read the registry of the assets from the bazis-front of the project (else from the
+catalog). Without bazis-front they say so (`checked: false` with the `reason`) instead of
+failing.
 
 An installed package is described by its installed files. The packages that are not
 installed, and those installed in a version without a guide (before 2.4), come from

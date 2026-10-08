@@ -14,7 +14,9 @@
 
 """
 Rebuilds `bazis/contrib/mcp/catalog.json` from the latest releases of the Bazis packages
-on PyPI: the manifest and the AGENTS.md of each package, read from its wheel.
+on PyPI: the manifest and the AGENTS.md of each package, read from its wheel, and the
+registry of the assets of bazis-front (`front_catalog`). A package that is not on PyPI yet
+is left out.
 
 Run it before a release of bazis-mcp: `python scripts/update_catalog.py`.
 """
@@ -23,6 +25,7 @@ import io
 import json
 import sys
 import tomllib
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -43,7 +46,11 @@ PACKAGES = [
     'bazis-bg',
     'bazis-async-background',
     'bazis-async-request',
+    'bazis-front',
 ]
+
+#: the registry of the assets of bazis-front in its module, read into its entry
+FRONT_REGISTRY = 'assets/registry.json'
 
 CATALOG = Path(__file__).resolve().parent.parent / 'bazis' / 'contrib' / 'mcp' / 'catalog.json'
 
@@ -61,8 +68,13 @@ def fetch(url: str) -> bytes:
         return response.read()
 
 
-def package_entry(name: str) -> dict:
-    info = json.loads(fetch(f'https://pypi.org/pypi/{name}/json'))
+def package_entry(name: str) -> dict | None:
+    try:
+        info = json.loads(fetch(f'https://pypi.org/pypi/{name}/json'))
+    except urllib.error.HTTPError as err:
+        if err.code == 404:
+            return None  # not released yet
+        raise
     version = info['info']['version']
     wheels = [it for it in info['urls'] if it['packagetype'] == 'bdist_wheel']
     if not wheels:
@@ -75,16 +87,28 @@ def package_entry(name: str) -> dict:
         agents_file = f'{path}/AGENTS.md'
         if manifest_file not in files or agents_file not in files:
             raise SystemExit(f'{name} {version}: the wheel has no manifest or AGENTS.md')
-        manifest = tomllib.loads(wheel.read(manifest_file).decode())
-        agents_md = wheel.read(agents_file).decode()
+        entry = {
+            'name': name,
+            'version': version,
+            'manifest': tomllib.loads(wheel.read(manifest_file).decode()),
+            'agents_md': wheel.read(agents_file).decode(),
+        }
+        if name == 'bazis-front':
+            registry_file = f'{path}/{FRONT_REGISTRY}'
+            if registry_file not in files:
+                raise SystemExit(f'{name} {version}: the wheel has no {FRONT_REGISTRY}')
+            entry['registry'] = json.loads(wheel.read(registry_file))
 
-    return {'name': name, 'version': version, 'manifest': manifest, 'agents_md': agents_md}
+    return entry
 
 
 def main() -> None:
     catalog = []
     for name in PACKAGES:
         entry = package_entry(name)
+        if entry is None:
+            print(f'{name}: not on PyPI, left out', file=sys.stderr)
+            continue
         print(f'{name} {entry["version"]}', file=sys.stderr)
         catalog.append(entry)
     CATALOG.write_text(json.dumps(catalog, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')

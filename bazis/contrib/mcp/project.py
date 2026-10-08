@@ -80,38 +80,75 @@ def find_settings(directory: Path) -> str | None:
     return None
 
 
-def manage(command: str, *args: str):
+def run(name: str, *args: str, **env: str) -> subprocess.CompletedProcess:
     """
-    The JSON printed by `python -m django <command> <args>` in the project directory, run
-    with the Python of the project (`find_python`).
+    `<python> <args>` in the project directory, with the Python of the project
+    (`find_python`), the project directory on the path and the variables `env`. `name`
+    names the call in the errors.
     """
+    _check_dir()
+    env = dict(os.environ, **env)
+    env['PYTHONPATH'] = os.pathsep.join(filter(None, [str(project_dir), env.get('PYTHONPATH')]))
+    interpreter = find_python(project_dir)
+    try:
+        return subprocess.run(
+            [interpreter, *args],
+            cwd=project_dir, env=env, capture_output=True, text=True, timeout=TIMEOUT,
+            stdin=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise ProjectError(f'{name} did not finish in {TIMEOUT} seconds.') from err
+    except OSError as err:
+        raise ProjectError(f'{name} cannot run the Python of the project {interpreter}: {err}') from err
+
+
+def _check_dir():
     if not project_dir.is_dir():
         raise ProjectError(f'The project directory {project_dir} does not exist.')
-    settings = settings_module or find_settings(project_dir)
+
+
+def settings_name() -> str | None:
+    """
+    The settings module of the project: the one given with --settings, else `find_settings`.
+    """
+    return settings_module or find_settings(project_dir)
+
+
+def django(command: str, *args: str) -> subprocess.CompletedProcess:
+    """
+    `python -m django <command> <args>` with the settings of the project.
+    """
+    _check_dir()
+    settings = settings_name()
     if not settings:
         raise ProjectError(
             f'No settings module: {project_dir} has no manage.py that sets '
             'DJANGO_SETTINGS_MODULE. Pass --project-dir, --settings or set DJANGO_SETTINGS_MODULE.'
         )
-    env = dict(os.environ, DJANGO_SETTINGS_MODULE=settings)
-    env['PYTHONPATH'] = os.pathsep.join(filter(None, [str(project_dir), env.get('PYTHONPATH')]))
-    try:
-        done = subprocess.run(
-            [find_python(project_dir), '-m', 'django', command, *args],
-            cwd=project_dir, env=env, capture_output=True, text=True, timeout=TIMEOUT,
-            stdin=subprocess.DEVNULL,
-        )
-    except subprocess.TimeoutExpired as err:
-        raise ProjectError(f'{command} did not finish in {TIMEOUT} seconds.') from err
-    data = _json(done.stdout)
+    return run(command, '-m', 'django', command, *args, DJANGO_SETTINGS_MODULE=settings)
+
+
+def manage(command: str, *args: str):
+    """
+    The JSON printed by `python -m django <command> <args>` (`django`).
+    """
+    done = django(command, *args)
+    data = parse_json(done.stdout)
     if data is None:
-        # the end of a traceback says what went wrong
-        error = '\n'.join((done.stderr.strip() or done.stdout.strip()).splitlines()[-15:])
-        raise ProjectError(f'{command} failed (exit code {done.returncode}):\n{error}')
+        raise failure(command, done)
     return data
 
 
-def _json(text: str):
+def failure(name: str, done: subprocess.CompletedProcess) -> ProjectError:
+    """
+    The error of a call that printed no JSON: the end of its output (of a traceback) says
+    what went wrong.
+    """
+    error = '\n'.join((done.stderr.strip() or done.stdout.strip()).splitlines()[-15:])
+    return ProjectError(f'{name} failed (exit code {done.returncode}):\n{error}')
+
+
+def parse_json(text: str):
     """
     The JSON document in the output: the first line that starts one (the project may print
     other lines before it).
