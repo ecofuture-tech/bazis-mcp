@@ -384,7 +384,10 @@ async def test_project_info(client):
 
 async def test_run_doctor(client):
     report = result(await client.call_tool('run_doctor', {}))
-    assert report == {'ok': True, 'messages': []}
+    assert report['ok'] is True
+    # no warning nor error; an info may say that the database checks were skipped without
+    # the database (`bazis.database`, bazis 2.13)
+    assert [it for it in report['messages'] if it['level'] not in ('info', 'debug')] == []
 
     report = result(await client.call_tool('run_doctor', {'deploy': True}))
     messages = {it['id']: it for it in report['messages']}

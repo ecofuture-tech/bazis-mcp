@@ -128,7 +128,8 @@ def check(layer: str | None = None) -> dict:
 def status() -> dict:
     """
     The parts of the frontend that are stale, from the system checks of bazis-front run by
-    `manage.py bazis_doctor --json` (without Node and the database), by the command that
+    `manage.py bazis_doctor --json` (those checks need neither Node nor the database; the
+    doctor runs its database checks when it reaches the database), by the command that
     updates them.
     """
     installed = package()
