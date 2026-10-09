@@ -38,7 +38,10 @@ of its parent, else the Python of the server. It is not a Django app: do not add
 - `project_info(sections)` — `packages`, `settings` (secrets hidden), `models`, `routes`
   of the project (`bazis.core.introspect`).
 - `run_doctor(deploy)` — the Django system checks with the checks of the Bazis packages
-  (`manage.py bazis_doctor`); `ok` is false if there is an error.
+  (`manage.py bazis_doctor`); `ok` is false if there is an error. From bazis 2.13 also the
+  database checks against the database `default` (the declarations against the rows);
+  the info `bazis.database` says they were skipped because the database cannot be
+  reached: start it to check the data.
 
 The frontend layer of the project (bazis-front, its guide is `package_guide("bazis-front")`):
 

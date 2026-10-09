@@ -120,7 +120,10 @@ def run_doctor(deploy: bool = False) -> dict:
     """
     Runs the Django system checks of this project, including the checks of the Bazis
     packages (`manage.py bazis_doctor`). `ok` is false if there is an error. `deploy` adds
-    the deployment checks. Run it after every change.
+    the deployment checks. From bazis 2.13 it also runs the database checks against the
+    database `default` (such as the declared roles and workflows against the rows); when
+    the database cannot be reached they are skipped with the info `bazis.database`, and the
+    data is not checked. Run it after every change.
     """
     return _project_call(project.doctor, deploy)
 
