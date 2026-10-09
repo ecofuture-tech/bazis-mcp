@@ -162,18 +162,29 @@ def parse_json(text: str):
 
 
 #: prints the Bazis packages installed in the Python of the project as
-#: `bazis.core.introspect.packages()` lists them (none without Bazis), without setting
-#: Django up
+#: `bazis.core.introspect.packages()` lists them, without setting Django up; with a Bazis
+#: older than `introspect` (2.4) only their names and versions, so that the catalog gives
+#: their guides, and none without Bazis
 PACKAGES_PROBE = """\
 import json
-from importlib.util import find_spec
+import re
+from importlib import metadata
 
-if find_spec('bazis') is None:
-    print('[]')
-else:
+try:
     from bazis.core import introspect
-
-    print(json.dumps(introspect.packages()))
+except ImportError:
+    names = {
+        re.sub(r'[-_.]+', '-', dist.metadata['Name'] or '').lower()
+        for dist in metadata.distributions()
+    }
+    packages = [
+        {'name': name, 'version': metadata.version(name), 'module': None, 'manifest': None,
+         'agents_md': None}
+        for name in sorted(names) if name == 'bazis' or name.startswith('bazis-')
+    ]
+else:
+    packages = introspect.packages()
+print(json.dumps(packages))
 """
 
 PACKAGES_NAME = 'Reading the installed packages'

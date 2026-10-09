@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Literal
 
 from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
+from mcp.server.mcpserver.exceptions import ResourceError, ResourceNotFoundError, ToolError
 from mcp.types import ToolAnnotations
 
 from . import __version__, catalog, front, project
@@ -169,7 +169,10 @@ def front_catalog() -> dict:
     mime_type='text/markdown',
 )
 def agents_md(name: str) -> str:
-    package = catalog.packages().get(name)
+    try:
+        package = catalog.packages().get(name)
+    except project.ProjectError as err:
+        raise ResourceError(str(err)) from err
     if not package or not package['agents_md']:
         raise ResourceNotFoundError(f'No AGENTS.md for {name!r}')
     return package['agents_md']

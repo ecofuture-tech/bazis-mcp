@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.shared.exceptions import MCPError
 
 from bazis.contrib.mcp import catalog, project
 
@@ -161,12 +162,52 @@ async def test_packages_of_a_python_without_bazis(client, monkeypatch, tmp_path)
     assert all(it['installed_version'] is None for it in listed)
 
 
+async def test_packages_of_a_python_with_a_bazis_before_the_introspection(
+    client, monkeypatch, tmp_path
+):
+    """
+    A Bazis older than `bazis.core.introspect` (2.4) in the Python of the project: its
+    packages are listed with their versions, and the catalog gives their guides.
+    """
+    import venv
+
+    venv.create(tmp_path / '.venv', with_pip=False, symlinks=sys.platform != 'win32')
+    monkeypatch.setattr(project, 'project_dir', tmp_path)
+    monkeypatch.setattr(project, 'python', None)
+    site = Path(project.run(
+        'site', '-c', "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+    ).stdout.strip())
+    for name, version in (('bazis', '2.3.0'), ('bazis_permit', '2.3.1')):
+        dist_info = site / f'{name}-{version}.dist-info'
+        dist_info.mkdir()
+        (dist_info / 'METADATA').write_text(
+            f'Metadata-Version: 2.1\nName: {name.replace("_", "-")}\nVersion: {version}\n'
+        )
+    (site / 'bazis' / 'core').mkdir(parents=True)  # without introspect.py
+    (site / 'bazis' / 'core' / '__init__.py').write_text('')
+
+    listed = {
+        it['name']: it for it in result(await client.call_tool('list_packages', {}))['packages']
+    }
+    assert listed['bazis']['installed_version'] == '2.3.0'
+    assert listed['bazis-users']['installed_version'] is None
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis-permit'}))
+    assert guide['installed_version'] == '2.3.1'
+    assert guide['guide_version'] == catalog.catalog()['bazis-permit']['version']
+    assert 'PermitRouteBase' in guide['agents_md']
+
+
 async def test_packages_of_a_python_that_fails(client, monkeypatch, tmp_path):
     monkeypatch.setattr(project, 'python', str(tmp_path / 'missing' / 'python'))
 
     call_result = await client.call_tool('list_packages', {})
     assert call_result.is_error
     assert 'cannot run the Python of the project' in call_result.content[0].text
+
+    # the resource of the guides says why too
+    with pytest.raises(MCPError) as error:
+        await client.read_resource('bazis://packages/bazis-permit/agents.md')
+    assert 'cannot run the Python of the project' in str(error.value)
 
 
 async def test_package_guide_of_a_package_installed_without_a_guide(client, monkeypatch):
