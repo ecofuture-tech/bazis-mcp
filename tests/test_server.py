@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.shared.exceptions import MCPError
 
 from bazis.contrib.mcp import catalog, project
 
@@ -28,6 +29,13 @@ from bazis.contrib.mcp import catalog, project
 pytestmark = pytest.mark.anyio
 
 SAMPLE_DIR = Path(__file__).resolve().parent.parent / 'sample'
+
+
+def size(call_result) -> int:
+    """
+    The bytes of the text of a tool result, as a client receives it.
+    """
+    return len(call_result.content[0].text.encode())
 
 
 def result(call_result):
@@ -77,19 +85,136 @@ async def test_package_guide_of_a_package_not_installed(client):
 async def test_package_guide_of_an_installed_package_is_read_from_it(client):
     from importlib import resources
 
-    guide = result(await client.call_tool('package_guide', {'name': 'bazis'}))
+    guide, text = await read_whole_guide(client, 'bazis')
 
     installed = (resources.files('bazis.core') / 'AGENTS.md').read_text(encoding='utf-8')
     assert guide['installed_version'] == metadata.version('bazis')
-    assert guide['agents_md'] == installed
+    assert text == installed
+    assert {'Models', 'Routes', 'Rules'} <= set(guide['sections'])
     assert guide['manifest']['package']['name'] == 'bazis'
+
+
+def fake_package(site: Path, version: str, guide: str):
+    """
+    Installs the distribution bazis-fake (the module `bazis_fake` with its guide) of a
+    `version` into the directory `site`, replacing the one there.
+    """
+    for old in site.glob('bazis_fake-*.dist-info'):
+        for file in old.iterdir():
+            file.unlink()
+        old.rmdir()
+    dist_info = site / f'bazis_fake-{version}.dist-info'
+    dist_info.mkdir(parents=True)
+    (dist_info / 'METADATA').write_text(
+        f'Metadata-Version: 2.1\nName: bazis-fake\nVersion: {version}\n'
+    )
+    module = site / 'bazis_fake'
+    module.mkdir(exist_ok=True)
+    (module / '__init__.py').write_text('')
+    (module / 'AGENTS.md').write_text(guide)
+    (module / 'bazis_manifest.toml').write_text('[package]\nname = "bazis-fake"\n')
+
+
+async def test_packages_are_those_of_the_python_of_the_project_at_every_call(
+    client, monkeypatch, tmp_path
+):
+    """
+    The installed packages and their guides are read from the Python of the project, not
+    from that of the server (bazis-cli runs the server with its own), and again at every
+    call: a package installed or upgraded while the server runs is seen.
+    """
+    site = tmp_path / 'site-packages'
+    # only the processes of the project see this directory, not the server
+    monkeypatch.setenv('PYTHONPATH', str(site))
+    fake_package(site, '1.0.0', '# bazis-fake\n\nThe guide of 1.0.0.\n')
+
+    def packages(info):
+        return {it['name']: it for it in info['packages']}
+
+    listed = packages(result(await client.call_tool('list_packages', {})))
+    assert listed['bazis-fake']['installed_version'] == '1.0.0'
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis-fake'}))
+    assert guide['agents_md'] == '# bazis-fake\n\nThe guide of 1.0.0.\n'
+
+    fake_package(site, '1.1.0', '# bazis-fake\n\nThe guide of 1.1.0.\n')
+
+    listed = packages(result(await client.call_tool('list_packages', {})))
+    assert listed['bazis-fake']['installed_version'] == '1.1.0'
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis-fake'}))
+    assert (guide['installed_version'], guide['guide_version']) == ('1.1.0', '1.1.0')
+    assert guide['agents_md'] == '# bazis-fake\n\nThe guide of 1.1.0.\n'
+    info = result(await client.call_tool('project_info', {'sections': ['packages']}))
+    assert packages(info)['bazis-fake']['version'] == '1.1.0'
+
+
+async def test_packages_of_a_python_without_bazis(client, monkeypatch, tmp_path):
+    """
+    A project whose Python has no Bazis yet: the catalog describes every package.
+    """
+    import venv
+
+    venv.create(tmp_path / '.venv', with_pip=False, symlinks=sys.platform != 'win32')
+    monkeypatch.setattr(project, 'project_dir', tmp_path)
+    monkeypatch.setattr(project, 'python', None)  # .venv of the project directory
+
+    listed = result(await client.call_tool('list_packages', {}))['packages']
+    assert {it['name'] for it in listed} == set(catalog.catalog())
+    assert all(it['installed_version'] is None for it in listed)
+
+
+async def test_packages_of_a_python_with_a_bazis_before_the_introspection(
+    client, monkeypatch, tmp_path
+):
+    """
+    A Bazis older than `bazis.core.introspect` (2.4) in the Python of the project: its
+    packages are listed with their versions, and the catalog gives their guides.
+    """
+    import venv
+
+    venv.create(tmp_path / '.venv', with_pip=False, symlinks=sys.platform != 'win32')
+    monkeypatch.setattr(project, 'project_dir', tmp_path)
+    monkeypatch.setattr(project, 'python', None)
+    site = Path(project.run(
+        'site', '-c', "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+    ).stdout.strip())
+    for name, version in (('bazis', '2.3.0'), ('bazis_permit', '2.3.1')):
+        dist_info = site / f'{name}-{version}.dist-info'
+        dist_info.mkdir()
+        (dist_info / 'METADATA').write_text(
+            f'Metadata-Version: 2.1\nName: {name.replace("_", "-")}\nVersion: {version}\n'
+        )
+    (site / 'bazis' / 'core').mkdir(parents=True)  # without introspect.py
+    (site / 'bazis' / 'core' / '__init__.py').write_text('')
+
+    listed = {
+        it['name']: it for it in result(await client.call_tool('list_packages', {}))['packages']
+    }
+    assert listed['bazis']['installed_version'] == '2.3.0'
+    assert listed['bazis-users']['installed_version'] is None
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis-permit'}))
+    assert guide['installed_version'] == '2.3.1'
+    assert guide['guide_version'] == catalog.catalog()['bazis-permit']['version']
+    assert 'PermitRouteBase' in guide['agents_md']
+
+
+async def test_packages_of_a_python_that_fails(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(project, 'python', str(tmp_path / 'missing' / 'python'))
+
+    call_result = await client.call_tool('list_packages', {})
+    assert call_result.is_error
+    assert 'cannot run the Python of the project' in call_result.content[0].text
+
+    # the resource of the guides says why too
+    with pytest.raises(MCPError) as error:
+        await client.read_resource('bazis://packages/bazis-permit/agents.md')
+    assert 'cannot run the Python of the project' in str(error.value)
 
 
 async def test_package_guide_of_a_package_installed_without_a_guide(client, monkeypatch):
     # bazis-permit before 2.4 ships no AGENTS.md and no manifest: the catalog describes it
     old = {'name': 'bazis-permit', 'version': '2.3.1', 'module': 'bazis.contrib.permit',
            'manifest': None, 'agents_md': None}
-    monkeypatch.setattr(catalog.introspect, 'packages', lambda: [old])
+    monkeypatch.setattr(project, 'packages', lambda: [old])
 
     guide = result(await client.call_tool('package_guide', {'name': 'bazis-permit'}))
 
@@ -103,6 +228,140 @@ async def test_package_guide_of_an_unknown_package(client):
 
     assert call_result.is_error
     assert 'bazis-permit' in call_result.content[0].text
+
+
+#: a paragraph of a guide, about 16,000 characters
+PARAGRAPH = 'A line of the guide that says what to do and why it matters.\n' * 260
+
+#: a guide longer than the limit of a result: the introduction, a `## ` line in a code block
+#: (not a heading), a section with a subsection longer than the limit, a short section
+LONG_GUIDE = (
+    '# bazis-long\n\nThe introduction.\n\n'
+    f'## Setup\n\n{PARAGRAPH}\n```markdown\n## not a heading\n```\n\n'
+    f'## Models\n\n{PARAGRAPH}\n### Details\n\n{PARAGRAPH}\n'
+    '## Rules\n\nShort.\n'
+)
+
+
+@pytest.fixture
+def long_guide(monkeypatch):
+    package = {'name': 'bazis-long', 'installed_version': '1.0.0', 'catalog_version': None,
+               'guide_version': '1.0.0', 'manifest': {'package': {'name': 'bazis-long'}},
+               'agents_md': LONG_GUIDE}
+    monkeypatch.setattr(catalog, 'packages', lambda: {'bazis-long': package})
+
+
+async def test_a_long_guide_is_read_by_sections(client, long_guide):
+    """
+    A guide longer than the limit comes as its introduction and the titles of its sections,
+    which are read one by one; together they are the whole guide.
+    """
+    call_result = await client.call_tool('package_guide', {'name': 'bazis-long'})
+    guide = result(call_result)
+
+    assert len(LONG_GUIDE) > catalog.GUIDE_LIMIT
+    assert size(call_result) < catalog.GUIDE_LIMIT
+    assert guide['complete'] is False
+    assert guide['agents_md'] == '# bazis-long\n\nThe introduction.\n\n'
+    assert guide['manifest'] == {'package': {'name': 'bazis-long'}}
+    assert guide['sections'] == ['Setup', 'Models (1/2)', 'Models (2/2)', 'Rules']
+
+    texts = [guide['agents_md']]
+    for title in guide['sections']:
+        call_result = await client.call_tool(
+            'package_guide', {'name': 'bazis-long', 'section': title}
+        )
+        section = result(call_result)
+        assert size(call_result) <= catalog.RESULT_LIMIT
+        assert section['section'] == title and 'manifest' not in section
+        assert section['sections'] == guide['sections']
+        texts.append(section['agents_md'])
+    assert ''.join(texts) == LONG_GUIDE
+    assert texts[1].startswith('## Setup\n') and '## not a heading' in texts[1]
+    assert texts[2].startswith('## Models\n') and '### Details' in texts[2] + texts[3]
+
+    # the title as written in the guide, in any case
+    for title in ('rules', '## Rules', ' RULES '):
+        rules = result(await client.call_tool(
+            'package_guide', {'name': 'bazis-long', 'section': title}
+        ))
+        assert rules['agents_md'] == '## Rules\n\nShort.\n'
+
+
+async def test_an_unknown_section_of_a_guide(client, long_guide):
+    call_result = await client.call_tool(
+        'package_guide', {'name': 'bazis-long', 'section': 'Models'}
+    )
+
+    assert call_result.is_error
+    assert 'Setup, Models (1/2), Models (2/2), Rules' in call_result.content[0].text
+
+
+async def read_whole_guide(client, name: str) -> tuple[dict, str]:
+    """
+    The default result of the guide of a package and the text of the guide put together
+    from its results; every result fits in RESULT_LIMIT.
+    """
+    call_result = await client.call_tool('package_guide', {'name': name})
+    assert size(call_result) <= catalog.RESULT_LIMIT, name
+    guide = result(call_result)
+    if guide['complete']:
+        return guide, guide['agents_md'] or ''
+    texts = []
+    if not guide['sections'] or not guide['sections'][0].startswith(catalog.INTRODUCTION):
+        texts.append(guide['agents_md'])  # an introduction that is not split
+    for title in guide['sections']:
+        call_result = await client.call_tool('package_guide', {'name': name, 'section': title})
+        assert size(call_result) <= catalog.RESULT_LIMIT, (name, title)
+        texts.append(result(call_result)['agents_md'])
+    return guide, ''.join(texts)
+
+
+async def test_every_guide_fits_in_a_result(client):
+    """
+    The guides of the catalog and of the installed packages: the default result and every
+    section stay under the limits of the MCP clients on the output of a tool, and together
+    they are the whole guide. The guide of the core with its manifest is over the limit
+    though its text alone is not: it is read by sections.
+    """
+    for name, package in catalog.packages().items():
+        guide, text = await read_whole_guide(client, name)
+        assert text == (package['agents_md'] or ''), name
+    core = catalog.packages()['bazis']
+    if catalog.json_size(core['agents_md']) + catalog.json_size(core['manifest']) > (
+        catalog.RESULT_LIMIT
+    ):
+        guide, _ = await read_whole_guide(client, 'bazis')
+        assert guide['complete'] is False and guide['sections']
+
+
+async def test_a_guide_that_is_hard_to_fit(client, monkeypatch):
+    """
+    The limit is that of the JSON of a result: a text under GUIDE_LIMIT characters with a
+    large manifest, characters that JSON escapes or encodes in several bytes, a long
+    introduction and a line longer than the limit are all served within it.
+    """
+    escaped = 'A "quoted" \\path\\ and\ttabs: Кириллица — ✓.\n' * 400
+    manifest = {'package': {'name': 'bazis-hard', 'solves': ['x' * 100] * 150}}
+    guide_text = (
+        '# bazis-hard\n\n' + escaped + '## Setup\n\n' + escaped * 2
+        + '## Line\n\n' + 'y' * 100_000 + '\n## Rules\n\nShort.\n'
+    )
+    package = {'name': 'bazis-hard', 'installed_version': '1.0.0', 'catalog_version': None,
+               'guide_version': '1.0.0', 'manifest': manifest, 'agents_md': guide_text}
+    monkeypatch.setattr(catalog, 'packages', lambda: {'bazis-hard': package})
+
+    guide, text = await read_whole_guide(client, 'bazis-hard')
+
+    assert text == guide_text
+    assert guide['complete'] is False and guide['manifest'] == manifest
+    assert any(it.startswith('Line (') for it in guide['sections'])
+
+    # the text alone under GUIDE_LIMIT characters, but not its JSON with the manifest
+    package['agents_md'] = '# bazis-hard\n\n' + escaped[: catalog.GUIDE_LIMIT - 100]
+    assert len(package['agents_md']) < catalog.GUIDE_LIMIT
+    guide, text = await read_whole_guide(client, 'bazis-hard')
+    assert text == package['agents_md'] and guide['complete'] is False
 
 
 async def test_project_info(client):
@@ -125,7 +384,10 @@ async def test_project_info(client):
 
 async def test_run_doctor(client):
     report = result(await client.call_tool('run_doctor', {}))
-    assert report == {'ok': True, 'messages': []}
+    assert report['ok'] is True
+    # no warning nor error; an info may say that the database checks were skipped without
+    # the database (`bazis.database`, bazis 2.13)
+    assert [it for it in report['messages'] if it['level'] not in ('info', 'debug')] == []
 
     report = result(await client.call_tool('run_doctor', {'deploy': True}))
     messages = {it['id']: it for it in report['messages']}
@@ -281,3 +543,27 @@ def test_find_python(tmp_path, monkeypatch):
 
     monkeypatch.setattr(project, 'python', '/usr/bin/python3')
     assert project.find_python(tmp_path / 'app') == '/usr/bin/python3'
+
+
+@pytest.mark.parametrize('guide_text', [
+    pytest.param('# bazis-long\n\n' + PARAGRAPH * 2, id='no-headings'),
+    pytest.param(
+        '# bazis-long\n\n' + PARAGRAPH * 2 + '## Rules\n\nShort.\n', id='long-introduction'
+    ),
+])
+def test_every_listed_section_of_a_guide_is_retrievable(guide_text):
+    """
+    The parts of an introduction longer than the limit are listed under the title
+    `Introduction (i/n)` and can be requested by it; the parts make up the whole guide.
+    """
+    package = {'name': 'bazis-long', 'installed_version': '1.0.0', 'catalog_version': None,
+               'guide_version': '1.0.0', 'manifest': None, 'agents_md': guide_text}
+    listed = catalog.guide(package)['sections']
+
+    assert listed[:2] == ['Introduction (1/2)', 'Introduction (2/2)']
+    texts = [catalog.guide(package, title)['agents_md'] for title in listed]
+    assert ''.join(texts) == guide_text
+    assert catalog.guide(package, 'introduction (2/2)')['agents_md'] == texts[1]
+    with pytest.raises(KeyError) as error:
+        catalog.guide(package, 'Missing')
+    assert error.value.args == ('Missing', listed)

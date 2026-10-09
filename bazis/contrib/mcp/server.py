@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Literal
 
 from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ResourceNotFoundError, ToolError
+from mcp.server.mcpserver.exceptions import ResourceError, ResourceNotFoundError, ToolError
 from mcp.types import ToolAnnotations
 
 from . import __version__, catalog, front, project
@@ -37,7 +37,9 @@ packages the project needs.
 
 - Choose packages with `list_packages` (what each one solves and requires), then read the
   guide of each chosen package with `package_guide` before using it, also for the core
-  (`bazis`). Follow the guides, not your memory of Bazis.
+  (`bazis`). Follow the guides, not your memory of Bazis. A long guide comes as its
+  introduction (`complete` false) with the titles of its `sections`: read them with
+  `package_guide(name, section)`.
 - Facts about this project (installed packages, settings, models, routes) come from
   `project_info`.
 - After every change run `run_doctor` and the tests of the project, and fix what they
@@ -55,7 +57,7 @@ server = MCPServer('bazis', instructions=INSTRUCTIONS, version=__version__)
 
 
 def _package(name: str) -> dict:
-    packages = catalog.packages()
+    packages = _project_call(catalog.packages)
     if name not in packages:
         raise ToolError(f'Unknown package {name!r}; the packages are: {", ".join(packages)}.')
     return packages[name]
@@ -73,20 +75,34 @@ def list_packages() -> dict:
     """
     The Bazis packages (`packages`): what each one is for (`summary`, `solves`), the Bazis packages it
     requires and pairs well with, and the installed and the latest known version
-    (`installed_version` is null if the package is not installed).
+    (`installed_version` is null if the package is not installed in the Python of the project).
     """
-    return {'packages': [catalog.summary(it) for it in catalog.packages().values()]}
+    return {'packages': [catalog.summary(it) for it in _project_call(catalog.packages).values()]}
 
 
 @server.tool(annotations=READ_ONLY)
-def package_guide(name: str) -> dict:
+def package_guide(name: str, section: str | None = None) -> dict:
     """
     How to use a Bazis package (`bazis` for the core): its AGENTS.md (setup, the classes
     to extend, the rules) and its manifest (`extension_points` with import paths,
     `pitfalls` with the ids of the checks that detect them). Read it before using the
-    package. An installed package is described by its installed version.
+    package. A package installed in the Python of the project is described by its installed
+    version, read again at every call.
+
+    `sections` lists the titles of the sections of the AGENTS.md. A long one is not
+    returned whole: `complete` is false and `agents_md` is its introduction; read the
+    sections you need with `section` (a title of `sections`), which returns the text of
+    that section only.
     """
-    return _package(name)
+    package = _package(name)
+    try:
+        return catalog.guide(package, section)
+    except KeyError as error:
+        titles = error.args[1]
+        raise ToolError(
+            f'No section {section!r} in the guide of {name}; the sections are: '
+            f'{", ".join(titles) or "none"}.'
+        ) from None
 
 
 @server.tool(annotations=READ_ONLY)
@@ -104,7 +120,10 @@ def run_doctor(deploy: bool = False) -> dict:
     """
     Runs the Django system checks of this project, including the checks of the Bazis
     packages (`manage.py bazis_doctor`). `ok` is false if there is an error. `deploy` adds
-    the deployment checks. Run it after every change.
+    the deployment checks. From bazis 2.13 it also runs the database checks against the
+    database `default` (such as the declared roles and workflows against the rows); when
+    the database cannot be reached they are skipped with the info `bazis.database`, and the
+    data is not checked. Run it after every change.
     """
     return _project_call(project.doctor, deploy)
 
@@ -153,7 +172,10 @@ def front_catalog() -> dict:
     mime_type='text/markdown',
 )
 def agents_md(name: str) -> str:
-    package = catalog.packages().get(name)
+    try:
+        package = catalog.packages().get(name)
+    except project.ProjectError as err:
+        raise ResourceError(str(err)) from err
     if not package or not package['agents_md']:
         raise ResourceNotFoundError(f'No AGENTS.md for {name!r}')
     return package['agents_md']
@@ -204,9 +226,10 @@ def build_frontend() -> str:
     return """\
 Build the frontend of this Bazis project with bazis-front.
 
-1. Read `package_guide("bazis-front")` and `front_catalog`. If `front_check` says that
-   bazis-front is missing, install it, add "bazis.contrib.front" to BS_INSTALLED_APPS and
-   run `manage.py bazis_front init` (frontend/ and the starters of spec/).
+1. Read `package_guide("bazis-front")` with all its sections, and `front_catalog`. If
+   `front_check` says that bazis-front is missing, install it, add "bazis.contrib.front" to
+   BS_INSTALLED_APPS and run `manage.py bazis_front init` (frontend/ and the starters of
+   spec/).
 2. Describe the product in spec/product.yaml (roles, entities, access, scenarios), its
    screens in spec/screens/ and its design in spec/design/, as the guide says; run
    `front_check` after each layer.

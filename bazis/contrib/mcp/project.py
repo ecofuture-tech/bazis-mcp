@@ -161,17 +161,58 @@ def parse_json(text: str):
     return None
 
 
+#: prints the Bazis packages installed in the Python of the project as
+#: `bazis.core.introspect.packages()` lists them, without setting Django up; with a Bazis
+#: older than `introspect` (2.4) only their names and versions, so that the catalog gives
+#: their guides, and none without Bazis
+PACKAGES_PROBE = """\
+import json
+import re
+from importlib import metadata
+
+try:
+    from bazis.core import introspect
+except ImportError:
+    names = {
+        re.sub(r'[-_.]+', '-', dist.metadata['Name'] or '').lower()
+        for dist in metadata.distributions()
+    }
+    packages = [
+        {'name': name, 'version': metadata.version(name), 'module': None, 'manifest': None,
+         'agents_md': None}
+        for name in sorted(names) if name == 'bazis' or name.startswith('bazis-')
+    ]
+else:
+    packages = introspect.packages()
+print(json.dumps(packages))
+"""
+
+PACKAGES_NAME = 'Reading the installed packages'
+
+
+def packages() -> list[dict]:
+    """
+    The Bazis packages installed in the Python of the project (`find_python`), with their
+    versions, modules, manifests and the paths of their AGENTS.md, read in a new process at
+    every call: never those of the Python of the server (bazis-cli runs the server with its
+    own), and the packages installed or upgraded while the server runs are seen.
+    """
+    done = run(PACKAGES_NAME, '-c', PACKAGES_PROBE)
+    data = parse_json(done.stdout)
+    if data is None:
+        raise failure(PACKAGES_NAME, done)
+    return data
+
+
 def info(sections: list[str] | None = None) -> dict:
     """
     The requested sections of `manage.py bazis_introspect` (default: all). The installed
-    packages are read without loading the project.
+    packages are read without loading the project (`packages`).
     """
-    from bazis.core import introspect
-
     sections = sections or ['packages', 'settings', 'models', 'routes']
     data = {}
     if 'packages' in sections:
-        data['packages'] = introspect.packages()
+        data['packages'] = packages()
     rest = [it for it in sections if it != 'packages']
     if rest:
         data.update(manage('bazis_introspect', *rest))
