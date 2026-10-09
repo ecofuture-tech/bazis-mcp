@@ -5,7 +5,8 @@ SDK 2.x): the catalog of the Bazis packages and the facts and system checks of t
 project, for AI agents. All tools only read.
 
 - `bazis/contrib/mcp/server.py` — the tools, the resource, the prompts and `main()`;
-- `bazis/contrib/mcp/catalog.py` — the installed packages and the snapshot `catalog.json`,
+- `bazis/contrib/mcp/catalog.py` — the packages installed in the Python of the project
+  (`project.packages`, read at every call) and the snapshot `catalog.json`,
   and the guides by sections (`GUIDE_LIMIT`: a longer AGENTS.md is read section by
   section, so that a result of `package_guide` stays under the output limit of the MCP
   clients, 25,000 tokens in Claude Code);
@@ -16,9 +17,10 @@ project, for AI agents. All tools only read.
 - `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI.
 
 The project tools run `python -m django bazis_introspect/bazis_doctor/bazis_front` (and
-read the registry of bazis-front with `python -c`) in a new process at every call, so
-that they see the current code of the project, and the server never imports the project
-(stdout is the protocol channel of the stdio transport).
+read the installed packages and the registry of bazis-front with `python -c`) in a new
+process at every call, so that they see the current code and packages of the project, and
+the server never imports the project (stdout is the protocol channel of the stdio
+transport).
 
 The sample project used by the tests is in `sample/`, the tests are in `tests/`.
 

@@ -161,17 +161,47 @@ def parse_json(text: str):
     return None
 
 
+#: prints the Bazis packages installed in the Python of the project as
+#: `bazis.core.introspect.packages()` lists them (none without Bazis), without setting
+#: Django up
+PACKAGES_PROBE = """\
+import json
+from importlib.util import find_spec
+
+if find_spec('bazis') is None:
+    print('[]')
+else:
+    from bazis.core import introspect
+
+    print(json.dumps(introspect.packages()))
+"""
+
+PACKAGES_NAME = 'Reading the installed packages'
+
+
+def packages() -> list[dict]:
+    """
+    The Bazis packages installed in the Python of the project (`find_python`), with their
+    versions, modules, manifests and the paths of their AGENTS.md, read in a new process at
+    every call: never those of the Python of the server (bazis-cli runs the server with its
+    own), and the packages installed or upgraded while the server runs are seen.
+    """
+    done = run(PACKAGES_NAME, '-c', PACKAGES_PROBE)
+    data = parse_json(done.stdout)
+    if data is None:
+        raise failure(PACKAGES_NAME, done)
+    return data
+
+
 def info(sections: list[str] | None = None) -> dict:
     """
     The requested sections of `manage.py bazis_introspect` (default: all). The installed
-    packages are read without loading the project.
+    packages are read without loading the project (`packages`).
     """
-    from bazis.core import introspect
-
     sections = sections or ['packages', 'settings', 'models', 'routes']
     data = {}
     if 'packages' in sections:
-        data['packages'] = introspect.packages()
+        data['packages'] = packages()
     rest = [it for it in sections if it != 'packages']
     if rest:
         data.update(manage('bazis_introspect', *rest))

@@ -82,10 +82,13 @@ read the registry of the assets from the bazis-front of the project (else from t
 catalog). Without bazis-front they say so (`checked: false` with the `reason`) instead of
 failing.
 
-An installed package is described by its installed files. The packages that are not
-installed, and those installed in a version without a guide (before 2.4), come from
-`catalog.json`, a snapshot of the latest releases taken at the release of bazis-mcp;
-`guide_version` is the version the guide describes.
+A package installed in the Python of the project (the one of the project tools) is
+described by its installed files, read again at every call: the server may run with
+another Python (bazis-cli runs it with its own), and the packages the agent installs or
+upgrades while it runs are seen. The packages that are not installed, and those installed
+in a version without a guide (before 2.4), come from `catalog.json`, a snapshot of the
+latest releases taken at the release of bazis-mcp; `guide_version` is the version the
+guide describes.
 
 The settings are shown with the secrets hidden by `bazis.core.introspect` (by the names
 of the settings and keys, the passwords of URLs and the credentials of `Authorization`

@@ -87,11 +87,87 @@ async def test_package_guide_of_an_installed_package_is_read_from_it(client):
     assert guide['manifest']['package']['name'] == 'bazis'
 
 
+def fake_package(site: Path, version: str, guide: str):
+    """
+    Installs the distribution bazis-fake (the module `bazis_fake` with its guide) of a
+    `version` into the directory `site`, replacing the one there.
+    """
+    for old in site.glob('bazis_fake-*.dist-info'):
+        for file in old.iterdir():
+            file.unlink()
+        old.rmdir()
+    dist_info = site / f'bazis_fake-{version}.dist-info'
+    dist_info.mkdir(parents=True)
+    (dist_info / 'METADATA').write_text(
+        f'Metadata-Version: 2.1\nName: bazis-fake\nVersion: {version}\n'
+    )
+    module = site / 'bazis_fake'
+    module.mkdir(exist_ok=True)
+    (module / '__init__.py').write_text('')
+    (module / 'AGENTS.md').write_text(guide)
+    (module / 'bazis_manifest.toml').write_text('[package]\nname = "bazis-fake"\n')
+
+
+async def test_packages_are_those_of_the_python_of_the_project_at_every_call(
+    client, monkeypatch, tmp_path
+):
+    """
+    The installed packages and their guides are read from the Python of the project, not
+    from that of the server (bazis-cli runs the server with its own), and again at every
+    call: a package installed or upgraded while the server runs is seen.
+    """
+    site = tmp_path / 'site-packages'
+    # only the processes of the project see this directory, not the server
+    monkeypatch.setenv('PYTHONPATH', str(site))
+    fake_package(site, '1.0.0', '# bazis-fake\n\nThe guide of 1.0.0.\n')
+
+    def packages(info):
+        return {it['name']: it for it in info['packages']}
+
+    listed = packages(result(await client.call_tool('list_packages', {})))
+    assert listed['bazis-fake']['installed_version'] == '1.0.0'
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis-fake'}))
+    assert guide['agents_md'] == '# bazis-fake\n\nThe guide of 1.0.0.\n'
+
+    fake_package(site, '1.1.0', '# bazis-fake\n\nThe guide of 1.1.0.\n')
+
+    listed = packages(result(await client.call_tool('list_packages', {})))
+    assert listed['bazis-fake']['installed_version'] == '1.1.0'
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis-fake'}))
+    assert (guide['installed_version'], guide['guide_version']) == ('1.1.0', '1.1.0')
+    assert guide['agents_md'] == '# bazis-fake\n\nThe guide of 1.1.0.\n'
+    info = result(await client.call_tool('project_info', {'sections': ['packages']}))
+    assert packages(info)['bazis-fake']['version'] == '1.1.0'
+
+
+async def test_packages_of_a_python_without_bazis(client, monkeypatch, tmp_path):
+    """
+    A project whose Python has no Bazis yet: the catalog describes every package.
+    """
+    import venv
+
+    venv.create(tmp_path / '.venv', with_pip=False, symlinks=sys.platform != 'win32')
+    monkeypatch.setattr(project, 'project_dir', tmp_path)
+    monkeypatch.setattr(project, 'python', None)  # .venv of the project directory
+
+    listed = result(await client.call_tool('list_packages', {}))['packages']
+    assert {it['name'] for it in listed} == set(catalog.catalog())
+    assert all(it['installed_version'] is None for it in listed)
+
+
+async def test_packages_of_a_python_that_fails(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(project, 'python', str(tmp_path / 'missing' / 'python'))
+
+    call_result = await client.call_tool('list_packages', {})
+    assert call_result.is_error
+    assert 'cannot run the Python of the project' in call_result.content[0].text
+
+
 async def test_package_guide_of_a_package_installed_without_a_guide(client, monkeypatch):
     # bazis-permit before 2.4 ships no AGENTS.md and no manifest: the catalog describes it
     old = {'name': 'bazis-permit', 'version': '2.3.1', 'module': 'bazis.contrib.permit',
            'manifest': None, 'agents_md': None}
-    monkeypatch.setattr(catalog.introspect, 'packages', lambda: [old])
+    monkeypatch.setattr(project, 'packages', lambda: [old])
 
     guide = result(await client.call_tool('package_guide', {'name': 'bazis-permit'}))
 

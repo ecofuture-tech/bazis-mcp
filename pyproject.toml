@@ -11,6 +11,11 @@ version_file = "bazis/contrib/mcp/_version.py"
 version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
 
+[tool.uv]
+# the version (setuptools-scm) and the catalog change with the commits: uv builds a checkout
+# installed from its directory again after a commit, not only after a change of this file
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+
 [project]
 name = "bazis-mcp"
 description = "MCP server of Bazis projects: the catalog of the Bazis packages and the facts and checks of the project for AI agents."

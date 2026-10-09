@@ -23,9 +23,12 @@ of its parent, else the Python of the server. It is not a Django app: do not add
 ## Tools
 
 - `list_packages` — every Bazis package: `summary`, `solves`, `requires`, `pairs_well`,
-  `installed_version` (null if not installed), `catalog_version` and `guide_version`.
+  `installed_version` (null if not installed in the Python of the project),
+  `catalog_version` and `guide_version`. The installed packages are read from the Python of
+  the project at every call, so a package installed or upgraded meanwhile is seen.
 - `package_guide(name, section=None)` — AGENTS.md and manifest of a package (`bazis` for
-  the core). An installed package is described by its installed files, the others (and
+  the core). An installed package is described by its installed files (read at every
+  call), the others (and
   installed versions without a guide, before 2.4) by the catalog; `guide_version` says
   which. `sections` lists the titles of the `## ` sections of the AGENTS.md. A guide
   longer than 30,000 characters (bazis-front) is not returned whole, so that the result

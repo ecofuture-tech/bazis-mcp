@@ -57,7 +57,7 @@ server = MCPServer('bazis', instructions=INSTRUCTIONS, version=__version__)
 
 
 def _package(name: str) -> dict:
-    packages = catalog.packages()
+    packages = _project_call(catalog.packages)
     if name not in packages:
         raise ToolError(f'Unknown package {name!r}; the packages are: {", ".join(packages)}.')
     return packages[name]
@@ -75,9 +75,9 @@ def list_packages() -> dict:
     """
     The Bazis packages (`packages`): what each one is for (`summary`, `solves`), the Bazis packages it
     requires and pairs well with, and the installed and the latest known version
-    (`installed_version` is null if the package is not installed).
+    (`installed_version` is null if the package is not installed in the Python of the project).
     """
-    return {'packages': [catalog.summary(it) for it in catalog.packages().values()]}
+    return {'packages': [catalog.summary(it) for it in _project_call(catalog.packages).values()]}
 
 
 @server.tool(annotations=READ_ONLY)
@@ -86,7 +86,8 @@ def package_guide(name: str, section: str | None = None) -> dict:
     How to use a Bazis package (`bazis` for the core): its AGENTS.md (setup, the classes
     to extend, the rules) and its manifest (`extension_points` with import paths,
     `pitfalls` with the ids of the checks that detect them). Read it before using the
-    package. An installed package is described by its installed version.
+    package. A package installed in the Python of the project is described by its installed
+    version, read again at every call.
 
     `sections` lists the titles of the sections of the AGENTS.md. A long one is not
     returned whole: `complete` is false and `agents_md` is its introduction; read the

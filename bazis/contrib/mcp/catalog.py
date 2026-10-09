@@ -13,20 +13,19 @@
 # limitations under the License.
 
 """
-The Bazis packages known to the server: the installed ones with their own manifests and
-AGENTS.md, and the others from `catalog.json`, a snapshot of the latest releases made by
-`scripts/update_catalog.py`.
+The Bazis packages known to the server: those installed in the Python of the project with
+their own manifests and AGENTS.md, read again at every call, and the others from
+`catalog.json`, a snapshot of the latest releases made by `scripts/update_catalog.py`.
 
 Needs no Django settings: an agent can choose packages before the project works.
 """
 
-import importlib
 import json
 from functools import cache
 from importlib import resources
 from pathlib import Path
 
-from bazis.core import introspect
+from . import project
 
 
 @cache
@@ -41,10 +40,12 @@ def catalog() -> dict[str, dict]:
 
 def packages() -> dict[str, dict]:
     """
-    All known packages by name. The guide (manifest and AGENTS.md) of an installed package
-    comes from its files; a package that is not installed, or installed in a version
+    All known packages by name. The installed packages and their guides are those of the
+    Python of the project at the time of the call (`project.packages`): the guide (manifest
+    and AGENTS.md) of an installed package comes from its files; a package that is not installed, or installed in a version
     without a guide (before 2.4), is described by the catalog. `guide_version` is the
-    version the guide describes.
+    version the guide describes. `project.ProjectError` if the Python of the project cannot
+    list its packages.
     """
     result = {
         name: {
@@ -57,8 +58,7 @@ def packages() -> dict[str, dict]:
         }
         for name, entry in catalog().items()
     }
-    importlib.invalidate_caches()  # packages installed while the server runs
-    for installed in introspect.packages():
+    for installed in project.packages():
         name = installed['name']
         package = result.setdefault(
             name,
