@@ -7,9 +7,10 @@ project, for AI agents. All tools only read.
 - `bazis/contrib/mcp/server.py` — the tools, the resource, the prompts and `main()`;
 - `bazis/contrib/mcp/catalog.py` — the packages installed in the Python of the project
   (`project.packages`, read at every call) and the snapshot `catalog.json`,
-  and the guides by sections (`GUIDE_LIMIT`: a longer AGENTS.md is read section by
-  section, so that a result of `package_guide` stays under the output limit of the MCP
-  clients, 25,000 tokens in Claude Code);
+  and the guides by sections (`RESULT_LIMIT`, measured on the JSON of a result: a guide
+  whose result would be longer is read section by section, each part within
+  `GUIDE_LIMIT`, so that a result of `package_guide` stays under the output limit of the
+  MCP clients, 25,000 tokens in Claude Code);
 - `bazis/contrib/mcp/project.py` — loading the project, `bazis.core.introspect` and the
   system checks;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`, the

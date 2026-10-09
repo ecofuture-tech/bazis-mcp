@@ -28,13 +28,13 @@ of its parent, else the Python of the server. It is not a Django app: do not add
   the project at every call, so a package installed or upgraded meanwhile is seen.
 - `package_guide(name, section=None)` — AGENTS.md and manifest of a package (`bazis` for
   the core). An installed package is described by its installed files (read at every
-  call), the others (and
-  installed versions without a guide, before 2.4) by the catalog; `guide_version` says
-  which. `sections` lists the titles of the `## ` sections of the AGENTS.md. A guide
-  longer than 30,000 characters (bazis-front) is not returned whole, so that the result
-  stays under the output limit of the client: `complete` is false and `agents_md` is the
-  introduction; read every section you need with `section` (a title of `sections`; a
-  section longer than the limit is split into parts `<title> (1/n)`).
+  call), the others (and installed versions without a guide, before 2.4) by the catalog;
+  `guide_version` says which. `sections` lists the titles of the `## ` sections of the
+  AGENTS.md. A guide whose result with the manifest would be over 40,000 bytes of JSON
+  (the core, bazis-front) is not returned whole, so that every result stays under the
+  output limit of the client: `complete` is false and `agents_md` is the introduction;
+  read every section you need with `section` (a title of `sections`; a section over
+  30,000 bytes is split into parts `<title> (1/n)`).
 - `project_info(sections)` — `packages`, `settings` (secrets hidden), `models`, `routes`
   of the project (`bazis.core.introspect`).
 - `run_doctor(deploy)` — the Django system checks with the checks of the Bazis packages

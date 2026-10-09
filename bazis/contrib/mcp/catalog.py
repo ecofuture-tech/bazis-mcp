@@ -25,6 +25,8 @@ from functools import cache
 from importlib import resources
 from pathlib import Path
 
+import pydantic_core
+
 from . import project
 
 
@@ -73,21 +75,61 @@ def packages() -> dict[str, dict]:
     return result
 
 
-#: the longest text of an AGENTS.md in one result of `package_guide` (characters, about 8,000
-#: tokens): a longer guide is read section by section, so that a result stays well under the
-#: limits of the MCP clients on the output of a tool (Claude Code: 25,000 tokens)
+#: the longest result of `package_guide`, in bytes of its JSON as the MCP SDK sends it
+#: (`json_size`; about 10,000 tokens): a longer guide is read section by section, so that a
+#: result stays well under the limits of the MCP clients on the output of a tool (Claude
+#: Code: 25,000 tokens)
+RESULT_LIMIT = 40_000
+#: the longest text of a part of a guide, in bytes of its JSON string; the rest of
+#: RESULT_LIMIT is left to the other fields of a result (the versions, the titles of the
+#: sections). The introduction comes with the manifest: its parts are shorter by the size
+#: of the manifest
 GUIDE_LIMIT = 30_000
+#: the shortest limit of a part of the introduction, whatever the size of the manifest
+INTRODUCTION_MIN = 2_000
+#: the most bytes of JSON of one character (`\u001f`): a line longer than a limit is cut
+#: into pieces of `limit // CHAR_MAX` characters
+CHAR_MAX = 6
 
 #: the title of the text of a guide before its first `## ` heading
 INTRODUCTION = 'Introduction'
 
 
-def sections(text: str) -> list[tuple[str, str]]:
+def json_size(value) -> int:
     """
-    An AGENTS.md as its sections, in order: the introduction (title '') before the first
-    `## ` heading outside a code block, then each `## ` section with its heading and its
-    subsections. A section longer than GUIDE_LIMIT is cut at line ends into parts titled
-    `<title> (1/n)`. The introduction is titled INTRODUCTION.
+    The size of a value in the JSON of a tool result: bytes of UTF-8, indented, as the MCP
+    SDK serializes a result.
+    """
+    return len(pydantic_core.to_json(value, indent=2))
+
+
+def _pieces(text: str, limit: int) -> list[tuple[str, int]]:
+    """
+    The lines of a text with the size of each in a JSON string (without the quotes); a line
+    over the `limit` is cut into pieces that fit it.
+    """
+    result = []
+    for line in text.splitlines(keepends=True):
+        size = json_size(line) - 2
+        if size <= limit:
+            result.append((line, size))
+            continue
+        step = max(limit // CHAR_MAX, 1)
+        for start in range(0, len(line), step):
+            piece = line[start:start + step]
+            result.append((piece, json_size(piece) - 2))
+    return result
+
+
+def sections(
+    text: str, limit: int = GUIDE_LIMIT, introduction_limit: int | None = None
+) -> list[tuple[str, str]]:
+    """
+    An AGENTS.md as its sections, in order: the introduction (titled INTRODUCTION) before
+    the first `## ` heading outside a code block, then each `## ` section with its heading
+    and its subsections. A section over the `limit` (the introduction: over the
+    `introduction_limit`, by default the `limit`) in bytes of JSON is cut at line ends (a
+    longer line within it) into parts titled `<title> (1/n)`, each within the limit.
     """
     found: list[list] = [[INTRODUCTION, '']]
     fenced = False
@@ -97,15 +139,21 @@ def sections(text: str) -> list[tuple[str, str]]:
         elif not fenced and line.startswith('## '):
             found.append([line[3:].strip(), ''])
         found[-1][1] += line
-    if not found[0][1]:
+    introduction = bool(found[0][1])
+    if not introduction:
         del found[0]
     result = []
-    for title, body in found:
-        parts = ['']
-        for line in body.splitlines(keepends=True):
-            if parts[-1] and len(parts[-1]) + len(line) > GUIDE_LIMIT:
+    for index, (title, body) in enumerate(found):
+        budget = limit
+        if introduction and index == 0 and introduction_limit is not None:
+            budget = introduction_limit
+        parts, sizes = [''], [0]
+        for piece, size in _pieces(body, budget):
+            if parts[-1] and sizes[-1] + size > budget:
                 parts.append('')
-            parts[-1] += line
+                sizes.append(0)
+            parts[-1] += piece
+            sizes[-1] += size
         if len(parts) == 1:
             result.append((title, body))
         else:
@@ -115,14 +163,18 @@ def sections(text: str) -> list[tuple[str, str]]:
 
 def guide(package: dict, section: str | None = None) -> dict:
     """
-    The guide of a package: its manifest and its AGENTS.md, whole when it is no longer than
-    GUIDE_LIMIT, else its introduction (`complete` false); `sections` lists the titles of
-    its sections (a long introduction is listed as `Introduction (1/n)` and so on). With a
-    `section`, the text of that section only (KeyError of the section and the titles if
-    there is no such section).
+    The guide of a package: its manifest and its AGENTS.md, whole when the result fits in
+    RESULT_LIMIT, else with the first part of the guide, its introduction (`complete`
+    false); `sections` lists the titles of its sections (a long introduction is listed as
+    `Introduction (1/n)` and so on). With a `section`, the text of that section only
+    (KeyError of the section and the titles if there is no such section). Every result
+    fits in RESULT_LIMIT.
     """
     text = package['agents_md'] or ''
-    parts = sections(text)
+    manifest = package['manifest']
+    parts = sections(
+        text, introduction_limit=max(GUIDE_LIMIT - json_size(manifest), INTRODUCTION_MIN)
+    )
     titles = [title for title, _ in parts if title != INTRODUCTION]
     info = {
         key: package[key]
@@ -134,14 +186,16 @@ def guide(package: dict, section: str | None = None) -> dict:
             if title.casefold() == wanted:
                 return {**info, 'section': title, 'agents_md': body, 'sections': titles}
         raise KeyError(section, titles)
-    complete = len(text) <= GUIDE_LIMIT
-    return {
+    whole = {
         **info,
-        'manifest': package['manifest'],
-        'agents_md': package['agents_md'] if complete else parts[0][1],
-        'complete': complete,
+        'manifest': manifest,
+        'agents_md': package['agents_md'],
+        'complete': True,
         'sections': titles,
     }
+    if json_size(whole) <= RESULT_LIMIT:
+        return whole
+    return {**whole, 'agents_md': parts[0][1], 'complete': False}
 
 
 def summary(package: dict) -> dict:
