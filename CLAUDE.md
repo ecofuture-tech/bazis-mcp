@@ -11,14 +11,20 @@ project, for AI agents. All tools only read.
   whose result would be longer is read section by section, each part within
   `GUIDE_LIMIT`, so that a result of `package_guide` stays under the output limit of the
   MCP clients, 25,000 tokens in Claude Code);
+- `bazis/contrib/mcp/search.py` — `guide_search`: the AGENTS.md of the packages cut at
+  their headings within the sections of `package_guide` (`catalog.guide_parts`), and the
+  extension points and pitfalls of the manifests, ranked by BM25 without dependencies;
+  each text within `TEXT_LIMIT`, so that `LIMIT_MAX` results stay under `RESULT_LIMIT`;
 - `bazis/contrib/mcp/project.py` — loading the project, `bazis.core.introspect` and the
   system checks;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`, the
   checks `front.*` and the registry of the assets;
 - `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI;
   `--from-clones DIR` reads the same files from the local clones `DIR/<package>` (the
-  version is `git describe` of the clone, marked `(clone)`). The local mode is only for
-  trials against unreleased code: never commit the `catalog.json` it writes.
+  version is the one the clone is built with: setuptools-scm, honouring
+  `SETUPTOOLS_SCM_PRETEND_VERSION_FOR_<PACKAGE>`, so that it can be written as a minimum).
+  The local mode is only for trials against unreleased code: never commit the
+  `catalog.json` it writes.
 
 The project tools run `python -m django bazis_introspect/bazis_doctor/bazis_front` (and
 read the installed packages and the registry of bazis-front with `python -c`) in a new

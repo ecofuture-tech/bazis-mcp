@@ -21,9 +21,11 @@ is left out.
 Run it before a release of bazis-mcp: `python scripts/update_catalog.py`.
 
 `python scripts/update_catalog.py --from-clones DIR` reads the same files from the local
-clones `DIR/<package>` instead (a package without a clone is left out), with the version
-`git describe` of the clone marked `(clone)`: for trials against unreleased code, the
-result is not committed.
+clones `DIR/<package>` instead (a package without a clone is left out): for trials against
+unreleased code, the result is not committed. The version of a clone is the one it is
+built with (setuptools-scm, which must be installed, with the variables
+`SETUPTOOLS_SCM_PRETEND_VERSION_FOR_<PACKAGE>` of the trials), so that a minimum
+`>=<catalog_version>` written from the catalog is satisfied by the clone installed.
 """
 
 import argparse
@@ -117,15 +119,26 @@ def pypi_entry(name: str) -> dict | None:
         return read_entry(name, version, lambda path: wheel.read(path) if path in files else None)
 
 
+def clone_version(clone: Path) -> str:
+    """
+    The version a clone is built with: setuptools-scm with the settings of its
+    pyproject.toml and the variables of the environment.
+    """
+    done = subprocess.run(
+        [sys.executable, '-m', 'setuptools_scm'], cwd=clone, capture_output=True, text=True,
+    )
+    if done.returncode:
+        raise SystemExit(f'{clone}: no version from setuptools-scm\n{done.stderr.strip()}')
+    from packaging.version import Version  # a dependency of setuptools-scm
+
+    return str(Version(done.stdout.strip()))
+
+
 def clone_entry(clones: Path, name: str) -> dict | None:
     clone = clones / name
     if not (clone / 'pyproject.toml').is_file():
         return None  # no clone
-    describe = subprocess.run(
-        ['git', 'describe', '--tags', '--always', '--dirty'],
-        cwd=clone, capture_output=True, text=True, check=True,
-    ).stdout.strip()
-    version = describe.removeprefix('v') + ' (clone)'
+    version = clone_version(clone)
 
     def read(path: str) -> bytes | None:
         file = clone / path

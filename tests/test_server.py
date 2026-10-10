@@ -49,7 +49,7 @@ def result(call_result):
 async def test_tools_are_read_only(client):
     tools = (await client.list_tools()).tools
     assert {it.name for it in tools} == {
-        'list_packages', 'package_guide', 'project_info', 'run_doctor',
+        'list_packages', 'package_guide', 'guide_search', 'project_info', 'run_doctor',
         'front_check', 'front_status', 'front_catalog',
     }
     assert all(it.annotations.read_only_hint for it in tools)

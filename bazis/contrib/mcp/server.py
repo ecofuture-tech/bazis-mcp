@@ -21,13 +21,15 @@ Run in the project directory: `bazis-mcp` (see the README).
 
 import argparse
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
+
+from pydantic import Field
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError, ResourceNotFoundError, ToolError
 from mcp.types import ToolAnnotations
 
-from . import __version__, catalog, front, project
+from . import __version__, catalog, front, project, search
 
 
 INSTRUCTIONS = """\
@@ -38,8 +40,12 @@ packages the project needs.
 - Choose packages with `list_packages` (what each one solves and requires), then read the
   guide of each chosen package with `package_guide` before using it, also for the core
   (`bazis`). Follow the guides, not your memory of Bazis. A long guide comes as its
-  introduction (`complete` false) with the titles of its `sections`: read them with
-  `package_guide(name, section)`.
+  introduction (`complete` false) with the titles of its `sections`: read a section with
+  `package_guide(name, section)` when the step at hand needs it, not all of them up front.
+- To find how to do something, or which package or section covers it, use
+  `guide_search(query)` (optionally for one `package`): it returns the best matching parts
+  of the guides and manifests, the short ones whole, with the `section` to read the rest.
+  If the guides do not answer, say what was missing rather than guessing.
 - Facts about this project (installed packages, settings, models, routes) come from
   `project_info`.
 - After every change run `run_doctor` and the tests of the project, and fix what they
@@ -92,7 +98,7 @@ def package_guide(name: str, section: str | None = None) -> dict:
     `sections` lists the titles of the sections of the AGENTS.md. A long one is not
     returned whole: `complete` is false and `agents_md` is its introduction; read the
     sections you need with `section` (a title of `sections`), which returns the text of
-    that section only.
+    that section only; `guide_search` finds the section that covers a question.
     """
     package = _package(name)
     try:
@@ -103,6 +109,29 @@ def package_guide(name: str, section: str | None = None) -> dict:
             f'No section {section!r} in the guide of {name}; the sections are: '
             f'{", ".join(titles) or "none"}.'
         ) from None
+
+
+@server.tool(annotations=READ_ONLY)
+def guide_search(
+    query: str,
+    package: str | None = None,
+    limit: Annotated[int, Field(ge=1, le=search.LIMIT_MAX)] = 5,
+) -> dict:
+    """
+    Searches the guides of the Bazis packages (their AGENTS.md and the extension points and
+    pitfalls of their manifests), of all packages or of one `package`, for the words of the
+    `query` (identifiers such as `validate_item` or `PermitRouteBase` work too). `results`
+    are the `limit` best matches (at most 10), each with its `package` and `score` and
+    either the `section` of the guide (a title for `package_guide(name, section)`), the
+    `heading` it is under in that section (null at its top) and its `text` (an excerpt
+    around the words when `complete` is false), or an `extension_point` or a `pitfall` of
+    the manifest. The guides are those `package_guide` serves.
+    """
+    if package is None:
+        packages = list(_project_call(catalog.packages).values())
+    else:
+        packages = [_package(package)]
+    return {'query': query, 'results': search.search(packages, query, limit)}
 
 
 @server.tool(annotations=READ_ONLY)
@@ -226,7 +255,8 @@ def build_frontend() -> str:
     return """\
 Build the frontend of this Bazis project with bazis-front.
 
-1. Read `package_guide("bazis-front")` with all its sections, and `front_catalog`. If
+1. Read `package_guide("bazis-front")` and `front_catalog`, and the sections of the guide
+   as each step needs them (`guide_search` finds them). If
    `front_check` says that bazis-front is missing, install it, add "bazis.contrib.front" to
    BS_INSTALLED_APPS and run `manage.py bazis_front init` (frontend/ and the starters of
    spec/).

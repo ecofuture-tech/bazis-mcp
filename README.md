@@ -67,6 +67,7 @@ still work and the project tools return the error.
 |---|---|
 | `list_packages` | Every Bazis package: `summary`, `solves`, `requires`, `pairs_well`, `installed_version`, `catalog_version`, `guide_version` |
 | `package_guide(name, section)` | The `AGENTS.md` and the manifest of a package (`bazis` for the core), with the titles of its `sections`; a guide whose result would be over 40,000 bytes of JSON comes as its introduction (`complete` false), and `section` returns one section |
+| `guide_search(query, package, limit)` | The parts of the guides (AGENTS.md between two headings, extension points and pitfalls of the manifests) that match the query best, of all packages or of one: `package`, `score` and the `section` (readable whole with `package_guide`), `heading` and `text` (an excerpt when `complete` is false), or the `extension_point` or `pitfall` |
 | `project_info(sections)` | `packages`, `settings`, `models`, `routes` of the project |
 | `run_doctor(deploy)` | The messages of the system checks, from bazis 2.13 with the database checks (or the info `bazis.database` when the database cannot be reached); `ok` is false if there is an error |
 | `front_check(layer)` | The issues of the frontend specs (`bazis_front check --json`); `ok` is false if there is an error |

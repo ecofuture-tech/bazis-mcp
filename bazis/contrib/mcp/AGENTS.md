@@ -33,8 +33,16 @@ of its parent, else the Python of the server. It is not a Django app: do not add
   AGENTS.md. A guide whose result with the manifest would be over 40,000 bytes of JSON
   (the core, bazis-front) is not returned whole, so that every result stays under the
   output limit of the client: `complete` is false and `agents_md` is the introduction;
-  read every section you need with `section` (a title of `sections`; a section over
-  30,000 bytes is split into parts `<title> (1/n)`).
+  read a section with `section` when the step at hand needs it (a title of `sections`; a
+  section over 30,000 bytes is split into parts `<title> (1/n)`).
+- `guide_search(query, package=None, limit=5)` — the parts of the guides that match the
+  words of the query (identifiers such as `validate_item` too), of all packages or of one:
+  the AGENTS.md cut at its headings and the extension points and pitfalls of the
+  manifests, ranked by BM25 with the words of the headings counting more. A result has
+  `package`, `score` and either `section` (a title for `package_guide(name, section)`),
+  `heading` (the subsection, null at the top of the section) and `text` (whole up to
+  3,000 bytes, else an excerpt around the words with `complete` false), or
+  `extension_point` or `pitfall`. `limit` is at most 10.
 - `project_info(sections)` — `packages`, `settings` (secrets hidden), `models`, `routes`
   of the project (`bazis.core.introspect`).
 - `run_doctor(deploy)` — the Django system checks with the checks of the Bazis packages
@@ -67,7 +75,8 @@ The resource `bazis://packages/{name}/agents.md` is the AGENTS.md of a package; 
 ## Rules
 
 - Choose packages by `solves` and read `package_guide` before using a package; follow the
-  guide of the installed version (when `guide_version` differs from `installed_version`,
+  guide of the installed version. Find the section that answers a question with
+  `guide_search` instead of reading every section (when `guide_version` differs from `installed_version`,
   upgrade the package or check the guide against its code).
 - Run `run_doctor` and the tests after every change. If the project cannot be loaded, the
   project tools return the error and the catalog tools still work.

@@ -395,11 +395,14 @@ async def test_front_catalog_of_the_project(client):
 async def test_package_guide_of_bazis_front(client):
     from importlib import resources
 
-    guide = result(await client.call_tool('package_guide', {'name': 'bazis-front'}))
+    from .test_server import read_whole_guide
+
+    # a guide longer than a result comes by its sections
+    guide, text = await read_whole_guide(client, 'bazis-front')
 
     installed = (resources.files('bazis.contrib.front') / 'AGENTS.md').read_text(encoding='utf-8')
     assert guide['installed_version'] == metadata.version('bazis-front')
-    assert guide['agents_md'] == installed
+    assert text == installed
 
 
 @requires_front

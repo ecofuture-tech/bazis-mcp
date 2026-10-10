@@ -161,6 +161,18 @@ def sections(
     return result
 
 
+def guide_parts(package: dict) -> list[tuple[str, str]]:
+    """
+    The AGENTS.md of a package as `package_guide` serves it: its sections (`sections`), the
+    introduction within what the manifest leaves of GUIDE_LIMIT. Each title can be passed
+    to `guide` as the `section`.
+    """
+    return sections(
+        package['agents_md'] or '',
+        introduction_limit=max(GUIDE_LIMIT - json_size(package['manifest']), INTRODUCTION_MIN),
+    )
+
+
 def guide(package: dict, section: str | None = None) -> dict:
     """
     The guide of a package: its manifest and its AGENTS.md, whole when the result fits in
@@ -170,11 +182,7 @@ def guide(package: dict, section: str | None = None) -> dict:
     (KeyError of the section and the titles if there is no such section). Every result
     fits in RESULT_LIMIT.
     """
-    text = package['agents_md'] or ''
-    manifest = package['manifest']
-    parts = sections(
-        text, introduction_limit=max(GUIDE_LIMIT - json_size(manifest), INTRODUCTION_MIN)
-    )
+    parts = guide_parts(package)
     titles = [title for title, _ in parts if title != INTRODUCTION]
     info = {
         key: package[key]
@@ -188,7 +196,7 @@ def guide(package: dict, section: str | None = None) -> dict:
         raise KeyError(section, titles)
     whole = {
         **info,
-        'manifest': manifest,
+        'manifest': package['manifest'],
         'agents_md': package['agents_md'],
         'complete': True,
         'sections': titles,
