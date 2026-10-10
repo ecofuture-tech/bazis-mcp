@@ -19,10 +19,17 @@ registry of the assets of bazis-front (`front_catalog`). A package that is not o
 is left out.
 
 Run it before a release of bazis-mcp: `python scripts/update_catalog.py`.
+
+`python scripts/update_catalog.py --from-clones DIR` reads the same files from the local
+clones `DIR/<package>` instead (a package without a clone is left out), with the version
+`git describe` of the clone marked `(clone)`: for trials against unreleased code, the
+result is not committed.
 """
 
+import argparse
 import io
 import json
+import subprocess
 import sys
 import tomllib
 import urllib.error
@@ -46,6 +53,7 @@ PACKAGES = [
     'bazis-bg',
     'bazis-async-background',
     'bazis-async-request',
+    'bazis-notify',
     'bazis-front',
 ]
 
@@ -68,7 +76,31 @@ def fetch(url: str) -> bytes:
         return response.read()
 
 
-def package_entry(name: str) -> dict | None:
+def read_entry(name: str, version: str, read) -> dict:
+    """
+    The entry of the package from its files: `read(path)` returns the content of the file
+    at `path` in the package (wheel or clone), or None if there is none.
+    """
+    path = module_path(name)
+    manifest = read(f'{path}/bazis_manifest.toml')
+    agents_md = read(f'{path}/AGENTS.md')
+    if manifest is None or agents_md is None:
+        raise SystemExit(f'{name} {version}: no manifest or AGENTS.md')
+    entry = {
+        'name': name,
+        'version': version,
+        'manifest': tomllib.loads(manifest.decode()),
+        'agents_md': agents_md.decode(),
+    }
+    if name == 'bazis-front':
+        registry = read(f'{path}/{FRONT_REGISTRY}')
+        if registry is None:
+            raise SystemExit(f'{name} {version}: no {FRONT_REGISTRY}')
+        entry['registry'] = json.loads(registry)
+    return entry
+
+
+def pypi_entry(name: str) -> dict | None:
     try:
         info = json.loads(fetch(f'https://pypi.org/pypi/{name}/json'))
     except urllib.error.HTTPError as err:
@@ -80,34 +112,46 @@ def package_entry(name: str) -> dict | None:
     if not wheels:
         raise SystemExit(f'{name} {version}: no wheel on PyPI')
 
-    path = module_path(name)
     with zipfile.ZipFile(io.BytesIO(fetch(wheels[0]['url']))) as wheel:
         files = set(wheel.namelist())
-        manifest_file = f'{path}/bazis_manifest.toml'
-        agents_file = f'{path}/AGENTS.md'
-        if manifest_file not in files or agents_file not in files:
-            raise SystemExit(f'{name} {version}: the wheel has no manifest or AGENTS.md')
-        entry = {
-            'name': name,
-            'version': version,
-            'manifest': tomllib.loads(wheel.read(manifest_file).decode()),
-            'agents_md': wheel.read(agents_file).decode(),
-        }
-        if name == 'bazis-front':
-            registry_file = f'{path}/{FRONT_REGISTRY}'
-            if registry_file not in files:
-                raise SystemExit(f'{name} {version}: the wheel has no {FRONT_REGISTRY}')
-            entry['registry'] = json.loads(wheel.read(registry_file))
+        return read_entry(name, version, lambda path: wheel.read(path) if path in files else None)
 
-    return entry
+
+def clone_entry(clones: Path, name: str) -> dict | None:
+    clone = clones / name
+    if not (clone / 'pyproject.toml').is_file():
+        return None  # no clone
+    describe = subprocess.run(
+        ['git', 'describe', '--tags', '--always', '--dirty'],
+        cwd=clone, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    version = describe.removeprefix('v') + ' (clone)'
+
+    def read(path: str) -> bytes | None:
+        file = clone / path
+        return file.read_bytes() if file.is_file() else None
+
+    return read_entry(name, version, read)
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+    parser.add_argument(
+        '--from-clones', type=Path, metavar='DIR',
+        help='read the packages from the local clones DIR/<package> instead of PyPI '
+             '(for trials against unreleased code, not committed)',
+    )
+    args = parser.parse_args()
+
     catalog = []
     for name in PACKAGES:
-        entry = package_entry(name)
+        if args.from_clones:
+            entry = clone_entry(args.from_clones, name)
+        else:
+            entry = pypi_entry(name)
         if entry is None:
-            print(f'{name}: not on PyPI, left out', file=sys.stderr)
+            source = f'no clone in {args.from_clones}' if args.from_clones else 'not on PyPI'
+            print(f'{name}: {source}, left out', file=sys.stderr)
             continue
         print(f'{name} {entry["version"]}', file=sys.stderr)
         catalog.append(entry)

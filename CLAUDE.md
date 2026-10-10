@@ -15,7 +15,10 @@ project, for AI agents. All tools only read.
   system checks;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`, the
   checks `front.*` and the registry of the assets;
-- `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI.
+- `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI;
+  `--from-clones DIR` reads the same files from the local clones `DIR/<package>` (the
+  version is `git describe` of the clone, marked `(clone)`). The local mode is only for
+  trials against unreleased code: never commit the `catalog.json` it writes.
 
 The project tools run `python -m django bazis_introspect/bazis_doctor/bazis_front` (and
 read the installed packages and the registry of bazis-front with `python -c`) in a new
