@@ -21,6 +21,7 @@ Needs no Django settings: an agent can choose packages before the project works.
 """
 
 import json
+import re
 from functools import cache
 from importlib import resources
 from pathlib import Path
@@ -97,6 +98,9 @@ CHAR_MAX = 6
 
 #: the title of the text of a guide before its first `## ` heading
 INTRODUCTION = 'Introduction'
+
+#: the title of the introduction or of one of its parts: `Introduction`, `Introduction (1/2)`
+INTRODUCTION_PART = re.compile(rf'{INTRODUCTION}( \(\d+/\d+\))?')
 
 
 def json_size(value) -> int:
@@ -205,7 +209,8 @@ def guide(package: dict, section: str | None = None) -> dict:
         'complete': True,
         'sections': titles,
     }
-    if json_size(whole) <= (WHOLE_LIMIT if len(parts) > 1 else RESULT_LIMIT):
+    has_sections = any(not INTRODUCTION_PART.fullmatch(title) for title, _ in parts)
+    if json_size(whole) <= (WHOLE_LIMIT if has_sections else RESULT_LIMIT):
         return whole
     return {**whole, 'agents_md': parts[0][1], 'complete': False}
 

@@ -77,7 +77,9 @@ async def test_package_guide_of_a_package_not_installed(client):
     guide = result(await client.call_tool('package_guide', {'name': 'bazis-permit'}))
 
     assert guide['installed_version'] is None
-    assert 'PermitRouteBase' in guide['agents_md']
+    # a guide with sections arrives as its introduction, the rest is read by sections
+    assert catalog.catalog()['bazis-permit']['agents_md'].startswith(guide['agents_md'])
+    assert guide['sections']
     points = {it['name']: it['import'] for it in guide['manifest']['extension_points']}
     assert points['PermitRouteBase'] == 'bazis.contrib.permit.routes_abstract.PermitRouteBase'
 
@@ -604,3 +606,27 @@ def test_every_listed_section_of_a_guide_is_retrievable(guide_text):
     with pytest.raises(KeyError) as error:
         catalog.guide(package, 'Missing')
     assert error.value.args == ('Missing', listed)
+
+
+def test_a_guide_without_sections_is_served_whole_up_to_the_result_limit():
+    """
+    The introduction of a guide without `## ` sections is cut into parts when the manifest
+    leaves little of GUIDE_LIMIT, but such a guide is whole while the result fits in
+    RESULT_LIMIT (it is not a guide with sections: WHOLE_LIMIT does not apply to it).
+    """
+    manifest = {'package': {'name': 'x'}, 'pitfalls': [{'text': 'm' * 150} for _ in range(120)]}
+    text = ('word ' * 1800).strip()
+    package = {
+        'name': 'x',
+        'installed_version': None,
+        'catalog_version': '1',
+        'guide_version': '1',
+        'agents_md': text,
+        'manifest': manifest,
+    }
+    assert catalog.json_size(manifest) > 12_000
+    guide = catalog.guide(package)
+
+    assert guide['agents_md'] == text
+    assert guide['complete'] is True
+    assert guide['sections'] == ['Introduction (1/2)', 'Introduction (2/2)']
