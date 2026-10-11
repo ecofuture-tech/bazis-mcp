@@ -19,8 +19,9 @@ guide that answers its question without reading the whole guide.
 The documents are the parts of each AGENTS.md between two headings (`##` to `######`,
 outside code blocks), within the sections that `package_guide` serves (`catalog.guide_parts`,
 so that the `section` of a result can be read whole with it), and the extension points and
-pitfalls of each manifest. They are ranked by BM25 on their words, the words of their
-headings counting `TITLE_WEIGHT` times.
+pitfalls of each manifest, without the map of the sections of an introduction (MAP), which
+only names the sections that hold the answers. They are ranked by BM25 on their words, the
+words of their headings counting `TITLE_WEIGHT` times.
 """
 
 import math
@@ -45,6 +46,9 @@ WORD_RE = re.compile(r'\w+')
 #: the humps of an identifier: `PermitRouteBase` is also `permit`, `route`, `base`
 HUMP_RE = re.compile(r'[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+')
 HEADING_RE = re.compile(r'#{3,6}\s+(.*)')
+#: the heading of the map of the sections in the introduction of a guide (a table of the
+#: sections with when to read each): read with the introduction, not a result of the search
+MAP = 'The sections'
 #: the title of a part of a split section: `Models (1/2)` is in the section `Models`
 PART_RE = re.compile(r'\s\(\d+/\d+\)$')
 SUFFIXES = ('ing', 'ed', 'es', 's', 'e')
@@ -121,6 +125,8 @@ def documents(packages: list[dict]) -> list[dict]:
         for chunk in _chunks(package):
             title = PART_RE.sub('', chunk['section'])
             if title == catalog.INTRODUCTION:
+                if chunk['heading'] == MAP:
+                    continue
                 title = ''
             result.append({
                 'result': {'package': name, **chunk},

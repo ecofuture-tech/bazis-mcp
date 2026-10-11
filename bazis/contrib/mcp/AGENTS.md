@@ -30,15 +30,17 @@ of its parent, else the Python of the server. It is not a Django app: do not add
   the core). An installed package is described by its installed files (read at every
   call), the others (and installed versions without a guide, before 2.4) by the catalog;
   `guide_version` says which. `sections` lists the titles of the `## ` sections of the
-  AGENTS.md. A guide whose result with the manifest would be over 40,000 bytes of JSON
-  (the core, bazis-front) is not returned whole, so that every result stays under the
-  output limit of the client: `complete` is false and `agents_md` is the introduction;
-  read a section with `section` when the step at hand needs it (a title of `sections`; a
-  section over 30,000 bytes is split into parts `<title> (1/n)`).
+  AGENTS.md. A guide with sections whose result with the manifest would be over 12,000
+  bytes of JSON is not returned whole, so that an agent reads only the sections it needs
+  (and every result stays under the output limit of the client: 40,000 bytes for a guide
+  without sections): `complete` is false and `agents_md` is the introduction, which maps
+  the sections; read a section with `section` when the step at hand needs it (a title of
+  `sections`; a section over 30,000 bytes is split into parts `<title> (1/n)`).
 - `guide_search(query, package=None, limit=5)` — the parts of the guides that match the
   words of the query (identifiers such as `validate_item` too), of all packages or of one:
-  the AGENTS.md cut at its headings and the extension points and pitfalls of the
-  manifests, ranked by BM25 with the words of the headings counting more. A result has
+  the AGENTS.md cut at its headings (without the map of the sections, `### The sections`
+  of an introduction) and the extension points and pitfalls of the manifests, ranked by
+  BM25 with the words of the headings counting more. A result has
   `package`, `score` and either `section` (a title for `package_guide(name, section)`),
   `heading` (the subsection, null at the top of the section) and `text` (whole up to
   3,000 bytes, else an excerpt around the words with `complete` false), or

@@ -194,7 +194,8 @@ async def test_packages_of_a_python_with_a_bazis_before_the_introspection(
     guide = result(await client.call_tool('package_guide', {'name': 'bazis-permit'}))
     assert guide['installed_version'] == '2.3.1'
     assert guide['guide_version'] == catalog.catalog()['bazis-permit']['version']
-    assert 'PermitRouteBase' in guide['agents_md']
+    assert guide['manifest'] == catalog.catalog()['bazis-permit']['manifest']
+    assert catalog.catalog()['bazis-permit']['agents_md'].startswith(guide['agents_md'])
 
 
 async def test_packages_of_a_python_that_fails(client, monkeypatch, tmp_path):
@@ -220,7 +221,9 @@ async def test_package_guide_of_a_package_installed_without_a_guide(client, monk
 
     assert guide['installed_version'] == '2.3.1'
     assert guide['guide_version'] == catalog.catalog()['bazis-permit']['version']
-    assert guide['agents_md'] == catalog.catalog()['bazis-permit']['agents_md']
+    # the guide of the catalog, whole or its introduction
+    assert guide['manifest'] == catalog.catalog()['bazis-permit']['manifest']
+    assert catalog.catalog()['bazis-permit']['agents_md'].startswith(guide['agents_md'])
 
 
 async def test_package_guide_of_an_unknown_package(client):
@@ -286,6 +289,40 @@ async def test_a_long_guide_is_read_by_sections(client, long_guide):
             'package_guide', {'name': 'bazis-long', 'section': title}
         ))
         assert rules['agents_md'] == '## Rules\n\nShort.\n'
+
+
+async def test_a_guide_with_sections_over_the_whole_limit_comes_as_its_introduction(
+    client, monkeypatch
+):
+    """
+    A guide with sections whose result is over WHOLE_LIMIT, though it would fit in a
+    result, comes as its introduction, which the agent follows to the sections it needs; a
+    shorter one, or one without sections, comes whole.
+    """
+    paragraph = 'A line of the guide that says what to do and why it matters.\n'
+    package = {'name': 'bazis-mid', 'installed_version': '1.0.0', 'catalog_version': None,
+               'guide_version': '1.0.0', 'manifest': {'package': {'name': 'bazis-mid'}},
+               'agents_md': None}
+    monkeypatch.setattr(catalog, 'packages', lambda: {'bazis-mid': package})
+
+    async def guide(text):
+        package['agents_md'] = text
+        return result(await client.call_tool('package_guide', {'name': 'bazis-mid'}))
+
+    sections = f'# bazis-mid\n\nThe map.\n\n## Setup\n\n{paragraph * 250}## Rules\n\nShort.\n'
+    assert catalog.WHOLE_LIMIT < catalog.json_size(sections) < catalog.RESULT_LIMIT
+    found = await guide(sections)
+    assert found['complete'] is False
+    assert found['agents_md'] == '# bazis-mid\n\nThe map.\n\n'
+    assert found['sections'] == ['Setup', 'Rules']
+
+    short = f'# bazis-mid\n\nThe map.\n\n## Setup\n\n{paragraph * 20}## Rules\n\nShort.\n'
+    found = await guide(short)
+    assert found['complete'] is True and found['agents_md'] == short
+
+    no_sections = f"# bazis-mid\n\n{paragraph * 250}"
+    found = await guide(no_sections)
+    assert found['complete'] is True and found['agents_md'] == no_sections
 
 
 async def test_an_unknown_section_of_a_guide(client, long_guide):

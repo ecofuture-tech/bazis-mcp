@@ -92,6 +92,26 @@ async def test_a_subsection_in_a_part_of_a_long_section(client, guides):
     assert found['text'] in await section_text(client, 'bazis-alpha', found['section'])
 
 
+async def test_the_map_of_the_sections_is_not_a_result(client, monkeypatch):
+    """
+    The map of the sections in an introduction names the topics of every section: the
+    search returns the sections themselves.
+    """
+    guide = (
+        '# bazis-gamma\n\nThe introduction of gamma.\n\n'
+        '### The sections\n\n| Section | Read it when |\n|---|---|\n'
+        '| Invoices | you write the invoices of a shelf |\n\n'
+        '## Invoices\n\nAn invoice names its shelf.\n'
+    )
+    gamma = package('bazis-gamma', guide)
+    monkeypatch.setattr(catalog, 'packages', lambda: {'bazis-gamma': gamma})
+
+    found = await search_results(client, query='invoices of a shelf')
+    assert [(it['section'], it['heading']) for it in found] == [('Invoices', None)]
+    found = await search_results(client, query='introduction of gamma')
+    assert [(it['section'], it['heading']) for it in found] == [('Introduction', None)]
+
+
 async def test_the_manifest_is_searched(client, guides):
     found = await search_results(client, query='restock_item')
     assert found[0]['extension_point']['name'] == 'ShelfRouteBase.restock_item'

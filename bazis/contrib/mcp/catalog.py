@@ -80,6 +80,10 @@ def packages() -> dict[str, dict]:
 #: result stays well under the limits of the MCP clients on the output of a tool (Claude
 #: Code: 25,000 tokens)
 RESULT_LIMIT = 40_000
+#: the longest result of `package_guide` that comes whole when the guide has sections (about
+#: 3,000 tokens): a longer one comes as its introduction with the titles of its sections, so
+#: that an agent reads the sections the step at hand needs, not the whole guide up front
+WHOLE_LIMIT = 12_000
 #: the longest text of a part of a guide, in bytes of its JSON string; the rest of
 #: RESULT_LIMIT is left to the other fields of a result (the versions, the titles of the
 #: sections). The introduction comes with the manifest: its parts are shorter by the size
@@ -176,9 +180,9 @@ def guide_parts(package: dict) -> list[tuple[str, str]]:
 def guide(package: dict, section: str | None = None) -> dict:
     """
     The guide of a package: its manifest and its AGENTS.md, whole when the result fits in
-    RESULT_LIMIT, else with the first part of the guide, its introduction (`complete`
-    false); `sections` lists the titles of its sections (a long introduction is listed as
-    `Introduction (1/n)` and so on). With a `section`, the text of that section only
+    WHOLE_LIMIT (a guide without sections: in RESULT_LIMIT), else with the first part of
+    the guide, its introduction (`complete` false); `sections` lists the titles of its
+    sections (a long introduction is listed as `Introduction (1/n)` and so on). With a `section`, the text of that section only
     (KeyError of the section and the titles if there is no such section). Every result
     fits in RESULT_LIMIT.
     """
@@ -201,7 +205,7 @@ def guide(package: dict, section: str | None = None) -> dict:
         'complete': True,
         'sections': titles,
     }
-    if json_size(whole) <= RESULT_LIMIT:
+    if json_size(whole) <= (WHOLE_LIMIT if len(parts) > 1 else RESULT_LIMIT):
         return whole
     return {**whole, 'agents_md': parts[0][1], 'complete': False}
 

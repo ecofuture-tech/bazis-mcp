@@ -95,8 +95,8 @@ def package_guide(name: str, section: str | None = None) -> dict:
     package. A package installed in the Python of the project is described by its installed
     version, read again at every call.
 
-    `sections` lists the titles of the sections of the AGENTS.md. A long one is not
-    returned whole: `complete` is false and `agents_md` is its introduction; read the
+    `sections` lists the titles of the sections of the AGENTS.md. A long one (over about
+    12 kB with its manifest) is not returned whole: `complete` is false and `agents_md` is its introduction; read the
     sections you need with `section` (a title of `sections`), which returns the text of
     that section only; `guide_search` finds the section that covers a question.
     """
