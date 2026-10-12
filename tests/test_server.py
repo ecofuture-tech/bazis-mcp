@@ -377,14 +377,13 @@ async def test_every_guide_fits_in_a_result(client):
 async def test_a_guide_that_is_hard_to_fit(client, monkeypatch):
     """
     The limit is that of the JSON of a result: a text under GUIDE_LIMIT characters with a
-    large manifest, characters that JSON escapes or encodes in several bytes, a long
-    introduction and a line longer than the limit are all served within it.
+    large manifest, characters that JSON escapes or encodes in several bytes and a long
+    introduction are all served within it.
     """
     escaped = 'A "quoted" \\path\\ and\ttabs: Кириллица — ✓.\n' * 400
     manifest = {'package': {'name': 'bazis-hard', 'solves': ['x' * 100] * 150}}
     guide_text = (
-        '# bazis-hard\n\n' + escaped + '## Setup\n\n' + escaped * 2
-        + '## Line\n\n' + 'y' * 100_000 + '\n## Rules\n\nShort.\n'
+        '# bazis-hard\n\n' + escaped + '## Setup\n\n' + escaped * 2 + '## Rules\n\nShort.\n'
     )
     package = {'name': 'bazis-hard', 'installed_version': '1.0.0', 'catalog_version': None,
                'guide_version': '1.0.0', 'manifest': manifest, 'agents_md': guide_text}
@@ -394,7 +393,7 @@ async def test_a_guide_that_is_hard_to_fit(client, monkeypatch):
 
     assert text == guide_text
     assert guide['complete'] is False and guide['manifest'] == manifest
-    assert any(it.startswith('Line (') for it in guide['sections'])
+    assert any(it.startswith('Setup (') for it in guide['sections'])
 
     # the text alone under GUIDE_LIMIT characters, but not its JSON with the manifest
     package['agents_md'] = '# bazis-hard\n\n' + escaped[: catalog.GUIDE_LIMIT - 100]
@@ -615,7 +614,7 @@ def test_a_guide_without_sections_is_served_whole_up_to_the_result_limit():
     RESULT_LIMIT (it is not a guide with sections: WHOLE_LIMIT does not apply to it).
     """
     manifest = {'package': {'name': 'x'}, 'pitfalls': [{'text': 'm' * 150} for _ in range(120)]}
-    text = ('word ' * 1800).strip()
+    text = ('word ' * 9 + 'word\n') * 180
     package = {
         'name': 'x',
         'installed_version': None,

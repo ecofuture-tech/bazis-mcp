@@ -179,10 +179,6 @@ def test_an_excerpt_of_a_long_paragraph():
     assert excerpt in text and 'matters' in excerpt
     assert catalog.json_size(excerpt) - 2 <= search.TEXT_LIMIT
 
-    line = 'it matters ' * 1000 + '\n'  # a line longer than the limit
-    excerpt = search.excerpt(line, idf)
-    assert line.startswith(excerpt) and catalog.json_size(excerpt) - 2 <= search.TEXT_LIMIT
-
 
 def test_words():
     # an identifier also by its parts; the endings stripped where four letters are left

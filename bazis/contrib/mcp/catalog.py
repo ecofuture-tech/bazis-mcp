@@ -22,6 +22,7 @@ Needs no Django settings: an agent can choose packages before the project works.
 
 import json
 import re
+from collections.abc import Iterable, Iterator
 from functools import cache
 from importlib import resources
 from pathlib import Path
@@ -88,19 +89,14 @@ WHOLE_LIMIT = 12_000
 #: the longest text of a part of a guide, in bytes of its JSON string; the rest of
 #: RESULT_LIMIT is left to the other fields of a result (the versions, the titles of the
 #: sections). The introduction comes with the manifest: its parts are shorter by the size
-#: of the manifest
+#: of the manifest. A part is cut at a line end: the lines of the guides are far shorter
 GUIDE_LIMIT = 30_000
-#: the shortest limit of a part of the introduction, whatever the size of the manifest
-INTRODUCTION_MIN = 2_000
-#: the most bytes of JSON of one character (`\u001f`): a line longer than a limit is cut
-#: into pieces of `limit // CHAR_MAX` characters
-CHAR_MAX = 6
 
 #: the title of the text of a guide before its first `## ` heading
 INTRODUCTION = 'Introduction'
 
-#: the title of the introduction or of one of its parts: `Introduction`, `Introduction (1/2)`
-INTRODUCTION_PART = re.compile(rf'{INTRODUCTION}( \(\d+/\d+\))?')
+#: the end of the title of a part of a section cut in parts: `Models (1/2)`
+PART_RE = re.compile(r' \(\d+/\d+\)$')
 
 
 def json_size(value) -> int:
@@ -111,22 +107,23 @@ def json_size(value) -> int:
     return len(pydantic_core.to_json(value, indent=2))
 
 
-def _pieces(text: str, limit: int) -> list[tuple[str, int]]:
+def base_title(title: str) -> str:
     """
-    The lines of a text with the size of each in a JSON string (without the quotes); a line
-    over the `limit` is cut into pieces that fit it.
+    The title of the section of a part (`Models` of `Models (1/2)`), a section title as it is.
     """
-    result = []
-    for line in text.splitlines(keepends=True):
-        size = json_size(line) - 2
-        if size <= limit:
-            result.append((line, size))
-            continue
-        step = max(limit // CHAR_MAX, 1)
-        for start in range(0, len(line), step):
-            piece = line[start:start + step]
-            result.append((piece, json_size(piece) - 2))
-    return result
+    return PART_RE.sub('', title)
+
+
+def markdown_lines(lines: Iterable[str]) -> Iterator[tuple[str, bool]]:
+    """
+    The lines of a Markdown text with their ends, each with whether it is a heading line:
+    one that starts with `#` outside a code block.
+    """
+    fenced = False
+    for line in lines:
+        if line.startswith('```'):
+            fenced = not fenced
+        yield line, not fenced and line.startswith('#')
 
 
 def sections(
@@ -136,15 +133,12 @@ def sections(
     An AGENTS.md as its sections, in order: the introduction (titled INTRODUCTION) before
     the first `## ` heading outside a code block, then each `## ` section with its heading
     and its subsections. A section over the `limit` (the introduction: over the
-    `introduction_limit`, by default the `limit`) in bytes of JSON is cut at line ends (a
-    longer line within it) into parts titled `<title> (1/n)`, each within the limit.
+    `introduction_limit`, by default the `limit`) in bytes of JSON is cut at line ends into
+    parts titled `<title> (1/n)`, each within the limit.
     """
     found: list[list] = [[INTRODUCTION, '']]
-    fenced = False
-    for line in text.splitlines(keepends=True):
-        if line.startswith('```'):
-            fenced = not fenced
-        elif not fenced and line.startswith('## '):
+    for line, heading in markdown_lines(text.splitlines(keepends=True)):
+        if heading and line.startswith('## '):
             found.append([line[3:].strip(), ''])
         found[-1][1] += line
     introduction = bool(found[0][1])
@@ -156,11 +150,12 @@ def sections(
         if introduction and index == 0 and introduction_limit is not None:
             budget = introduction_limit
         parts, sizes = [''], [0]
-        for piece, size in _pieces(body, budget):
+        for line in body.splitlines(keepends=True):
+            size = json_size(line) - 2
             if parts[-1] and sizes[-1] + size > budget:
                 parts.append('')
                 sizes.append(0)
-            parts[-1] += piece
+            parts[-1] += line
             sizes[-1] += size
         if len(parts) == 1:
             result.append((title, body))
@@ -177,7 +172,7 @@ def guide_parts(package: dict) -> list[tuple[str, str]]:
     """
     return sections(
         package['agents_md'] or '',
-        introduction_limit=max(GUIDE_LIMIT - json_size(package['manifest']), INTRODUCTION_MIN),
+        introduction_limit=GUIDE_LIMIT - json_size(package['manifest']),
     )
 
 
@@ -209,7 +204,7 @@ def guide(package: dict, section: str | None = None) -> dict:
         'complete': True,
         'sections': titles,
     }
-    has_sections = any(not INTRODUCTION_PART.fullmatch(title) for title, _ in parts)
+    has_sections = any(base_title(title) != INTRODUCTION for title, _ in parts)
     if json_size(whole) <= (WHOLE_LIMIT if has_sections else RESULT_LIMIT):
         return whole
     return {**whole, 'agents_md': parts[0][1], 'complete': False}

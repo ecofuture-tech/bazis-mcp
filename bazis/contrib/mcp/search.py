@@ -45,12 +45,11 @@ LIMIT_MAX = 10
 WORD_RE = re.compile(r'\w+')
 #: the humps of an identifier: `PermitRouteBase` is also `permit`, `route`, `base`
 HUMP_RE = re.compile(r'[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+')
+#: a heading inside a section (the sections are cut at `## `)
 HEADING_RE = re.compile(r'#{3,6}\s+(.*)')
 #: the heading of the map of the sections in the introduction of a guide (a table of the
 #: sections with when to read each): read with the introduction, not a result of the search
 MAP = 'The sections'
-#: the title of a part of a split section: `Models (1/2)` is in the section `Models`
-PART_RE = re.compile(r'\s\(\d+/\d+\)$')
 SUFFIXES = ('ing', 'ed', 'es', 's', 'e')
 STOPWORDS = frozenset(
     'a an and are as at be by can do does for from how i in is it its of on or that the '
@@ -93,18 +92,19 @@ def _chunks(package: dict) -> list[dict]:
     the section, None at its top) and `text`.
     """
     result = []
-    fenced = False
-    for section, body in catalog.guide_parts(package):
+    parts = catalog.guide_parts(package)
+    # one reading of the lines of all the parts: a code block of a section cut into parts
+    # goes on in its next part
+    marks = catalog.markdown_lines(line for _, body in parts for line in body.splitlines(keepends=True))
+    for section, body in parts:
         heading = None
-        if result and PART_RE.search(section) and (
-            PART_RE.sub('', section) == PART_RE.sub('', result[-1]['section'])
-        ):
+        title = catalog.base_title(section)
+        if result and title != section and title == catalog.base_title(result[-1]['section']):
             heading = result[-1]['heading']  # the next part of the same section
         lines = []
         for line in body.splitlines(keepends=True):
-            if line.startswith('```'):
-                fenced = not fenced
-            elif not fenced and (match := HEADING_RE.match(line)):
+            _, is_heading = next(marks)
+            if is_heading and (match := HEADING_RE.match(line)):
                 if ''.join(lines).strip():
                     result.append({'section': section, 'heading': heading, 'text': ''.join(lines)})
                 heading, lines = match[1].strip(), []
@@ -123,7 +123,7 @@ def documents(packages: list[dict]) -> list[dict]:
     for package in packages:
         name = package['name']
         for chunk in _chunks(package):
-            title = PART_RE.sub('', chunk['section'])
+            title = catalog.base_title(chunk['section'])
             if title == catalog.INTRODUCTION:
                 if chunk['heading'] == MAP:
                     continue
@@ -229,7 +229,7 @@ def excerpt(text: str, idf: dict[str, float]) -> str:
             if not _fits(result + line):
                 break
             result += line
-        return result or lines[first][: TEXT_LIMIT // catalog.CHAR_MAX]  # a very long line
+        return result or lines[first]
     grown = True
     while grown:
         grown = False
