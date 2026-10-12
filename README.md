@@ -71,7 +71,7 @@ still work and the project tools return the error.
 | `project_info(sections)` | `packages`, `settings`, `models`, `routes` of the project |
 | `run_doctor(deploy)` | The messages of the system checks, from bazis 2.13 with the database checks (or the info `bazis.database` when the database cannot be reached); `ok` is false if there is an error |
 | `front_check(layer)` | The issues of the frontend specs (`bazis_front check --json`); `ok` is false if there is an error |
-| `front_status()` | The parts of the frontend that are stale (the checks `front.*`), by the `bazis_front` command that updates them |
+| `front_status()` | The parts of the frontend that are stale (`bazis_front status --json`), by the `bazis_front` command that updates them |
 | `front_catalog()` | The assets of bazis-front (components, hooks) with the capabilities and assets they require |
 
 Resource: `bazis://packages/{name}/agents.md`. Prompts: `add_package(name)` (add a package
@@ -79,7 +79,7 @@ and make the checks pass), `audit_project` (review the project against the guide
 checks of its packages) and `build_frontend` (build the frontend with bazis-front, from the
 specs to the end-to-end tests).
 
-The frontend tools run `bazis_front` and `bazis_doctor` like the other project tools, and
+The frontend tools run `bazis_front` like the other project tools, and
 read the registry of the assets from the bazis-front of the project (else from the
 catalog). Without bazis-front they say so (`checked: false` with the `reason`) instead of
 failing.

@@ -173,9 +173,10 @@ def front_check(layer: LAYERS | None = None) -> dict:
 @server.tool(annotations=READ_ONLY)
 def front_status() -> dict:
     """
-    What of the frontend is stale, without Node (the system checks `front.*` of
-    `manage.py bazis_doctor`): `stale` by the `manage.py bazis_front` command that updates
-    it (`contract`, `design`, `e2e`, `update`), each with the messages and their hints;
+    What of the frontend is stale, without Node (the issues of
+    `manage.py bazis_front status --json`): `stale` by the `manage.py bazis_front` command
+    that updates it (`contract`, `design`, `e2e`, `update`), each with the issues and their
+    hints;
     `spec_issues` counts the issues of the specs (see `front_check`). Without bazis-front
     (installed, in INSTALLED_APPS), `checked` is false and `reason` says what to do.
     """

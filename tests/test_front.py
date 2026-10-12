@@ -65,8 +65,15 @@ def result(call_result):
     return json.loads(call_result.content[0].text)
 
 
-def message(id_, text='', hint=None, level='warning'):
-    return {'id': id_, 'level': level, 'message': text, 'hint': hint, 'object': None}
+def issue(id_, text='', hint=None, level='warning', command=None):
+    """An issue of `bazis_front status --json`."""
+    return {'id': id_, 'level': level, 'message': text, 'hint': hint, 'command': command}
+
+
+def status_output(*issues):
+    state = {'bazis_front': '1.0.0', 'frontend': '/app/frontend', 'assets': {}, 'generated': {},
+             'issues': list(issues)}
+    return 0, json.dumps(state), ''
 
 
 @pytest.fixture
@@ -183,34 +190,34 @@ async def test_front_tools_on_the_sample_without_its_app(client):
 
 
 async def test_front_status(client, fake_run):
-    doctor = [
-        message('front.W001', 'The contract is stale: contract.json differs from the backend.',
-                'Export it with `manage.py bazis_front contract`.'),
-        message('front.W005', 'The theme is stale.', 'Generate it with `manage.py bazis_front design`.'),
-        message('front.W002', 'P011 (error) spec/product.yaml#/entities/0/resource: ...'),
-        message('front.W002', 'P020 (warning) spec/product.yaml#/entities/0/access: ...'),
-        message('front.I001', 'The contract is not checked: the database is not migrated.',
-                level='info'),
-        message('bazis.W001', 'ALLOWED_HOSTS allows any host.'),
-        message(None, 'A check of the project without an id.'),
+    issues = [
+        issue('front.W001', 'The contract is stale: contract.json differs from the backend.',
+              'Export it with `manage.py bazis_front contract`.', command='contract'),
+        issue('front.W005', 'The theme is stale.', 'Generate it with `manage.py bazis_front design`.',
+              command='design'),
+        issue('front.W002', 'P011 (error) spec/product.yaml#/entities/0/resource: ...'),
+        issue('front.W002', 'P020 (warning) spec/product.yaml#/entities/0/access: ...'),
+        issue('front.I001', 'The contract is not checked: the database is not migrated.',
+              level='info'),
+        issue('front.W007', 'Copies of bazis-front were changed in the frontend.'),
     ]
-    fake_run.outputs = [probe_output(), (0, json.dumps(doctor), '')]
+    fake_run.outputs = [probe_output(), status_output(*issues)]
 
     status = result(await client.call_tool('front_status', {}))
 
-    assert fake_run.calls[1] == ['-m', 'django', 'bazis_doctor', '--json']
+    assert fake_run.calls[1] == ['-m', 'django', 'bazis_front', 'status', '--json']
     assert status == {
         'checked': True,
         'version': '1.0.0',
         'up_to_date': False,
-        'stale': {'contract': [doctor[0]], 'design': [doctor[1]]},
+        'stale': {'contract': [issues[0]], 'design': [issues[1]]},
         'spec_issues': 2,
-        'messages': [doctor[4]],
+        'messages': [issues[4], issues[5]],
     }
 
 
 async def test_front_status_up_to_date(client, fake_run):
-    fake_run.outputs = [probe_output(), (0, '[]', '')]
+    fake_run.outputs = [probe_output(), status_output()]
 
     status = result(await client.call_tool('front_status', {}))
 
@@ -218,14 +225,12 @@ async def test_front_status_up_to_date(client, fake_run):
 
 
 async def test_front_status_of_an_application_that_cannot_load(client, fake_run):
-    doctor = [message('bazis.app', "The application cannot be loaded: ImportError('x')",
-                      level='critical')]
-    fake_run.outputs = [probe_output(), (1, json.dumps(doctor), '')]
+    fake_run.outputs = [probe_output(), (1, '', "ImportError: cannot import name 'x'\n")]
 
     call_result = await client.call_tool('front_status', {})
 
     assert call_result.is_error
-    assert 'cannot be loaded' in call_result.content[0].text
+    assert "cannot import name 'x'" in call_result.content[0].text
 
 
 async def test_front_catalog_of_the_installed_bazis_front(client, fake_run, monkeypatch):

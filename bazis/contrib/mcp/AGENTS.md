@@ -59,10 +59,10 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
   --json`): `ok`, `contract` (false: not checked against `contract/contract.json`),
   `errors`, `warnings` and `issues` with `code`, `severity`, `file`, `path` and `hint`;
   `layer` (`product`, `screens`, `design`) reports one layer.
-- `front_status()` — what is stale, without Node: the checks `front.*` of `bazis_doctor`
+- `front_status()` — what is stale, without Node: the issues of `bazis_front status --json`
   in `stale` by the `bazis_front` command that updates the part (`contract`, `design`,
   `e2e`, `update`), `spec_issues` (the number of issues, see `front_check`), the other
-  `front.*` messages (such as a contract not checked before `migrate`).
+  issues in `messages` (such as a contract not checked before `migrate`).
 - `front_catalog()` — the assets that `bazis_front init` and `add` copy: `kind`, `target`,
   the `capabilities` they need in the contract, the assets they `requires`, `init`; from the
   bazis-front of the project, else from the catalog (`source`).

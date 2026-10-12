@@ -67,16 +67,7 @@ NOT_ENABLED = (
 #: the prefix of the message of a management command that refuses to run
 COMMAND_ERROR = 'CommandError: '
 
-#: the system checks of bazis-front that compare a generated or copied part of the frontend
-#: with its source without Node, as `bazis_front <command> --check` does: the command that
-#: brings each part up to date
-STALE_CHECKS = {
-    'front.W001': 'contract',
-    'front.W005': 'design',
-    'front.W003': 'e2e',
-    'front.W004': 'update',
-}
-#: the system check that repeats the issues of the specs (`front_check`)
+#: the check of bazis-front that repeats the issues of the specs (`front_check`)
 SPEC_CHECK = 'front.W002'
 
 
@@ -124,28 +115,24 @@ def check(layer: str | None = None) -> dict:
 
 def status() -> dict:
     """
-    The parts of the frontend that are stale, from the system checks of bazis-front run by
-    `manage.py bazis_doctor --json` (those checks need neither Node nor the database; the
-    doctor runs its database checks when it reaches the database), by the command that
-    updates them.
+    The parts of the frontend that are stale, from the issues of
+    `manage.py bazis_front status --json` (the checks of the state of the frontend, without
+    Node), by the `command` of bazis-front that brings them up to date.
     """
     installed = package()
     if unavailable := _unavailable(installed):
         return unavailable
-    messages = project.manage('bazis_doctor', '--json')
-    if failed := [it for it in messages if it['id'] == 'bazis.app']:
-        # the application did not load: the checks did not run
-        raise project.ProjectError(failed[0]['message'])
+    issues = project.manage('bazis_front', 'status', '--json')['issues']
     stale: dict[str, list[dict]] = {}
     other = []
     spec_issues = 0
-    for message in messages:
-        if message['id'] in STALE_CHECKS:
-            stale.setdefault(STALE_CHECKS[message['id']], []).append(message)
-        elif message['id'] == SPEC_CHECK:
+    for issue in issues:
+        if issue['command']:
+            stale.setdefault(issue['command'], []).append(issue)
+        elif issue['id'] == SPEC_CHECK:
             spec_issues += 1
-        elif (message['id'] or '').startswith('front.'):
-            other.append(message)
+        else:
+            other.append(issue)
     return {
         'checked': True,
         'version': installed['version'],

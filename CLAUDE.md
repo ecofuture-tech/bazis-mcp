@@ -18,8 +18,9 @@ project, for AI agents. All tools only read.
   each text within `TEXT_LIMIT`, so that `LIMIT_MAX` results stay under `RESULT_LIMIT`;
 - `bazis/contrib/mcp/project.py` — loading the project, `bazis.core.introspect` and the
   system checks;
-- `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`, the
-  checks `front.*` and the registry of the assets;
+- `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
+  `bazis_front status` (its issues grouped by their `command`) and the registry of the
+  assets;
 - `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI;
   `--from-clones DIR` reads the same files from the local clones `DIR/<package>` (the
   version is the one the clone is built with: setuptools-scm, honouring
