@@ -25,25 +25,11 @@ from mcp.shared.exceptions import MCPError
 
 from bazis.contrib.mcp import catalog, project
 
+from .support import PARAGRAPH, SAMPLE_DIR, result, size
+
 
 pytestmark = pytest.mark.anyio
 
-SAMPLE_DIR = Path(__file__).resolve().parent.parent / 'sample'
-
-
-def size(call_result) -> int:
-    """
-    The bytes of the text of a tool result, as a client receives it.
-    """
-    return len(call_result.content[0].text.encode())
-
-
-def result(call_result):
-    """
-    The value a tool returned: the JSON text that every client reads.
-    """
-    assert not call_result.is_error, call_result.content
-    return json.loads(call_result.content[0].text)
 
 
 async def test_tools_are_read_only(client):
@@ -234,9 +220,6 @@ async def test_package_guide_of_an_unknown_package(client):
     assert call_result.is_error
     assert 'bazis-permit' in call_result.content[0].text
 
-
-#: a paragraph of a guide, about 16,000 characters
-PARAGRAPH = 'A line of the guide that says what to do and why it matters.\n' * 260
 
 #: a guide longer than the limit of a result: the introduction, a `## ` line in a code block
 #: (not a heading), a section with a subsection longer than the limit, a short section

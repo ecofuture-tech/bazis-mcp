@@ -32,10 +32,11 @@ import pytest
 
 from bazis.contrib.mcp import catalog, front, project
 
+from .support import SAMPLE_DIR, result
+
 
 pytestmark = pytest.mark.anyio
 
-SAMPLE_DIR = Path(__file__).resolve().parent.parent / 'sample'
 
 REGISTRY = {
     'registry': 1,
@@ -58,11 +59,6 @@ SPEC_ISSUE = {
 requires_front = pytest.mark.skipif(
     find_spec('bazis.contrib.front') is None, reason='bazis-front is not installed'
 )
-
-
-def result(call_result):
-    assert not call_result.is_error, call_result.content
-    return json.loads(call_result.content[0].text)
 
 
 def issue(id_, text='', hint=None, level='warning', command=None):

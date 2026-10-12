@@ -21,7 +21,7 @@ import pytest
 
 from bazis.contrib.mcp import catalog, search
 
-from .test_server import PARAGRAPH, result, size
+from .support import PARAGRAPH, result, size
 
 
 pytestmark = pytest.mark.anyio
