@@ -48,8 +48,8 @@ packages the project needs.
   If the guides do not answer, say what was missing rather than guessing.
 - Facts about this project (installed packages, settings, models, routes) come from
   `project_info`.
-- After every change run `run_doctor` and the tests of the project, and fix what they
-  report.
+- After a change run `run_doctor` and fix what it reports; run the tests of the project
+  once the change is done, and fix what they report.
 - The frontend layer (bazis-front, guide `package_guide("bazis-front")`): check the specs
   with `front_check`, find what is stale with `front_status`, and choose the components
   with `front_catalog`.
@@ -256,26 +256,14 @@ def build_frontend() -> str:
     return """\
 Build the frontend of this Bazis project with bazis-front.
 
-1. Read `package_guide("bazis-front")` and `front_catalog`, and the sections of the guide
-   as each step needs them (`guide_search` finds them). If
-   `front_check` says that bazis-front is missing, install it, add "bazis.contrib.front" to
-   BS_INSTALLED_APPS and run `manage.py bazis_front init` (frontend/ and the starters of
-   spec/).
-2. Describe the product in spec/product.yaml (roles, entities, access, scenarios), its
-   screens in spec/screens/ and its design in spec/design/, as the guide says; run
-   `front_check` after each layer.
-3. Build the backend the specs need (models, route sets, roles with their permissions,
-   statuses and transits, migrations), run `run_doctor` and the tests, migrate, and
-   export the contract with `manage.py bazis_front contract`.
-4. Run `front_check` until it reports no errors; fix the spec or the backend as each
-   `hint` says.
-5. Copy the components the screens need with `manage.py bazis_front add`, write the
-   screens in frontend/src/screens/ from them, and generate the theme
-   (`manage.py bazis_front design`) and the end-to-end tests (`manage.py bazis_front e2e`).
-6. Run `front_status` and update what is stale, then in frontend/ `npx tsc --noEmit`,
-   `npm run lint`, `npm test` and `npm run e2e` against the running backend, with the
-   test users of the roles (`test_user` in spec/product.yaml) in its data and their
-   password in E2E_PASSWORD; fix every failure.
+Read `package_guide("bazis-front")` and follow the steps of "Building the frontend of a
+product" in its introduction, with the section of each step read when you reach it
+(`guide_search` finds a section). If `front_check` says that bazis-front is missing,
+install it as the guide says first. The tools of the frontend layer take the place of the
+commands that only read: `front_check` is `bazis_front check`, `front_status` says what is
+stale and the command that updates it, `front_catalog` lists the components. Run
+`run_doctor` after a change of the backend, and finish with the checks of the last step of
+the guide and the end-to-end tests against the running backend; fix every failure.
 """
 
 

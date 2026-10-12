@@ -72,7 +72,8 @@ without `spec/` for `front_check`), they return `checked: false` (`source: null`
 `front_catalog`) with the `reason` and the fix, not an error.
 
 The resource `bazis://packages/{name}/agents.md` is the AGENTS.md of a package; the prompts
-`add_package(name)`, `audit_project` and `build_frontend` describe these tasks step by step.
+`add_package(name)`, `audit_project` and `build_frontend` describe these tasks step by step
+(`build_frontend` with the steps of the guide of bazis-front).
 
 ## Rules
 
@@ -80,7 +81,7 @@ The resource `bazis://packages/{name}/agents.md` is the AGENTS.md of a package; 
   guide of the installed version. Find the section that answers a question with
   `guide_search` instead of reading every section (when `guide_version` differs from `installed_version`,
   upgrade the package or check the guide against its code).
-- Run `run_doctor` and the tests after every change. If the project cannot be loaded, the
-  project tools return the error and the catalog tools still work.
+- Run `run_doctor` after a change, and the tests once the change is done. If the project
+  cannot be loaded, the project tools return the error and the catalog tools still work.
 - The catalog of the packages that are not installed is a snapshot made at the release of
   bazis-mcp; their latest version may be newer.

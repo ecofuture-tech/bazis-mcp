@@ -76,8 +76,8 @@ still work and the project tools return the error.
 
 Resource: `bazis://packages/{name}/agents.md`. Prompts: `add_package(name)` (add a package
 and make the checks pass), `audit_project` (review the project against the guides and
-checks of its packages) and `build_frontend` (build the frontend with bazis-front, from the
-specs to the end-to-end tests).
+checks of its packages) and `build_frontend` (build the frontend with bazis-front, following
+the steps of its guide, from the specs to the end-to-end tests).
 
 The frontend tools run `bazis_front` like the other project tools, and
 read the registry of the assets from the bazis-front of the project (else from the

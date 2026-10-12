@@ -487,6 +487,10 @@ async def test_prompts(client):
     }
     prompt = await client.get_prompt('add_package', {'name': 'bazis-author'})
     assert 'package_guide("bazis-author")' in prompt.messages[0].content.text
+    # the steps of the frontend are those of the guide of bazis-front, never a copy
+    prompt = await client.get_prompt('build_frontend', {})
+    text = ' '.join(prompt.messages[0].content.text.split())
+    assert '"Building the frontend of a product"' in text and 'package_guide("bazis-front")' in text
 
 
 def test_find_settings(tmp_path, monkeypatch):
