@@ -87,10 +87,7 @@ def package() -> dict | None:
     """
     settings = project.settings_name()
     env = {'DJANGO_SETTINGS_MODULE': settings} if settings else {}
-    done = project.run(PROBE_NAME, '-c', PROBE, **env)
-    data = project.parse_json(done.stdout)
-    if data is None:
-        raise project.failure(PROBE_NAME, done)
+    data = project.json_of(PROBE_NAME, project.run(PROBE_NAME, '-c', PROBE, **env))
     return data if data['version'] else None
 
 

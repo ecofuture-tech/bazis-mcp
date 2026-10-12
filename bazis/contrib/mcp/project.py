@@ -118,9 +118,10 @@ def django(command: str, *args: str) -> subprocess.CompletedProcess:
     """
     `python -m django <command> <args>` with the settings of the project.
     """
-    _check_dir()
     settings = settings_name()
     if not settings:
+        # a missing project directory has no manage.py either: that is the reason then
+        _check_dir()
         raise ProjectError(
             f'No settings module: {project_dir} has no manage.py that sets '
             'DJANGO_SETTINGS_MODULE. Pass --project-dir, --settings or set DJANGO_SETTINGS_MODULE.'
@@ -132,11 +133,7 @@ def manage(command: str, *args: str):
     """
     The JSON printed by `python -m django <command> <args>` (`django`).
     """
-    done = django(command, *args)
-    data = parse_json(done.stdout)
-    if data is None:
-        raise failure(command, done)
-    return data
+    return json_of(command, django(command, *args))
 
 
 def failure(name: str, done: subprocess.CompletedProcess) -> ProjectError:
@@ -146,6 +143,16 @@ def failure(name: str, done: subprocess.CompletedProcess) -> ProjectError:
     """
     error = '\n'.join((done.stderr.strip() or done.stdout.strip()).splitlines()[-15:])
     return ProjectError(f'{name} failed (exit code {done.returncode}):\n{error}')
+
+
+def json_of(name: str, done: subprocess.CompletedProcess):
+    """
+    The JSON that a call printed (`parse_json`); its `failure` when it printed none.
+    """
+    data = parse_json(done.stdout)
+    if data is None:
+        raise failure(name, done)
+    return data
 
 
 def parse_json(text: str):
@@ -197,11 +204,7 @@ def packages() -> list[dict]:
     every call: never those of the Python of the server (bazis-cli runs the server with its
     own), and the packages installed or upgraded while the server runs are seen.
     """
-    done = run(PACKAGES_NAME, '-c', PACKAGES_PROBE)
-    data = parse_json(done.stdout)
-    if data is None:
-        raise failure(PACKAGES_NAME, done)
-    return data
+    return json_of(PACKAGES_NAME, run(PACKAGES_NAME, '-c', PACKAGES_PROBE))
 
 
 def info(sections: list[str] | None = None) -> dict:
