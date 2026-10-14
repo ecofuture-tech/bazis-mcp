@@ -51,7 +51,9 @@ async def test_write_and_read_a_file(client, shop):
     assert (shop / 'shop' / 'catalog' / 'models.py').read_text() == 'name = "книга"\n'
 
     read = result(await client.call_tool('read_file', {'path': 'shop/catalog/models.py'}))
-    assert read == {'path': 'shop/catalog/models.py', 'content': 'name = "книга"\n'}
+    assert read == {
+        'path': 'shop/catalog/models.py', 'content': 'name = "книга"\n', 'next_offset': None
+    }
 
     # replaced; an absolute path in the project is the same file
     path = str(shop / 'shop' / 'catalog' / 'models.py')
@@ -125,6 +127,35 @@ async def test_a_hard_link_to_env(client, shop):
     assert (shop / '.env').read_text() == f'BS_SECRET_KEY={SECRET}\n'
 
 
+async def test_read_file_in_parts(client, shop):
+    """
+    A file longer than a result is read in parts, its lines from `offset`, at most `limit`;
+    `next_offset` is the line to read next, null at the end.
+    """
+    line = 'x' * 99 + '\n'
+    count = 2 * catalog.RESULT_LIMIT // len(line)
+    (shop / 'long.txt').write_text(line * count)
+    assert 'is too long' in error(await client.call_tool('read_file', {'path': 'long.txt'}))
+
+    parts, offset = [], 0
+    while offset is not None:
+        read = result(await client.call_tool(
+            'read_file', {'path': 'long.txt', 'offset': offset, 'limit': count // 3 + 1}
+        ))
+        parts.append(read['content'])
+        offset = read['next_offset']
+    assert len(parts) == 3 and ''.join(parts) == line * count
+
+    (shop / 'lines.txt').write_text('a\nb\nc\n')
+    read = result(await client.call_tool('read_file', {'path': 'lines.txt', 'offset': 1, 'limit': 1}))
+    assert read == {'path': 'lines.txt', 'content': 'b\n', 'next_offset': 2}
+    read = result(await client.call_tool('read_file', {'path': 'lines.txt', 'offset': 1}))
+    assert read == {'path': 'lines.txt', 'content': 'b\nc\n', 'next_offset': None}
+    read = result(await client.call_tool('read_file', {'path': 'lines.txt', 'offset': 3, 'limit': 5}))
+    assert read == {'path': 'lines.txt', 'content': '', 'next_offset': None}
+    for args in ({'offset': -1}, {'limit': 0}):
+        assert (await client.call_tool('read_file', {'path': 'lines.txt', **args})).is_error
+
 
 @pytest.mark.parametrize('path, message', [
     ('.venv/lib/site.py', '.venv/ is installed (add_packages, run_command pip): it is never written.'),
@@ -158,16 +189,19 @@ async def test_the_paths_stay_in_the_project(client, shop, tmp_path):
 
 
 async def test_the_sizes(client, shop, monkeypatch):
+    in_parts = 'read it in parts (fewer lines) with offset and limit.'
     (shop / 'big.txt').write_text('x' * (catalog.RESULT_LIMIT + 1))
     assert error(await client.call_tool('read_file', {'path': 'big.txt'})) == (
-        f'big.txt has {catalog.RESULT_LIMIT + 1} bytes: read_file returns files up to '
-        f'{catalog.RESULT_LIMIT}.'
+        f'big.txt is too long for a result of read_file: {in_parts}'
     )
     # within the bytes, but not within a result: quotes and line ends are escaped in JSON
     (shop / 'quotes.txt').write_text('"\n' * (catalog.RESULT_LIMIT // 2))
     assert error(await client.call_tool('read_file', {'path': 'quotes.txt'})) == (
-        'quotes.txt is too long for a result of read_file.'
+        f'quotes.txt is too long for a result of read_file: {in_parts}'
     )
+    assert error(await client.call_tool(
+        'read_file', {'path': 'quotes.txt', 'offset': 10, 'limit': catalog.RESULT_LIMIT // 2}
+    )) == f'quotes.txt is too long for a result of read_file: {in_parts}'
     (shop / 'image.png').write_bytes(b'\x89PNG\r\n\x1a\n\xff\xfe')
     assert error(await client.call_tool('read_file', {'path': 'image.png'})) == (
         'image.png is not a text file (UTF-8).'

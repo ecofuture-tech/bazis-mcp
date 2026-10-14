@@ -62,24 +62,40 @@ def _secret(path: Path) -> bool:
     return _named(path, '.env') or _same(path, project.project_dir / '.env')
 
 
-def read(path: str) -> dict:
+def read(path: str, offset: int = 0, limit: int | None = None) -> dict:
     """
-    The text of the file `path` of the project (UTF-8), whole when its result fits in
-    `catalog.RESULT_LIMIT`.
+    The text of the file `path` of the project (UTF-8): its lines from `offset` (the first
+    is 0), at most `limit` of them (default: to the end), when the result fits in
+    `catalog.RESULT_LIMIT`. `next_offset` is the first line not read, None at the end.
     """
     target = project.inside(path)
     if _secret(target):
         raise project.ProjectError('.env is never read: project_status gives the names of its variables.')
     if not target.is_file():
         raise project.ProjectError(f'{path} is not a file of the project.')
-    if (size := target.stat().st_size) > catalog.RESULT_LIMIT:
-        raise project.ProjectError(f'{path} has {size} bytes: read_file returns files up to {catalog.RESULT_LIMIT}.')
+    lines: list[str] = []
+    next_offset = None
+    size = 0
     try:
-        result = {'path': _relative(target), 'content': target.read_text(encoding='utf-8')}
+        with target.open(encoding='utf-8') as file:
+            for number, line in enumerate(file):
+                if number < offset:
+                    continue
+                if limit is not None and len(lines) == limit:
+                    next_offset = number
+                    break
+                lines.append(line)
+                size += len(line)
+                if size > catalog.RESULT_LIMIT:
+                    break  # refused below, without reading the rest
     except UnicodeDecodeError:
         raise project.ProjectError(f'{path} is not a text file (UTF-8).') from None
+    result = {'path': _relative(target), 'content': ''.join(lines), 'next_offset': next_offset}
     if catalog.json_size(result) > catalog.RESULT_LIMIT:
-        raise project.ProjectError(f'{path} is too long for a result of read_file.')
+        raise project.ProjectError(
+            f'{path} is too long for a result of read_file: read it in parts (fewer lines) with '
+            'offset and limit.'
+        )
     return result
 
 

@@ -351,13 +351,19 @@ def server_logs(which: SERVERS, lines: Annotated[int, Field(ge=1, le=1000)] = 10
 
 
 @server.tool(annotations=READ_ONLY)
-def read_file(path: str) -> dict:
+def read_file(
+    path: str,
+    offset: Annotated[int, Field(ge=0)] = 0,
+    limit: Annotated[int | None, Field(ge=1)] = None,
+) -> dict:
     """
     The text of a file of the project (`path` relative to the project directory, or
-    absolute in it), whole, up to about 40,000 bytes. `.env` is never read
+    absolute in it): its lines from `offset` (the first is 0), at most `limit` of them
+    (default: to the end), up to about 40,000 bytes; `next_offset` is the first line not
+    read, null at the end. Read a longer file in parts. `.env` is never read
     (`project_status` gives the names of its variables), nor a path outside the project.
     """
-    return _project_call(files.read, path)
+    return _project_call(files.read, path, offset, limit)
 
 
 @server.tool(annotations=WRITES)
