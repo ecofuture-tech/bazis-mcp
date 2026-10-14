@@ -313,8 +313,12 @@ def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dic
     `--` the names of tests and `-t`, `--testNamePattern` (test) or `-g`, `--grep`,
     `--grep-invert`, `--project`, `--workers` (e2e)) and `npx` (`args` only
     `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`, installed in
-    `frontend/node_modules`: npx never downloads) in `frontend/`. The arguments are plain words (no character of a shell, no `..`, no path
-    outside the project); a command never reads stdin: pass `--noinput` where Django asks.
+    `frontend/node_modules`: npx never downloads) in `frontend/`. The arguments are plain
+    words (no character of a shell, no `..`, no path outside the project), without the
+    options of manage `--settings` and `--pythonpath`, nor those of pytest that write the
+    paths they name or change its configuration (`--basetemp`, `--junitxml`, `--log-file`,
+    `--debug`, `--rootdir`, `--confcutdir`, `-c`, `-o`, `-p`, `--pyargs`, `--ds`, `--dc`,
+    `@<file>`); a command never reads stdin: pass `--noinput` where Django asks.
     `E2E_PORT` (`.bazis/ports.json`) and `E2E_PASSWORD` (`.env`) are set by the server,
     never shown. Returns `exit_code`, `ok`, `timed_out` and the ends of `stdout` and
     `stderr`. The servers are started with `start_server`, not here.

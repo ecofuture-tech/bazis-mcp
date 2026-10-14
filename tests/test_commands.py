@@ -117,6 +117,10 @@ async def test_run_command_manage(client):
     ('pytest', [], ['{python}', '-m', 'pytest']),
     ('pytest', ['tests/test_shop.py::test_list[2-items]', '-k', 'not slow'],
      ['{python}', '-m', 'pytest', 'tests/test_shop.py::test_list[2-items]', '-k', 'not slow']),
+    ('pytest', ['-xvs', '-Werror', '-rA', '-kshop', '--co', '--tb=short', '--lf'],
+     ['{python}', '-m', 'pytest', '-xvs', '-Werror', '-rA', '-kshop', '--co', '--tb=short', '--lf']),
+    ('manage', ['migrate', '--noinput', '--skip-checks', '--plan'],
+     ['{python}', 'manage.py', 'migrate', '--noinput', '--skip-checks', '--plan']),
     ('pip', ['install', '-r', 'requirements-dev.txt'],
      ['{python}', '-m', 'pip', 'install', '-r', 'requirements-dev.txt']),
     ('npm', ['build'], ['{npm}', 'run', 'build']),
@@ -186,6 +190,28 @@ async def test_run_command_table(client, shop, fake_popen, kind, args, expected)
     ('pytest', ['~/tests'], 'has a character of a shell'),
     ('manage', ['check', '>', 'out.txt'], 'has a character of a shell'),
     ('pytest', ['../other/tests'], 'has ".."'),
+    ('pytest', ['--basetemp=.'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--basetemp', 'tests'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--junitxml=manage.py'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--junit-xml', 'manage.py'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--log-file=manage.py'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--debug=manage.py'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--rootdir=tests'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--confcutdir', 'tests'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--pyargs', 'sample'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--ds=sample.other'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--override-ini=addopts='], 'pytest runs with the configuration of the project'),
+    ('pytest', ['-o', 'addopts='], 'pytest runs with the configuration of the project'),
+    ('pytest', ['-c', 'other.ini'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['--config-file=other.ini'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['-p', 'no:cacheprovider'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['-pno:cacheprovider'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['-vxp', 'sample.plugin'], 'pytest runs with the configuration of the project'),
+    ('pytest', ['@args.txt'], 'pytest runs with the configuration of the project'),
+    ('manage', ['migrate', '--settings=sample.other'], 'manage runs with the settings of the project'),
+    ('manage', ['check', '--sett', 'sample.other'], 'manage runs with the settings of the project'),
+    ('manage', ['check', '--pythonpath', 'shop'], 'manage runs with the settings of the project'),
+    ('manage', ['check', '--py=shop'], 'manage runs with the settings of the project'),
     ('pytest', ['/etc/passwd'], 'is outside the project directory'),
     ('pytest', ['--rootdir=/etc'], 'is outside the project directory'),
     ('manage', ['bazis_messages', 'apply', '/etc/hosts'], 'is outside the project directory'),
@@ -278,7 +304,7 @@ async def test_run_command_timeout_kills_the_group(client, shop, monkeypatch):
 
     started = time.monotonic()
     done = result(await client.call_tool(
-        'run_command', {'kind': 'pytest', 'args': ['tests/test_slow.py', '-p', 'no:cacheprovider']},
+        'run_command', {'kind': 'pytest', 'args': ['tests/test_slow.py']},
         progress_callback=progress,
     ))
 
@@ -306,7 +332,7 @@ async def test_run_command_keeps_the_end_of_a_long_output(client, shop):
         "    print('the end')\n"
     )
     call_result = await client.call_tool(
-        'run_command', {'kind': 'pytest', 'args': ['-s', 'tests/test_loud.py', '-p', 'no:cacheprovider']}
+        'run_command', {'kind': 'pytest', 'args': ['-s', 'tests/test_loud.py']}
     )
     done = result(call_result)
 

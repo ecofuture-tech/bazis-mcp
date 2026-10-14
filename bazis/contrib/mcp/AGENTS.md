@@ -101,8 +101,13 @@ The work on the project served (never a command or a path of the caller outside 
   `--workers` of e2e) and `npx` (only `tsc --noEmit` and `playwright install chromium`,
   as `npx --no`: a tool of `frontend/node_modules`, never downloaded; without it the
   command is refused) in `frontend/`. npm and npx are found on the `PATH` (`npm.cmd` on
-  Windows). An argument with a character of a shell,
-  with `..` or with a path outside the project (also through a symbolic link) is refused.
+  Windows). An argument with a character of a shell, with `..` or with a path outside the
+  project (also through a symbolic link) is refused, and so are the options of `manage`
+  that choose other settings (`--settings`, `--pythonpath`, also abbreviated) and those
+  of `pytest` that remove or write the paths they name or change its configuration,
+  plugins or settings (`--basetemp`, `--junitxml`/`--junit-xml`, `--log-file`, `--debug`,
+  `--rootdir`, `--confcutdir`, `-c`/`--config-file`, `-o`/`--override-ini`, `-p`,
+  `--pyargs`, `--ds`, `--dc`, also in a group such as `-vp`, and `@<file>`).
   The commands read no stdin (pass `--noinput` where Django asks), and get the settings
   module of the project, `E2E_PORT` of `.bazis/ports.json` and `E2E_PASSWORD` of `.env`
   (a new project has one), whose value is hidden in their output. Returns `command`,

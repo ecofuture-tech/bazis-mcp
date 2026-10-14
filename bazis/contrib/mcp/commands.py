@@ -43,6 +43,20 @@ MANAGE_SUBCOMMANDS = {
     'bazis_front': {'init', 'contract', 'check', 'add', 'design', 'e2e', 'update', 'status'},
     'bazis_messages': {'make', 'status', 'apply', 'compile'},
 }
+#: the options of the management commands that choose other settings or other modules, never
+#: passed: Django takes their abbreviations too, such as `--sett`
+MANAGE_OPTIONS = ('--settings', '--pythonpath')
+#: the options of pytest never passed: those that remove or write the paths they name, choose
+#: other settings, or change where it finds its configuration, its plugins and the tests
+#: (pytest takes no abbreviation of a long option), the short ones in a group of letters too
+#: (`-vp`), and `@<file>`, arguments read from a file
+PYTEST_OPTIONS = {
+    '--basetemp', '--junitxml', '--junit-xml', '--log-file', '--debug', '--rootdir',
+    '--confcutdir', '--config-file', '--override-ini', '--pyargs', '--ds', '--dc',
+}
+PYTEST_SHORT = {'p', 'c', 'o'}
+#: the short options of pytest that take a value: the rest of their group is the value
+PYTEST_VALUES = {'k', 'm', 'r', 'W', *PYTEST_SHORT}
 #: the scripts of `npm run` in `frontend/` (not `dev`: the dev server is `processes.start`)
 NPM_SCRIPTS = {'build', 'lint', 'test', 'e2e', 'format'}
 #: the scripts that take arguments after `--`, the filters of the tests they run: words, and
@@ -80,6 +94,42 @@ def _check_args(args: list[str], cwd: Path) -> None:
         # a path, also that of an option (`--rootdir=<path>`) or of a test (`<path>::<test>`)
         for part in re.split('=|::', arg):
             project.inside(cwd / part)
+
+
+def _short_options(arg: str) -> set[str]:
+    """
+    The short options of pytest in `arg`, a group of letters such as `-vx` or `-kname`.
+    """
+    letters = set()
+    for letter in arg[1:]:
+        letters.add(letter)
+        if letter in PYTEST_VALUES:
+            break
+    return letters
+
+
+def _check_options(kind: str, args: list[str]) -> None:
+    """
+    No option of MANAGE_OPTIONS for `manage`, of PYTEST_OPTIONS for `pytest`.
+    """
+    for arg in args:
+        name = arg.split('=', 1)[0]
+        if kind == 'manage' and len(name) > 2 and name.startswith('--') and any(
+            option.startswith(name) for option in MANAGE_OPTIONS
+        ):
+            raise project.ProjectError(
+                f'{arg!r}: manage runs with the settings of the project, never '
+                f'{" or ".join(MANAGE_OPTIONS)}.'
+            )
+        if kind == 'pytest' and (
+            arg.startswith('@') or name in PYTEST_OPTIONS
+            or (arg[:1] == '-' and arg[:2] != '--' and _short_options(arg) & PYTEST_SHORT)
+        ):
+            options = sorted(PYTEST_OPTIONS) + [f'-{it}' for it in sorted(PYTEST_SHORT)]
+            raise project.ProjectError(
+                f'{arg!r}: pytest runs with the configuration of the project, never '
+                f'{", ".join(options)} or @<file>.'
+            )
 
 
 def _check_filters(script: str, args: list[str]) -> None:
@@ -150,6 +200,7 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
     else:
         cwd = project.inside('.')
     _check_args(args, cwd)
+    _check_options(kind, args)
     python = project.find_python(project.project_dir, project.python)
     first = args[0] if args else None
     if kind == 'manage':
