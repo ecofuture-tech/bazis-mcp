@@ -42,7 +42,8 @@ project (`add_packages`, `run_command`, the servers, the files); the other tools
   under `LOCK`, their stop by process group (SIGTERM, then SIGKILL) and `atexit`;
 - `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `list_files` within
   `project.inside`, `.env` never read nor written, `NOT_WRITTEN` and `generated/` never
-  written, the sizes bounded by `catalog.RESULT_LIMIT` and `WRITE_LIMIT`;
+  written (the names compared in any case, and with `os.path.samefile`), the sizes
+  bounded by `catalog.RESULT_LIMIT` and `WRITE_LIMIT`;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
   `bazis_front status` (its issues grouped by their `command`) and the registry of the
   assets;

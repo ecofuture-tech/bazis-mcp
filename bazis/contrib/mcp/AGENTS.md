@@ -116,7 +116,8 @@ The work on the project served (never a command or a path of the caller outside 
   the project directory (a path relative to it or absolute in it, symbolic links
   resolved). `.env` is never read nor written (`project_status` gives the names of its
   variables); `.venv/`, `.git/`, `contract/` and the `generated/` directories are never
-  written. A file read is UTF-8 text that fits in a result (about 40,000 bytes); a file
+  written. These names count in any case (`.ENV` is `.env`), and so does a file that is the
+  same as one of them (a hard link to `.env`). A file read is UTF-8 text that fits in a result (about 40,000 bytes); a file
   written has at most 1,000,000 bytes, its directories are created; `list_files` lists one
   directory (`name`, `type`: `directory`, `file`, `link` never followed, `other`; `size`),
   at most 400 entries.

@@ -43,4 +43,4 @@ text = "a server started outside a project serves none: the tools answer No proj
 text = "run_command runs only the commands of its closed table, with plain arguments that stay in the project: a command of the caller, a character of a shell, .. or a path outside the project is refused"
 
 [[pitfalls]]
-text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env: they are written by the user, installed, committed or generated"
+text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env (these names in any case, and a hard link to .env): they are written by the user, installed, committed or generated"
