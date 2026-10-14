@@ -474,12 +474,16 @@ async def test_pip_only_from_pypi(client, shop, fake_popen, file, line):
 async def test_pip_requirements_of_pypi(client, shop, fake_popen):
     (shop / 'requirements.txt').write_text(
         '# the project\n\nbazis[test] >= 2.16.0, <3  # the core\nDjango~=6.0\nbazis-front==0.1.*\n'
+        # not files of archives: a name with `.tar` inside it, and one that begins with `zip`
+        'backports.tarfile>=1.2\nzipp\n'
     )
     done = result(await client.call_tool(
         'run_command', {'kind': 'pip', 'args': ['install', '-r', 'requirements-dev.txt']}
     ))
     assert done['ok'] is True and len(fake_popen.ran) == 1
-    assert commands.requirements() == {'bazis', 'django', 'bazis-front', 'bazis-test-utils'}
+    assert commands.requirements() == {
+        'bazis', 'django', 'bazis-front', 'backports-tarfile', 'zipp', 'bazis-test-utils'
+    }
 
 
 def test_an_exception_kills_the_command(shop, monkeypatch, tmp_path):
