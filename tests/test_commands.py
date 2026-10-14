@@ -287,9 +287,10 @@ async def test_run_command_without_ports_and_password(client, shop, fake_popen, 
 async def test_run_command_timeout_kills_the_group(client, shop, monkeypatch):
     """
     A command over the timeout is killed with the processes it started, reporting its
-    progress to the client meanwhile.
+    progress to the client meanwhile. The timeout falls once the test has started its child
+    (its pid file), however long pytest takes to start.
     """
-    monkeypatch.setattr(commands, 'TIMEOUT', 2)
+    monkeypatch.setattr(commands, 'TIMEOUT', 60)
     monkeypatch.setattr(commands, 'PROGRESS_INTERVAL', 0.5)
     (shop / 'tests').mkdir(exist_ok=True)
     (shop / 'tests' / 'test_slow.py').write_text(
@@ -303,6 +304,8 @@ async def test_run_command_timeout_kills_the_group(client, shop, monkeypatch):
 
     async def progress(value, total, message):
         reports.append(value)
+        if (shop / 'child.pid').exists():
+            monkeypatch.setattr(commands, 'TIMEOUT', value)
 
     started = time.monotonic()
     done = result(await client.call_tool(
@@ -310,7 +313,7 @@ async def test_run_command_timeout_kills_the_group(client, shop, monkeypatch):
         progress_callback=progress,
     ))
 
-    assert time.monotonic() - started < 20
+    assert time.monotonic() - started < 60
     assert done['timed_out'] is True and done['ok'] is False and done['exit_code'] is None
     assert reports and reports == sorted(reports)
     child = int((shop / 'child.pid').read_text())
