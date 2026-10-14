@@ -33,10 +33,14 @@ project (`add_packages`, `run_command`, the servers, the files); the other tools
   protocol of the SDK), else `confirmed_by_user`;
 - `bazis/contrib/mcp/commands.py` — `run_command`: the closed table `KINDS` (manage,
   pytest, npm, npx, pip), its arguments checked (no character of a shell, no `..`, no path
-  outside the project), run as argv without a shell in a new process group with
-  `TIMEOUT` and progress, `E2E_PORT` and `E2E_PASSWORD` set and the password hidden in the
+  outside the project, no option of `MANAGE_OPTIONS` and `PYTEST_OPTIONS`, only the
+  `NPM_FILTERS` after `--`, npx with `--no` from `frontend/node_modules`), run as argv
+  without a shell in a new process group with `TIMEOUT` and progress (the group killed on
+  an exception too), `E2E_PORT` and `E2E_PASSWORD` set and the password hidden in the
   output; `add_packages` (the closure of `requires` in the catalog, `requirements.txt`,
-  pip, `scaffold.raise_minimums`);
+  pip, `scaffold.raise_minimums`); pip only with `venv_python` (never `sys.executable`)
+  and `requirements()` of PyPI only. These limits keep an agent from mistakes and misuse,
+  not a boundary against the code of the project, which the commands run;
 - `bazis/contrib/mcp/processes.py` — the servers of the project (uvicorn, vite) started in
   the background (`start_new_session`, the log in `.bazis/logs`), the registry `RUNNING`
   under `LOCK`, their stop by process group (SIGTERM, then SIGKILL), `atexit` and
