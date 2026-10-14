@@ -21,6 +21,11 @@ project, for AI agents. All tools only read.
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
   `bazis_front status` (its issues grouped by their `command`) and the registry of the
   assets;
+- `bazis/contrib/mcp/scaffold.py`, `rules.py`, `prompts.py` — the skeleton of a new project
+  and its `.venv`, `.bazis/ports.json`, the database and the language of the product (read
+  by a Python with Django, that of the project: nothing here imports Django), the rules of
+  Bazis for an agent (`RULES`, `FRONTEND_RULES`) and its tasks (`new_prompt`, `add_prompt`,
+  `change_prompt`); bazis-cli builds its commands on them;
 - `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI;
   `--from-clones DIR` reads the same files from the local clones `DIR/<package>` (the
   version is the one the clone is built with: setuptools-scm, honouring
@@ -50,6 +55,11 @@ BS_DATABASES__DEFAULT__USER=postgres BS_DATABASES__DEFAULT__PASSWORD=postgres \
 BS_CACHES__DEFAULT__LOCATION=redis://localhost:6379/1 \
 python -m pytest ../tests -o addopts="" -p no:cacheprovider
 ```
+
+The tests of the skeleton (`tests/test_scaffold.py`) run `bazis_doctor` in generated
+projects; those of a product with a frontend run only where bazis-front is installed, and
+the one that creates the database of a project with `BAZIS_CLI_TEST_POSTGRES=host:port`
+(a PostgreSQL server with PostGIS, user and password `postgres`; it drops what it creates).
 
 Lint: `ruff check bazis tests sample scripts`.
 

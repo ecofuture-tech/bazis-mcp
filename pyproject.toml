@@ -47,8 +47,9 @@ bazis-mcp = "bazis.contrib.mcp.server:main"
 
 [project.optional-dependencies]
 test = [
-    # the sample project of the tests: the server runs a project with its own Python
-    "bazis>=2.4.1",
+    # the sample project and the skeleton (scaffold.py) of the tests: the server runs a
+    # project with its own Python
+    "bazis>=2.15.0",
     "bazis-test-utils>=2.3.0",
     "setuptools-scm>=8",  # the versions of the clones in scripts/update_catalog.py
 ]
