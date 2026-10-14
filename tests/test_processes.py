@@ -77,7 +77,7 @@ def child_of(log: str) -> int:
 def shop(monkeypatch, tmp_path):
     """
     A copy of the sample project with free ports, served; the servers left running are
-    stopped after the test.
+    stopped after the test, and the next test can start them again (`CLOSED`).
     """
     directory = tmp_path / 'shop'
     shutil.copytree(SAMPLE_DIR, directory, ignore=shutil.ignore_patterns('__pycache__'))
@@ -89,6 +89,7 @@ def shop(monkeypatch, tmp_path):
     monkeypatch.setattr(project, 'project_dir', directory)
     yield directory
     processes.stop_all()
+    processes.CLOSED = False
 
 
 @pytest.fixture
@@ -360,3 +361,61 @@ if {end!r} == 'signal':
         bazis_mcp.send_signal(signal.SIGTERM)
     assert bazis_mcp.wait(30) == (-signal.SIGTERM if end == 'signal' else 0)
     assert all([gone(pid) for pid in pids])
+
+
+def test_nothing_starts_while_bazis_mcp_ends(shop, tmp_path):
+    """
+    A command or a server that a tool starts while bazis-mcp ends (`stop_all` waits for a
+    command that ignores SIGTERM) is refused: it would run on, never stopped, after
+    bazis-mcp ended.
+    """
+    port = project.read_ports(shop)['backend']
+    pid_file, late_file = tmp_path / 'command.pid', tmp_path / 'late.pid'
+    script = f"""\
+import os, sys, threading, time
+from pathlib import Path
+from bazis.contrib.mcp import commands, processes, project
+
+project.configure(Path({str(shop)!r}))
+processes.STOP_TIMEOUT = 3
+processes.server_command = lambda which, directory: (
+    [sys.executable, '-c', {SERVE!r}, '{port}', 'plain'], directory, dict(os.environ), {port}
+)
+processes.stop_on_signals()
+stubborn = [sys.executable, '-c', 'import signal; signal.signal(signal.SIGTERM, signal.SIG_IGN)\\n'
+            + {COMMAND!r}, {str(pid_file)!r}]
+threading.Thread(
+    target=commands.execute, args=(stubborn, Path.cwd(), dict(os.environ)), daemon=True
+).start()
+while not Path({str(pid_file)!r}).exists():
+    time.sleep(0.1)
+
+def tool():
+    while processes.COMMANDS:  # stop_all has taken the commands that run
+        time.sleep(0.05)
+    late = [sys.executable, '-c', {COMMAND!r}, {str(late_file)!r}]
+    for call in (lambda: commands.execute(late, Path.cwd(), dict(os.environ)),
+                 lambda: processes.start('backend')):
+        try:
+            call()
+            print('started', flush=True)
+        except project.ProjectError as err:
+            print(err, flush=True)
+
+threading.Thread(target=tool, daemon=True).start()
+print('running', flush=True)
+time.sleep(60)
+"""
+    bazis_mcp = subprocess.Popen([sys.executable, '-c', script], cwd=tmp_path,
+                                 stdout=subprocess.PIPE, text=True)
+    assert bazis_mcp.stdout.readline() == 'running\n'
+    pids = [int(pid) for pid in pid_file.read_text().split()]
+
+    bazis_mcp.send_signal(signal.SIGTERM)
+
+    refused = 'bazis-mcp is ending: no server nor command starts any more.\n'
+    assert bazis_mcp.stdout.readline() == refused  # the command
+    assert bazis_mcp.stdout.readline() == refused  # the server
+    assert bazis_mcp.wait(30) == -signal.SIGTERM
+    assert all([gone(pid) for pid in pids])
+    assert not late_file.exists() and not (shop / '.bazis' / 'logs' / 'backend.log').exists()
