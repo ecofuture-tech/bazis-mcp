@@ -25,6 +25,51 @@ the machine, and the tools of the project: `add_packages`, `run_command`, `start
 `stop_server`, `write_file` and `delete_file`. They never run a command of the caller: the commands come
 from closed tables, as argv without a shell, and the files stay in the project directory.
 
+## Create an app from Claude
+
+Connect the server once; there is nothing to configure and no Bazis to install by hand.
+
+```bash
+# Claude Code
+claude mcp add bazis -- uvx bazis-mcp
+```
+
+For Claude Desktop, add the server to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "bazis": {"command": "uvx", "args": ["bazis-mcp"]}
+  }
+}
+```
+
+Then ask for the application, naming the folder:
+
+> Create me an app for booking meeting rooms, in the folder `~/apps/rooms`.
+
+and go on in the same conversation:
+
+> Add room photos to the project.
+
+What happens:
+
+1. The machine is checked for the programs a project needs.
+2. What is missing is listed, and nothing is installed before you confirm.
+3. The project is created in the folder you named.
+4. The rules and guides of Bazis are loaded for the agent.
+5. The project is built and its checks are run.
+
+The machine needs Python 3.12 or newer, uv, Node.js, PostgreSQL with PostGIS and Redis.
+The server checks them and offers to install what is missing.
+
+Limits:
+
+- Windows is not supported for the servers of a project.
+- The confirmation is asked through the client (elicitation); a client without it asks you
+  to confirm in words, and the agent goes on after your answer.
+- Files are read and written only inside the project; `.env` is never read.
+
 ## Installation
 
 Install it as a development dependency of the project:
