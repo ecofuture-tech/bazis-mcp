@@ -86,7 +86,8 @@ The work on the project served (never a command or a path of the caller outside 
   the minimum, installs `requirements-dev.txt` from PyPI into `.venv`
   (`python -m pip install -r requirements-dev.txt`) and raises the minimums to the
   installed releases: `added`, `required` (named already), `installed` (their versions)
-  and `install` (the result of pip; when it fails, `requirements.txt` stays as it was).
+  and `install` (the result of pip; when it fails or the call fails meanwhile,
+  `requirements.txt` stays as it was).
   pip (here and in `run_command`) installs only into the Python of the project, `.venv`
   or `--python`, never into that of bazis-mcp (without one it is refused: the user creates
   `.venv`), and only from PyPI: every line of `requirements.txt` and
@@ -96,8 +97,9 @@ The work on the project served (never a command or a path of the caller outside 
   an environment marker are refused before pip runs.
   The apps and settings (`BS_INSTALLED_APPS`) are added by the agent as the guides say.
 - `run_command(kind, args=[])` — a command of a closed table, as argv without a shell,
-  with a timeout of 600 seconds (the group of its processes is killed then) and its
-  progress reported every 5 seconds: `manage` (`.venv/bin/python manage.py`: makemigrations,
+  with a timeout of 600 seconds (the group of its processes is killed then, and when the
+  call fails meanwhile, such as when the client is gone) and its progress reported every 5
+  seconds: `manage` (`.venv/bin/python manage.py`: makemigrations,
   migrate, check, bazis_doctor, collectstatic, e2e_data, `bazis_front` with one of its
   subcommands, `bazis_messages` with one of its actions), `pytest` (`python -m pytest`) and
   `pip` (only `install -r requirements-dev.txt`) in the project directory, `npm` (`npm

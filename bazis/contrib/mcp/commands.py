@@ -273,7 +273,7 @@ def execute(
     Runs `command` in `cwd` in a new process group, reporting the seconds it has run to
     `progress` every PROGRESS_INTERVAL, and kills the group after TIMEOUT seconds: the
     `exit_code` (null after the timeout), `ok`, `timed_out` and the ends of `stdout` and
-    `stderr` (`tail`).
+    `stderr` (`tail`). On an exception, such as one of `progress`, the group is killed too.
     """
     try:
         process = subprocess.Popen(
@@ -284,19 +284,24 @@ def execute(
         raise project.ProjectError(f'{command[0]} cannot be run: {err}') from err
     started = time.monotonic()
     timed_out = False
-    while True:
-        try:
-            stdout, stderr = process.communicate(timeout=min(PROGRESS_INTERVAL, TIMEOUT))
-            break
-        except subprocess.TimeoutExpired:
-            elapsed = time.monotonic() - started
-            if elapsed >= TIMEOUT:
-                timed_out = True
-                processes.signal_group(process, kill=True)
-                stdout, stderr = process.communicate()
+    try:
+        while True:
+            try:
+                stdout, stderr = process.communicate(timeout=min(PROGRESS_INTERVAL, TIMEOUT))
                 break
-            if progress:
-                progress(elapsed)
+            except subprocess.TimeoutExpired:
+                elapsed = time.monotonic() - started
+                if elapsed >= TIMEOUT:
+                    timed_out = True
+                    processes.signal_group(process, kill=True)
+                    stdout, stderr = process.communicate()
+                    break
+                if progress:
+                    progress(elapsed)
+    except BaseException:
+        processes.signal_group(process, kill=True)
+        process.wait()
+        raise
     return {
         'command': shlex.join(command),
         'directory': str(cwd),
@@ -389,7 +394,7 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
     Adds the Bazis packages `names` and those they require (`closure`) that the requirements
     do not name yet to `requirements.txt`, with the version of the catalog as the minimum,
     installs `requirements-dev.txt` into `.venv` (`PIP`) and raises the minimums to the
-    installed releases (`scaffold.raise_minimums`). When the installation fails,
+    installed releases (`scaffold.raise_minimums`). When the installation fails or raises,
     `requirements.txt` is written back as it was. The apps and the settings are left to
     the agent, as the guides say.
     """
@@ -406,11 +411,16 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
             before + ('' if before.endswith('\n') or not before else '\n') + '\n'.join(added) + '\n',
             encoding='utf-8',
         )
-    command, cwd = argv('pip', PIP)
-    env, password = environment()
-    done = execute(command, cwd, env, password, progress)
-    if not done['ok']:
-        requirements_txt.write_text(before, encoding='utf-8')
+    installed = False
+    try:
+        command, cwd = argv('pip', PIP)
+        env, password = environment()
+        done = execute(command, cwd, env, password, progress)
+        installed = done['ok']
+    finally:
+        if not installed:
+            requirements_txt.write_text(before, encoding='utf-8')
+    if not installed:
         return {'added': [], 'required': present, 'installed': {}, 'install': done}
     versions = scaffold.raise_minimums(project.project_dir, python)
     return {

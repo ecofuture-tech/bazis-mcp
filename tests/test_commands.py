@@ -470,3 +470,71 @@ async def test_pip_requirements_of_pypi(client, shop, fake_popen):
     ))
     assert done['ok'] is True and len(fake_popen.ran) == 1
     assert commands.requirements() == {'bazis', 'django', 'bazis-front', 'bazis-test-utils'}
+
+
+def test_an_exception_kills_the_command(shop, monkeypatch, tmp_path):
+    """
+    An exception while a command runs, such as one of its progress when the client is gone,
+    kills the group of the command before it goes on.
+    """
+    monkeypatch.setattr(commands, 'PROGRESS_INTERVAL', 0.2)
+    pid_file = tmp_path / 'child.pid'
+    script = (
+        'import pathlib, subprocess, sys, time\n'
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        'pathlib.Path(sys.argv[1]).write_text(str(child.pid))\n'
+        'time.sleep(60)\n'
+    )
+
+    def progress(elapsed):
+        if pid_file.exists():
+            raise RuntimeError('the client is gone')
+
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match='the client is gone'):
+        commands.execute([sys.executable, '-c', script, str(pid_file)], shop, dict(os.environ),
+                         progress=progress)
+    assert time.monotonic() - started < 20
+    child = int(pid_file.read_text())
+    for _ in range(50):
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(child, 9)
+        raise AssertionError('the child of the command is still running')
+
+
+def test_add_packages_keeps_the_requirements_on_an_exception(shop, fake_popen, monkeypatch):
+    """
+    pip that cannot start or a progress that raises: the group killed, the requirements as
+    they were.
+    """
+    before = (shop / 'requirements.txt').read_text()
+    killed = []
+    monkeypatch.setattr(commands.processes, 'signal_group', lambda process, kill=False: killed.append(kill))
+
+    def cannot_start(command, **kwargs):
+        raise FileNotFoundError(2, 'No such file or directory', command[0])
+
+    monkeypatch.setattr(commands.subprocess, 'Popen', cannot_start)
+    with pytest.raises(project.ProjectError, match='cannot be run'):
+        commands.add_packages(['bazis-permit'])
+    assert (shop / 'requirements.txt').read_text() == before
+
+    class Cancelled(FakePopen):
+        def communicate(self, timeout=None):
+            if timeout is not None:
+                raise subprocess.TimeoutExpired('pip', timeout)
+            return '', ''
+
+    def cancelled(elapsed):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(commands.subprocess, 'Popen', Cancelled)
+    with pytest.raises(KeyboardInterrupt):
+        commands.add_packages(['bazis-permit'], progress=cancelled)
+    assert killed == [True] and len(fake_popen.ran) == 1
+    assert (shop / 'requirements.txt').read_text() == before
