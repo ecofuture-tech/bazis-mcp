@@ -30,7 +30,7 @@ import pytest
 
 from bazis.contrib.mcp import catalog, commands, machine, project, scaffold
 
-from .support import SAMPLE_DIR, result
+from .support import SAMPLE_DIR, make_venv, result
 from .test_projects import error
 
 
@@ -69,6 +69,8 @@ def fake_popen(monkeypatch):
     `scaffold`, run theirs).
     """
     monkeypatch.setattr(FakePopen, 'ran', [])
+    monkeypatch.setattr(FakePopen, 'stdout', '')
+    monkeypatch.setattr(FakePopen, 'returncode', 0)
     names = ('DEVNULL', 'PIPE', 'TimeoutExpired')
     module = types.SimpleNamespace(Popen=FakePopen, **{it: getattr(subprocess, it) for it in names})
     monkeypatch.setattr(commands, 'subprocess', module)
@@ -357,12 +359,14 @@ def test_closure():
         commands.closure(['bazis-nope', 'bazis', 'requests'])
 
 
-async def test_add_packages(client, shop, fake_popen):
+async def test_add_packages(client, shop, fake_popen, monkeypatch):
     """
     The packages and those they require that the requirements do not name are added with
     the version of the catalog, then `requirements-dev.txt` is installed into `.venv` and
     the minimums are raised to the installed releases (bazis here).
     """
+    monkeypatch.setattr(project, 'python', None)
+    python = make_venv(shop)
     known = catalog.catalog()
     packages = commands.closure(['bazis-permit'])
     assert 'bazis-users' in packages and 'bazis' in packages
@@ -374,7 +378,7 @@ async def test_add_packages(client, shop, fake_popen):
     assert done['required'] == ['bazis']
     assert done['installed'] == {'bazis': metadata.version('bazis')}
     [(command, kwargs)] = fake_popen.ran
-    assert command == [sys.executable, '-m', 'pip', 'install', '-r', 'requirements-dev.txt']
+    assert command == [str(python), '-m', 'pip', 'install', '-r', 'requirements-dev.txt']
     assert kwargs['cwd'] == shop and 'shell' not in kwargs
     installed = scaffold.release(metadata.version('bazis'))
     assert (shop / 'requirements.txt').read_text().splitlines() == [
@@ -400,3 +404,69 @@ async def test_add_packages_refusals(client, shop, fake_popen):
     assert done['added'] == [] and done['install']['ok'] is False
     assert 'No matching distribution' in done['install']['stdout']
     assert (shop / 'requirements.txt').read_text() == before
+
+
+async def test_pip_only_into_the_python_of_the_project(client, shop, fake_popen, monkeypatch):
+    """
+    Without .venv nor --python, pip is refused: it never installs into the Python of the
+    server.
+    """
+    monkeypatch.setattr(project, 'python', None)
+    before = (shop / 'requirements.txt').read_text()
+    for tool, args in (
+        ('run_command', {'kind': 'pip', 'args': ['install', '-r', 'requirements-dev.txt']}),
+        ('add_packages', {'names': ['bazis-permit']}),
+    ):
+        message = error(await client.call_tool(tool, args))
+        assert message.startswith('The project has no .venv: pip installs only into the Python of '
+                                  'the project, never into that of bazis-mcp.'), tool
+    assert fake_popen.ran == [] and (shop / 'requirements.txt').read_text() == before
+
+
+@pytest.mark.parametrize('file, line', [
+    ('requirements.txt', 'git+https://example.com/bazis.git'),
+    ('requirements.txt', 'bazis @ https://example.com/bazis-2.16.0-py3-none-any.whl'),
+    ('requirements.txt', 'https://example.com/bazis-2.16.0-py3-none-any.whl'),
+    ('requirements.txt', './wheels/bazis-2.16.0-py3-none-any.whl'),
+    ('requirements.txt', '/srv/bazis'),
+    ('requirements.txt', '.'),
+    ('requirements.txt', '-e .'),
+    ('requirements.txt', '-r requirements.txt'),
+    ('requirements-dev.txt', '-r other.txt'),
+    ('requirements-dev.txt', '--requirement requirements.txt'),
+    ('requirements-dev.txt', '-c constraints.txt'),
+    ('requirements-dev.txt', '--index-url https://example.com/simple'),
+    ('requirements-dev.txt', '--extra-index-url=https://example.com/simple'),
+    ('requirements-dev.txt', '--find-links ./wheels'),
+    ('requirements-dev.txt', '-f wheels'),
+    ('requirements-dev.txt', '--pre'),
+    ('requirements-dev.txt', 'bazis-test-utils>=2.5.2 --hash=sha256:00'),
+    ('requirements-dev.txt', 'bazis-test-utils>=${VERSION}'),
+    ('requirements-dev.txt', 'bazis-test-utils; python_version < "4"'),
+])
+async def test_pip_only_from_pypi(client, shop, fake_popen, file, line):
+    """
+    A line of the requirements that is not a requirement of PyPI (a URL, a path, an option of
+    pip) is refused before pip runs, by run_command and by add_packages.
+    """
+    with (shop / file).open('a') as requirements:
+        requirements.write(line + '\n')
+    before = (shop / 'requirements.txt').read_text()
+    for tool, args in (
+        ('run_command', {'kind': 'pip', 'args': ['install', '-r', 'requirements-dev.txt']}),
+        ('add_packages', {'names': ['bazis-permit']}),
+    ):
+        message = error(await client.call_tool(tool, args))
+        assert message.startswith(f'{file}, line ') and 'is not a requirement of PyPI' in message, tool
+    assert fake_popen.ran == [] and (shop / 'requirements.txt').read_text() == before
+
+
+async def test_pip_requirements_of_pypi(client, shop, fake_popen):
+    (shop / 'requirements.txt').write_text(
+        '# the project\n\nbazis[test] >= 2.16.0, <3  # the core\nDjango~=6.0\nbazis-front==0.1.*\n'
+    )
+    done = result(await client.call_tool(
+        'run_command', {'kind': 'pip', 'args': ['install', '-r', 'requirements-dev.txt']}
+    ))
+    assert done['ok'] is True and len(fake_popen.ran) == 1
+    assert commands.requirements() == {'bazis', 'django', 'bazis-front', 'bazis-test-utils'}

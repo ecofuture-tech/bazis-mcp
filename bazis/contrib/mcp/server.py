@@ -295,7 +295,9 @@ def add_packages(names: list[str], ctx: Context) -> dict:
     `.venv` and raises the minimums to the installed releases. `added` lists the lines
     written, `required` the packages named already, `installed` the installed versions and
     `install` the result of pip; when pip fails, `requirements.txt` stays as it was. Then
-    add the apps and settings their guides name (`BS_INSTALLED_APPS`) yourself.
+    add the apps and settings their guides name (`BS_INSTALLED_APPS`) yourself. Refused
+    without `.venv` (pip never installs into the Python of bazis-mcp) and when a line of the
+    requirements is not a requirement of PyPI (a URL, a path, an option of pip).
     """
     return _project_call(commands.add_packages, names, _progress(ctx))
 
@@ -307,8 +309,8 @@ def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dic
     timeout of 600 seconds: `manage` (`.venv/bin/python manage.py` with `args`, whose first
     is makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, or bazis_front
     or bazis_messages with their subcommand), `pytest` (`.venv/bin/python -m pytest
-    <args>`), `pip` (`args` only `["install", "-r", "requirements-dev.txt"]`) in the project
-    directory; `npm` (`["install"]` or `["ci"]` alone, the dependencies of the frontend; else
+    <args>`), `pip` (`args` only `["install", "-r", "requirements-dev.txt"]`, into `.venv`,
+    with requirements of PyPI only, as `add_packages`) in the project directory; `npm` (`["install"]` or `["ci"]` alone, the dependencies of the frontend; else
     `npm run <args>`, the scripts build, lint, test, e2e, format, and for test and e2e after
     `--` the names of tests and `-t`, `--testNamePattern` (test) or `-g`, `--grep`,
     `--grep-invert`, `--project`, `--workers` (e2e)) and `npx` (`args` only

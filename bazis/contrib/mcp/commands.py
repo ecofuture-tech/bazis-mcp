@@ -79,8 +79,18 @@ KINDS = ('manage', 'pytest', 'npm', 'npx', 'pip')
 SHELL_RE = re.compile(r'[;&|$`<>(){}*?!~\'"\\\x00-\x1f\x7f]')
 #: the escapes of the colors of a terminal
 ANSI_RE = re.compile(r'\x1b\[[0-9;?]*[A-Za-z]')
-#: the name of a requirement line
-REQUIREMENT_RE = re.compile(r'\s*([A-Za-z0-9][A-Za-z0-9._-]*)')
+_NAME = r'[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?'
+_VERSION = r'(?:~=|===?|!=|<=?|>=?)\s*[A-Za-z0-9.*+!_-]+'
+#: a requirement of PyPI: its name, extras and versions (`bazis[test]>=2.16, <3`), nothing else
+REQUIREMENT_RE = re.compile(
+    rf'({_NAME})\s*(?:\[\s*{_NAME}(?:\s*,\s*{_NAME})*\s*\])?\s*(?:{_VERSION}(?:\s*,\s*{_VERSION})*)?'
+)
+#: a comment of a requirements file, as pip strips it
+COMMENT_RE = re.compile(r'(^|\s)#.*')
+#: the requirements files of a project, and the only line of them that is not a requirement:
+#: the include of `requirements.txt` in `requirements-dev.txt`, as the skeleton writes it
+REQUIREMENTS = ('requirements.txt', 'requirements-dev.txt')
+INCLUDE = ['-r', 'requirements.txt']
 
 Progress = Callable[[float], None]
 
@@ -221,7 +231,8 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
     if kind == 'pip':
         if args != PIP:
             raise project.ProjectError(f'pip runs only: {shlex.join(PIP)}.')
-        return [python, '-m', 'pip', *args], cwd
+        requirements()
+        return [venv_python(), '-m', 'pip', *args], cwd
     raise project.ProjectError(f'Unknown kind {kind!r}: one of {", ".join(KINDS)}.')
 
 
@@ -310,6 +321,46 @@ def _name(requirement: str) -> str:
     return re.sub(r'[-_.]+', '-', requirement).lower()
 
 
+def venv_python() -> str:
+    """
+    The Python of the project that pip installs into (`project.project_python`: --python or
+    `.venv`), never that of the server; ProjectError without one.
+    """
+    python = project.project_python(project.project_dir, project.python)
+    if python is None:
+        raise project.ProjectError(
+            'The project has no .venv: pip installs only into the Python of the project, never '
+            'into that of bazis-mcp. Create .venv in the project directory (python3 -m venv '
+            '.venv) or start bazis-mcp with --python, then install requirements-dev.txt.'
+        )
+    return python
+
+
+def requirements() -> set[str]:
+    """
+    The names of the requirements of the project (REQUIREMENTS); ProjectError for a line that
+    is not a requirement of PyPI (`REQUIREMENT_RE`) nor INCLUDE: a URL, a path, an option of
+    pip (`-e`, `-r`, `--index-url`...). pip installs here only from PyPI.
+    """
+    names = set()
+    for file in REQUIREMENTS:
+        path = project.inside(file)
+        if not path.is_file():
+            raise project.ProjectError(f'The project has no {file}.')
+        for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+            line = COMMENT_RE.sub('', line).strip()
+            if not line or (file == 'requirements-dev.txt' and line.split() == INCLUDE):
+                continue
+            if not (match := REQUIREMENT_RE.fullmatch(line)):
+                raise project.ProjectError(
+                    f'{file}, line {number}: {line!r} is not a requirement of PyPI (a name, its '
+                    '[extras] and versions): pip installs here only from PyPI, never from a '
+                    'URL, a path or with an option of pip.'
+                )
+            names.add(_name(match[1]))
+    return names
+
+
 def closure(names: list[str]) -> list[str]:
     """
     The Bazis packages `names` and those they require (`requires` of their manifests in the
@@ -343,19 +394,15 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
     the agent, as the guides say.
     """
     packages = closure(names)
-    requirements = project.inside('requirements.txt')
-    required = {
-        _name(match[1])
-        for file in (requirements, project.inside('requirements-dev.txt'))
-        for line in file.read_text(encoding='utf-8').splitlines()
-        if not line.lstrip().startswith(('#', '-')) and (match := REQUIREMENT_RE.match(line))
-    }
+    required = requirements()
+    python = venv_python()
+    requirements_txt = project.inside('requirements.txt')
     known = catalog.catalog()
     present = [name for name in packages if name in required]
     added = [f'{name}>={known[name]["version"]}' for name in packages if name not in required]
-    before = requirements.read_text(encoding='utf-8')
+    before = requirements_txt.read_text(encoding='utf-8')
     if added:
-        requirements.write_text(
+        requirements_txt.write_text(
             before + ('' if before.endswith('\n') or not before else '\n') + '\n'.join(added) + '\n',
             encoding='utf-8',
         )
@@ -363,11 +410,9 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
     env, password = environment()
     done = execute(command, cwd, env, password, progress)
     if not done['ok']:
-        requirements.write_text(before, encoding='utf-8')
+        requirements_txt.write_text(before, encoding='utf-8')
         return {'added': [], 'required': present, 'installed': {}, 'install': done}
-    versions = scaffold.raise_minimums(
-        project.project_dir, project.find_python(project.project_dir, project.python)
-    )
+    versions = scaffold.raise_minimums(project.project_dir, python)
     return {
         'added': added,
         'required': present,

@@ -86,11 +86,10 @@ def is_project(directory: Path) -> bool:
     return (directory / 'manage.py').is_file()
 
 
-def find_python(directory: Path, interpreter: str | None = None) -> str:
+def project_python(directory: Path, interpreter: str | None = None) -> str | None:
     """
     The Python of the project: `interpreter` (given with --python), else the virtual
-    environment `.venv` of the project directory or of its parent, else the Python of the
-    server.
+    environment `.venv` of the project directory or of its parent; None without one.
     """
     if interpreter:
         return interpreter
@@ -98,7 +97,14 @@ def find_python(directory: Path, interpreter: str | None = None) -> str:
         for path in (base / '.venv' / 'bin' / 'python', base / '.venv' / 'Scripts' / 'python.exe'):
             if path.is_file():
                 return str(path)
-    return sys.executable
+    return None
+
+
+def find_python(directory: Path, interpreter: str | None = None) -> str:
+    """
+    The Python of the project (`project_python`), else the Python of the server.
+    """
+    return project_python(directory, interpreter) or sys.executable
 
 
 def find_settings(directory: Path) -> str | None:

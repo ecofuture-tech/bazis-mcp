@@ -87,6 +87,13 @@ The work on the project served (never a command or a path of the caller outside 
   (`python -m pip install -r requirements-dev.txt`) and raises the minimums to the
   installed releases: `added`, `required` (named already), `installed` (their versions)
   and `install` (the result of pip; when it fails, `requirements.txt` stays as it was).
+  pip (here and in `run_command`) installs only into the Python of the project, `.venv`
+  or `--python`, never into that of bazis-mcp (without one it is refused: the user creates
+  `.venv`), and only from PyPI: every line of `requirements.txt` and
+  `requirements-dev.txt` is a requirement (a name, its `[extras]` and versions, a
+  comment), or `-r requirements.txt` in `requirements-dev.txt`; a URL, `git+`, a path,
+  `-e`, another `-r`, `-c`, `--index-url`, `--find-links` or another option of pip, and
+  an environment marker are refused before pip runs.
   The apps and settings (`BS_INSTALLED_APPS`) are added by the agent as the guides say.
 - `run_command(kind, args=[])` — a command of a closed table, as argv without a shell,
   with a timeout of 600 seconds (the group of its processes is killed then) and its
