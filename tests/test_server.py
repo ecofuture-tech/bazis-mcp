@@ -567,8 +567,7 @@ def test_main(monkeypatch, tmp_path):
     assert project.python is None
 
 
-def test_find_python(tmp_path, monkeypatch):
-    monkeypatch.setattr(project, 'python', None)
+def test_find_python(tmp_path):
     assert project.find_python(tmp_path / 'app') == sys.executable
 
     venv_python = tmp_path / '.venv' / 'bin' / 'python'
@@ -576,8 +575,7 @@ def test_find_python(tmp_path, monkeypatch):
     venv_python.touch()
     assert project.find_python(tmp_path / 'app') == str(venv_python)  # the venv of the parent
 
-    monkeypatch.setattr(project, 'python', '/usr/bin/python3')
-    assert project.find_python(tmp_path / 'app') == '/usr/bin/python3'
+    assert project.find_python(tmp_path / 'app', '/usr/bin/python3') == '/usr/bin/python3'
 
 
 @pytest.mark.parametrize('guide_text', [

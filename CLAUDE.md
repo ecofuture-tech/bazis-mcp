@@ -20,7 +20,9 @@ one, `use_project` chooses an existing one; the other tools only read.
 - `bazis/contrib/mcp/project.py` — the project served (none until `create_project` or
   `use_project` when the server starts outside a project), its creation (all or nothing),
   its status, `inside` (the boundary of the paths of the project), loading the project,
-  `bazis.core.introspect` and the system checks;
+  `bazis.core.introspect` and the system checks. The project served is global state of
+  the process (the tools run in worker threads): `create` and `use` change it under
+  `CHANGE_LOCK`, one at a time, and `use` reads the facts of a project before serving it;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
   `bazis_front status` (its issues grouped by their `command`) and the registry of the
   assets;

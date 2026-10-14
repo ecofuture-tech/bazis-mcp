@@ -42,10 +42,16 @@ The project of the conversation:
   step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
   task of building the project.
 - `use_project(directory)` — serves the existing project in `directory` (the directory of
-  its `manage.py`): its status and its `rules`.
+  its `manage.py`): its status and its `rules`. The project served changes only once its
+  status is read; the project of the command line keeps its `--settings` and `--python`.
 - `project_status()` — `directory`, `settings`, `python`, `frontend` (made by
   `bazis_front init`; `use_project` adds the rules of the frontend then), `ports` (null
-  until chosen) and `env_keys`: the names of the variables of `.env`, never their values.
+  until chosen or when `.bazis/ports.json` cannot be read) and `env_keys`: the names of the
+  variables of `.env` (read as python-dotenv reads it), never their values; null without
+  `.env` or for a `.env` that links outside the project directory, `env_reason` says which.
+
+`create_project` and `use_project` run one call at a time: a second call waits for the
+first one to end.
 
 The catalog and the project served:
 

@@ -131,7 +131,7 @@ def use_project(directory: str) -> dict:
     """
     Serves the existing project in `directory` (an absolute path, the directory of its
     manage.py) from now on: the facts of `project_status` and the `rules` to follow when
-    changing it.
+    changing it. The project of the command line keeps its settings module and Python.
     """
     return _project_call(project.use, directory)
 
@@ -142,7 +142,7 @@ def project_status() -> dict:
     The project served: its `directory`, `settings` module, `python`, whether it has a
     `frontend` (made by `bazis_front init`), its `ports` (null until chosen) and
     `env_keys`, the names of the variables of its `.env` (never their values; null without
-    `.env`).
+    `.env` or for a `.env` outside the project directory, `env_reason` says which).
     """
     return _project_call(project.status)
 
@@ -406,7 +406,7 @@ def main(argv: list[str] | None = None) -> None:
 
     directory = args.project_dir or (Path.cwd() if project.is_project(Path.cwd()) else None)
     if directory:
-        project.configure(directory, args.settings, args.python)
+        project.launch(directory, args.settings, args.python)
     server.run()
 
 

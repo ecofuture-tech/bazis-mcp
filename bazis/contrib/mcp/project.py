@@ -27,14 +27,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
+
+from dotenv import dotenv_values
 
 from . import prompts, rules, scaffold
 
 
 SETTINGS_RE = re.compile(r"""DJANGO_SETTINGS_MODULE['"]\s*,\s*['"]([\w.]+)['"]""")
-#: a variable of a `.env` file: only its name is ever read
-ENV_KEY_RE = re.compile(r'^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=', re.MULTILINE)
 TIMEOUT = 300
 NO_PROJECT = 'No project: call create_project or use_project.'
 
@@ -44,6 +45,12 @@ project_dir: Path | None = None
 settings_module: str | None = None
 #: the Python of the project given on the command line, if any
 python: str | None = None
+#: the project directory of the command line (resolved), with its settings module and Python:
+#: kept when `use` chooses that directory again
+launched: tuple[Path, str | None, str | None] | None = None
+#: `create` and `use` one at a time: they change the project served, and a creation removes
+#: what it wrote when it fails
+CHANGE_LOCK = threading.Lock()
 
 
 class ProjectError(Exception):
@@ -59,6 +66,16 @@ def configure(directory: Path, settings: str | None = None, interpreter: str | N
     python = interpreter
 
 
+def launch(directory: Path, settings: str | None = None, interpreter: str | None = None):
+    """
+    Serves the project of the command line (`configure`), whose settings module and Python
+    `use` keeps when it chooses that directory again.
+    """
+    global launched
+    configure(directory, settings, interpreter)
+    launched = (project_dir, settings, interpreter)
+
+
 def is_project(directory: Path) -> bool:
     """
     Whether a directory is that of a project: it has `manage.py`.
@@ -66,13 +83,14 @@ def is_project(directory: Path) -> bool:
     return (directory / 'manage.py').is_file()
 
 
-def find_python(directory: Path) -> str:
+def find_python(directory: Path, interpreter: str | None = None) -> str:
     """
-    The Python of the project: the one given with --python, else the virtual environment
-    `.venv` of the project directory or of its parent, else the Python of the server.
+    The Python of the project: `interpreter` (given with --python), else the virtual
+    environment `.venv` of the project directory or of its parent, else the Python of the
+    server.
     """
-    if python:
-        return python
+    if interpreter:
+        return interpreter
     for base in (directory, directory.parent):
         for path in (base / '.venv' / 'bin' / 'python', base / '.venv' / 'Scripts' / 'python.exe'):
             if path.is_file():
@@ -104,7 +122,7 @@ def run(name: str, *args: str, **env: str) -> subprocess.CompletedProcess:
     _check_dir()
     env = dict(os.environ, **env)
     env['PYTHONPATH'] = os.pathsep.join(filter(None, [str(project_dir), env.get('PYTHONPATH')]))
-    interpreter = find_python(project_dir)
+    interpreter = find_python(project_dir, python)
     try:
         return subprocess.run(
             [interpreter, *args],
@@ -130,10 +148,15 @@ def inside(path: Path | str) -> Path:
     links: the boundary of what the tools read and write. ProjectError if it is outside.
     """
     _check_dir()
-    resolved = (project_dir / path).resolve()
-    if not resolved.is_relative_to(project_dir):
+    resolved = _resolve(project_dir, path)
+    if resolved is None:
         raise ProjectError(f'{path} is outside the project directory {project_dir}.')
     return resolved
+
+
+def _resolve(directory: Path, path: Path | str) -> Path | None:
+    resolved = (directory / path).resolve()
+    return resolved if resolved.is_relative_to(directory) else None
 
 
 def settings_name() -> str | None:
@@ -271,28 +294,48 @@ def project_rules(frontend: bool) -> str:
 
 def status() -> dict:
     """
-    The facts of the project: its directory, settings module, Python, whether it has a
-    frontend (made by `bazis_front init`), its ports (null until chosen) and the names of
-    the variables of its `.env`, never their values (null without `.env`).
+    The facts of the project served (`facts`).
     """
-    env, ports = inside('.env'), inside(Path(scaffold.LOCAL_DIR) / 'ports.json')
-    return {
-        'directory': str(project_dir),
-        'settings': settings_name(),
-        'python': find_python(project_dir),
-        'frontend': prompts.has_frontend(project_dir),
-        'ports': json.loads(ports.read_text(encoding='utf-8')) if ports.is_file() else None,
-        'env_keys': (
-            ENV_KEY_RE.findall(env.read_text(encoding='utf-8', errors='replace'))
-            if env.is_file() else None
-        ),
-    }
+    _check_dir()
+    return facts(project_dir, settings_module, python)
+
+
+def facts(directory: Path, settings: str | None = None, interpreter: str | None = None) -> dict:
+    """
+    The facts of the project in `directory` (resolved) with the settings module and the
+    Python given on the command line: its directory, settings module, Python, whether it
+    has a frontend (made by `bazis_front init`), its ports (null until chosen or when
+    `.bazis/ports.json` cannot be read) and the names of the variables of its `.env`, never
+    their values: `env_keys` is null without `.env` or for a `.env` outside the project
+    directory (a symbolic link), and `env_reason` says why.
+    """
+    try:
+        env = _resolve(directory, '.env')
+        if env is None:
+            keys, reason = None, '.env links outside the project directory: it is not read.'
+        elif env.is_file():
+            keys, reason = list(dotenv_values(env, interpolate=False)), None
+        else:
+            keys, reason = None, 'The project has no .env.'
+        ports_file = Path(scaffold.LOCAL_DIR) / 'ports.json'
+        return {
+            'directory': str(directory),
+            'settings': settings or find_settings(directory),
+            'python': find_python(directory, interpreter),
+            'frontend': prompts.has_frontend(directory),
+            'ports': scaffold.read_ports(directory) if _resolve(directory, ports_file) else None,
+            'env_keys': keys,
+            'env_reason': reason,
+        }
+    except OSError as err:
+        raise ProjectError(f'The files of the project {directory} cannot be read: {err}') from err
 
 
 def use(directory: str) -> dict:
     """
-    Serves the project in `directory` (an absolute path) from now on: its `status` and its
-    rules.
+    Serves the project in `directory` (an absolute path) from now on: its `facts` and its
+    rules. The settings module and the Python of the command line are kept for its
+    directory. The project served changes only once its facts are read.
     """
     path = Path(directory)
     if not path.is_absolute():
@@ -301,9 +344,12 @@ def use(directory: str) -> dict:
         raise ProjectError(
             f'{path} is not a project: it has no manage.py. Call create_project for a new one.'
         )
-    configure(path)
-    facts = status()
-    return {**facts, 'rules': project_rules(facts['frontend'])}
+    path = path.resolve()
+    settings, interpreter = launched[1:] if launched and launched[0] == path else (None, None)
+    with CHANGE_LOCK:
+        found = facts(path, settings, interpreter)
+        configure(path, settings, interpreter)
+    return {**found, 'rules': project_rules(found['frontend'])}
 
 
 def temp_dirs() -> list[Path]:
@@ -345,7 +391,13 @@ def create(
     path = Path(directory)
     if not path.is_absolute():
         raise ProjectError(f'{directory} is not an absolute path.')
-    path = path.resolve()
+    with CHANGE_LOCK:
+        return _create(path.resolve(), description, name, frontend, language)
+
+
+def _create(
+    path: Path, description: str, name: str | None, frontend: bool, language: str | None
+) -> dict:
     if problem := refusal(path):
         raise ProjectError(problem)
     if frontend and (problem := scaffold.node_problem()):

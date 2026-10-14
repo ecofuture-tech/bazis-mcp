@@ -567,18 +567,26 @@ def local_dir(directory: Path) -> Path:
     return path
 
 
+def read_ports(directory: Path) -> dict[str, int] | None:
+    """
+    The ports kept in `.bazis/ports.json` of a project (`project_ports`), or None when they
+    are not chosen yet or the file cannot be read.
+    """
+    try:
+        ports = json.loads((directory / LOCAL_DIR / 'ports.json').read_text(encoding='utf-8'))
+        return {name: int(ports[name]) for name in PORTS}
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def project_ports(directory: Path) -> dict[str, int]:
     """
     The ports of the servers of a project on this machine: the backend (uvicorn), the dev
     server of the frontend and that of its end-to-end tests. They are chosen free once, not
     the defaults 8000 and 5173 that other projects use, and kept in `.bazis/ports.json`.
     """
-    path = directory / LOCAL_DIR / 'ports.json'
-    try:
-        ports = json.loads(path.read_text(encoding='utf-8'))
-        return {name: int(ports[name]) for name in PORTS}
-    except (OSError, ValueError, KeyError, TypeError):
-        pass
+    if ports := read_ports(directory):
+        return ports
     ports = dict(zip(PORTS, free_ports(len(PORTS)), strict=True))
     (local_dir(directory) / 'ports.json').write_text(json.dumps(ports, indent=2) + '\n', encoding='utf-8')
     return ports

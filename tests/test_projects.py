@@ -20,7 +20,9 @@ tools without a project, the rules and the prompts of a project.
 import os
 import shutil
 import sys
+import time
 
+import anyio
 import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -238,6 +240,70 @@ async def test_a_failed_creation_leaves_the_directory_as_it_was(
     assert list(empty.iterdir()) == []
 
 
+async def test_creations_run_one_at_a_time(client, no_project, machine, monkeypatch, tmp_path):
+    """
+    Two calls of create_project in the same directory at once: the second waits for the
+    first and is refused, the project of the first stays whole and served.
+    """
+    def slow_venv(directory):
+        time.sleep(1)
+        return make_venv(directory)
+
+    monkeypatch.setattr(scaffold, 'create_venv', slow_venv)
+    directory = tmp_path / 'shop'
+    calls = []
+
+    async def create(name):
+        calls.append(await client.call_tool(
+            'create_project',
+            {'directory': str(directory), 'description': 'A shop', 'name': name,
+             'frontend': False},
+        ))
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(create, 'shop')
+        group.start_soon(create, 'store')
+
+    failed = [it for it in calls if it.is_error]
+    created = [result(it) for it in calls if not it.is_error]
+    assert len(failed) == 1 and len(created) == 1
+    assert 'is not an empty directory' in error(failed[0])
+    name = created[0]['name']
+    assert (directory / name / 'settings.py').is_file() and (directory / '.venv').is_dir()
+    assert project.project_dir == directory.resolve()
+
+
+async def test_a_failed_creation_keeps_the_files_of_its_parent(client, machine, tmp_path):
+    parent = tmp_path / 'work'
+    parent.mkdir()
+    (parent / 'notes.txt').write_text('mine')
+    (parent / 'old').mkdir()
+
+    error(await client.call_tool(
+        'create_project',
+        {'directory': str(parent / 'new' / 'shop'), 'description': 'A shop', 'frontend': False,
+         'language': 'xx'},
+    ))
+    assert sorted(os.listdir(parent)) == ['notes.txt', 'old']
+    assert (parent / 'notes.txt').read_text() == 'mine'
+
+
+async def test_create_project_refuses_a_link_to_a_temporary_directory(
+    client, machine, monkeypatch, tmp_path
+):
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    monkeypatch.setattr(project, 'temp_dirs', lambda: [scratch.resolve()])
+    (tmp_path / 'shop').symlink_to(scratch / 'shop')
+
+    message = error(await client.call_tool(
+        'create_project', {'directory': str(tmp_path / 'shop'), 'description': 'A shop'}
+    ))
+    assert message.endswith('is in a temporary directory, which the system empties.')
+    assert not (scratch / 'shop').exists()
+    assert project.project_dir == SAMPLE_DIR
+
+
 async def test_use_project(client, no_project, tmp_path):
     """
     The project changes during the conversation: the tools serve the one chosen last.
@@ -259,6 +325,7 @@ async def test_use_project(client, no_project, tmp_path):
     assert used['directory'] == str(first.resolve())
     assert used['settings'] == 'sample.settings' and used['python'] == sys.executable
     assert used['frontend'] is False and used['ports'] is None and used['env_keys'] is None
+    assert used['env_reason'] == 'The project has no .env.'
     assert used['rules'] == rules.RULES
     assert 'shop.Coupon' not in await models()
 
@@ -283,18 +350,86 @@ async def test_project_status_names_the_variables_of_env_only(client, monkeypatc
     (directory / '.env').write_text(
         '# a comment\nBS_SECRET_KEY=value-of-the-secret\n\nexport BS_DEBUG=true\n'
         'not a variable\nBS_EMPTY=\n'
+        'BS_PEM="-----BEGIN PRIVATE KEY-----\nLEAKED=pem-body\n-----END PRIVATE KEY-----"\n'
     )
 
     call_result = await client.call_tool('project_status', {})
-    assert result(call_result)['env_keys'] == ['BS_SECRET_KEY', 'BS_DEBUG', 'BS_EMPTY']
-    assert 'value-of-the-secret' not in text_of(call_result)
+    status = result(call_result)
+    # the lines of a value in quotes are not variables
+    assert status['env_keys'] == ['BS_SECRET_KEY', 'BS_DEBUG', 'BS_EMPTY', 'BS_PEM']
+    assert status['env_reason'] is None
+    for value in ('value-of-the-secret', 'LEAKED', 'pem-body'):
+        assert value not in text_of(call_result)
 
     # a .env of another directory is not read
     outside = tmp_path / 'secrets.env'
-    outside.write_text('BS_OTHER=1\n')
+    outside.write_text('BS_OTHER=secret-of-another-directory\n')
     (directory / '.env').unlink()
     (directory / '.env').symlink_to(outside)
-    assert 'is outside the project directory' in error(await client.call_tool('project_status', {}))
+    call_result = await client.call_tool('project_status', {})
+    status = result(call_result)
+    assert status['env_keys'] is None
+    assert status['env_reason'] == '.env links outside the project directory: it is not read.'
+    assert 'BS_OTHER' not in text_of(call_result)
+
+
+@pytest.mark.parametrize('content', ['{"backend": 8001', '[]', '{"backend": "x"}'])
+async def test_project_status_with_broken_ports(client, monkeypatch, tmp_path, content):
+    (tmp_path / 'manage.py').write_text('')
+    (tmp_path / '.bazis').mkdir()
+    (tmp_path / '.bazis' / 'ports.json').write_text(content)
+    monkeypatch.setattr(project, 'project_dir', tmp_path)
+
+    assert result(await client.call_tool('project_status', {}))['ports'] is None
+    assert (tmp_path / '.bazis' / 'ports.json').read_text() == content  # only read
+
+
+async def test_use_project_reads_the_facts_before_serving(client, tmp_path):
+    """
+    A project with a .env outside it is chosen without its variables; one whose facts
+    cannot be read is refused and the project served stays.
+    """
+    directory = tmp_path / 'shop'
+    shutil.copytree(SAMPLE_DIR, directory, ignore=shutil.ignore_patterns('__pycache__'))
+    (tmp_path / 'secrets.env').write_text('BS_OTHER=1\n')
+    (directory / '.env').symlink_to(tmp_path / 'secrets.env')
+
+    used = result(await client.call_tool('use_project', {'directory': str(directory)}))
+    assert used['directory'] == str(directory.resolve()) and used['env_keys'] is None
+    assert project.project_dir == directory.resolve()
+
+    broken = tmp_path / 'broken'
+    broken.mkdir()
+    (broken / 'manage.py').write_text('')
+    (broken / '.env').write_text('BS_DEBUG=true\n')
+    (broken / '.env').chmod(0)
+    try:
+        assert 'Permission denied' in error(
+            await client.call_tool('use_project', {'directory': str(broken)})
+        )
+    finally:
+        (broken / '.env').chmod(0o644)
+    assert project.project_dir == directory.resolve()
+
+
+async def test_use_project_keeps_the_options_of_the_command_line(client, monkeypatch, tmp_path):
+    """
+    The project of the command line chosen again keeps its --settings and --python; another
+    project has its own.
+    """
+    other = tmp_path / 'other'
+    shutil.copytree(SAMPLE_DIR, other, ignore=shutil.ignore_patterns('__pycache__'))
+    project.launch(SAMPLE_DIR, 'sample.settings_local', '/opt/python/bin/python3')
+
+    used = result(await client.call_tool('use_project', {'directory': str(other)}))
+    assert used['settings'] == 'sample.settings' and used['python'] == sys.executable
+    assert project.settings_module is None and project.python is None
+
+    used = result(await client.call_tool('use_project', {'directory': str(SAMPLE_DIR)}))
+    assert used['settings'] == 'sample.settings_local'
+    assert used['python'] == '/opt/python/bin/python3'
+    assert project.settings_module == 'sample.settings_local'
+    assert project.python == '/opt/python/bin/python3'
 
 
 def test_inside(monkeypatch, tmp_path):
