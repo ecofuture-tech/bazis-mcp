@@ -13,15 +13,17 @@
 # limitations under the License.
 
 """
-The files of the project served, for a client without files of its own: read, written and
-listed within the project directory only (`project.inside`, symbolic links resolved).
-`.env` is never read nor written; `.venv/`, `.git/`, `contract/` and the `generated/`
-directories are never written (installed, committed by the user, generated). These names
-are compared whatever their case, and an existing file with the same file system entry as
-one of them (another case on a file system that ignores it, a hard link) is that one.
+The files of the project served, for a client without files of its own: read, written,
+deleted and listed within the project directory only (`project.inside`, symbolic links
+resolved). `.env` is never read nor written; `.venv/`, `.git/`, `contract/` and the
+`generated/` directories are never written (installed, committed by the user, generated).
+These names are compared whatever their case, and an existing file with the same file
+system entry as one of them (another case on a file system that ignores it, a hard link)
+is that one. What is never written is never deleted, nor are `NOT_DELETED`.
 """
 
 import os
+from fnmatch import fnmatch
 from pathlib import Path
 
 from . import catalog, project
@@ -33,6 +35,9 @@ NOT_WRITTEN = {
     '.git': 'is the repository of the user',
     'contract': 'is generated (bazis_front contract)',
 }
+#: the files of the project directory that are never deleted besides those never written
+#: (patterns, lower case): what runs and installs the project
+NOT_DELETED = ('manage.py', 'requirements*.txt')
 #: the longest content of `write`, in bytes
 WRITE_LIMIT = 1_000_000
 #: the most entries of `listing`
@@ -132,6 +137,27 @@ def write(path: str, content: str) -> dict:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     return {'path': _relative(target), 'bytes': len(data), 'created': created}
+
+
+def delete(path: str) -> dict:
+    """
+    Deletes the file `path` of the project: a file, or a symbolic link (the link, never
+    what it links to) to a file of the project; never a directory, what `refusal` refuses
+    to write nor `NOT_DELETED`.
+    """
+    project.inside(path)  # what it links to is in the project too
+    entry = project.inside(Path(path).parent) / Path(path).name
+    if problem := refusal(entry):
+        raise project.ProjectError(problem)
+    if entry.parent == project.project_dir and any(
+        fnmatch(entry.name.casefold(), pattern) for pattern in NOT_DELETED
+    ):
+        raise project.ProjectError(f'{entry.name} runs or installs the project: it is never deleted.')
+    if not entry.is_file():
+        raise project.ProjectError(f'{path} is not a file of the project.')
+    link = entry.is_symlink()
+    entry.unlink()
+    return {'path': _relative(entry), 'link': link}
 
 
 def listing(subdir: str = '') -> dict:

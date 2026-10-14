@@ -12,7 +12,7 @@ solves = [
     "an AI agent checks the frontend specs, finds the stale parts of the frontend and chooses its components (bazis-front)",
     "an AI agent creates a Bazis project from the conversation, or chooses the existing one it changes",
     "an AI agent finds the programs a project needs on the machine and installs them once the user agrees",
-    "an AI agent without a shell reads and writes the files of the project, runs its commands and servers and adds its Bazis packages",
+    "an AI agent without a shell reads, writes and deletes the files of the project, runs its commands and servers and adds its Bazis packages",
 ]
 requires = ["bazis"]
 pairs_well = []
@@ -44,3 +44,6 @@ text = "run_command runs only the commands of its closed table, with plain argum
 
 [[pitfalls]]
 text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env (these names in any case, and a hard link to .env): they are written by the user, installed, committed or generated"
+
+[[pitfalls]]
+text = "delete_file deletes one file of the project, or a symbolic link itself: never a directory, what write_file never writes, nor manage.py and requirements*.txt of the project directory"

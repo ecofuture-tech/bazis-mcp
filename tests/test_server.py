@@ -36,8 +36,9 @@ async def test_tool_annotations(client):
     """
     The tools only read, but those that create the project or choose it, install the
     programs of the machine or the packages of the project, run its commands and servers
-    and write its files; only those that install or run commands reach outside the machine
-    (PyPI, the package manager, npm); `run_command` and `write_file` may destroy.
+    and write or delete its files; only those that install or run commands reach outside the
+    machine (PyPI, the package manager, npm); `run_command`, `write_file` and `delete_file`
+    may destroy.
     """
     tools = {it.name: it.annotations for it in (await client.list_tools()).tools}
     assert {name for name, it in tools.items() if it.read_only_hint} == {
@@ -47,18 +48,20 @@ async def test_tool_annotations(client):
     }
     assert {name for name, it in tools.items() if not it.read_only_hint} == {
         'create_project', 'use_project', 'install_tools', 'add_packages', 'run_command',
-        'start_server', 'stop_server', 'write_file',
+        'start_server', 'stop_server', 'write_file', 'delete_file',
     }
     assert {name for name, it in tools.items() if it.open_world_hint} == {
         'create_project', 'install_tools', 'add_packages', 'run_command'
     }
     assert {name for name, it in tools.items() if not it.read_only_hint and it.destructive_hint} == {
-        'run_command', 'write_file'
+        'run_command', 'write_file', 'delete_file'
     }
     assert not tools['create_project'].destructive_hint
     assert not tools['create_project'].idempotent_hint
     assert not tools['use_project'].destructive_hint and tools['use_project'].idempotent_hint
     assert tools['stop_server'].idempotent_hint and not tools['start_server'].idempotent_hint
+    # deleting again changes nothing more
+    assert tools['delete_file'].idempotent_hint
 
 
 def test_instructions_name_the_boundaries():
@@ -70,7 +73,7 @@ def test_instructions_name_the_boundaries():
     from bazis.contrib.mcp.server import INSTRUCTIONS
 
     text = ' '.join(INSTRUCTIONS.split())
-    for part in ('Change only the files in it (`read_file`, `write_file`, `list_files`)',
+    for part in ('Change only the files in it (`read_file`, `write_file`, `delete_file`, `list_files`)',
                  'Never read `.env`', 'Run the commands of the rules only with `run_command`',
                  '`run_command("manage", ["<command>", "<options>"])`',
                  'it sets `E2E_PORT` and `E2E_PASSWORD` itself',

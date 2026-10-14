@@ -51,6 +51,7 @@ PROJECT_TOOLS = {
     'server_logs': {'which': 'backend'},
     'read_file': {'path': 'manage.py'},
     'write_file': {'path': 'notes.txt', 'content': 'x'},
+    'delete_file': {'path': 'notes.txt'},
     'list_files': {},
 }
 

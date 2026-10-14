@@ -81,7 +81,7 @@ conversation (`project_status` says which); without one they answer "No project"
   `rules` it returns. The user goes on with the next changes in this conversation: each
   one on the same project, ending with the final checks of the rules.
 - The rules speak of the current directory: it is the project directory. Change only the
-  files in it (`read_file`, `write_file`, `list_files`). Never read `.env`:
+  files in it (`read_file`, `write_file`, `delete_file`, `list_files`). Never read `.env`:
   `project_status` gives the names of its variables.
 - Run the commands of the rules only with `run_command`: `.venv/bin/python manage.py
   <command> <options>` is `run_command("manage", ["<command>", "<options>"])`, the tests
@@ -140,7 +140,7 @@ STARTS = ToolAnnotations(
 STOPS = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
 )
-#: writes a file of the project, replacing it
+#: writes a file of the project, replacing it, or deletes it (again: no other effect)
 WRITES = ToolAnnotations(
     readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False
 )
@@ -386,6 +386,18 @@ def write_file(path: str, content: str) -> dict:
     commands), nor a path outside the project. Returns `path`, `bytes` and `created`.
     """
     return _project_call(files.write, path, content)
+
+
+@server.tool(annotations=WRITES)
+def delete_file(path: str) -> dict:
+    """
+    Deletes a file of the project (`path` relative to the project directory), such as one
+    no longer needed; a symbolic link is deleted itself, never what it links to (a file of
+    the project). Never a directory, `manage.py` and `requirements*.txt` of the project
+    directory, nor what `write_file` never writes (`.env`, `.venv/`, `.git/`, `contract/`,
+    a `generated/` directory) or a path outside the project. Returns `path` and `link`.
+    """
+    return _project_call(files.delete, path)
 
 
 @server.tool(annotations=READ_ONLY)
