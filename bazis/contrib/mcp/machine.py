@@ -53,6 +53,15 @@ REQUIRED_FOR = {
     'gettext': 'the translations of the product (makemessages, compilemessages)',
 }
 
+#: the formula of PostgreSQL that `COMMANDS` installs with Homebrew: keg-only, its programs
+#: are in `<prefix>/opt/postgresql@18/bin`, not on the PATH
+BREW_POSTGRESQL = 'postgresql@18'
+#: why `install_tools` does not install the Python of a project
+PROJECT_PYTHON = (
+    'A new Python does not change the Python of the project, that of its .venv: create .venv '
+    'again with Python {}.{} or newer, then install requirements-dev.txt into it.'
+).format(*PYTHON_VERSION)
+
 #: the only commands `install` runs, by package manager: Homebrew on macOS, apt on Debian
 #: and Ubuntu (its commands need sudo: the user runs them). A program without a command
 #: there is installed by the user as its site says.
@@ -61,8 +70,8 @@ COMMANDS = {
         'python': ['brew', 'install', 'python@3.13'],
         'uv': ['brew', 'install', 'uv'],
         'node': ['brew', 'install', 'node'],
-        'postgresql': ['brew', 'install', 'postgresql@18', 'postgis'],
-        'postgresql-service': ['brew', 'services', 'start', 'postgresql@18'],
+        'postgresql': ['brew', 'install', BREW_POSTGRESQL, 'postgis'],
+        'postgresql-service': ['brew', 'services', 'start', BREW_POSTGRESQL],
         'redis': ['brew', 'install', 'redis'],
         'redis-service': ['brew', 'services', 'start', 'redis'],
         'gdal': ['brew', 'install', 'gdal'],
@@ -151,8 +160,28 @@ def _server(name: str, port: int, running: bool) -> tuple[str, str | None]:
     return status, found
 
 
+def _postgresql(manager: str | None, running: bool) -> tuple[str, str | None]:
+    status, found = _server('postgres', POSTGRESQL_PORT, running)
+    if status == 'missing' and manager == 'brew':
+        # the prefix of Homebrew (`brew --prefix`) is the parent of the directory of its command
+        keg = Path(shutil.which('brew')).parent.parent / 'opt' / BREW_POSTGRESQL / 'bin' / 'postgres'
+        if keg.is_file():
+            return 'ok', version(str(keg), '--version') or str(keg)
+    return status, found
+
+
+def table_command(manager: str | None, name: str) -> list[str] | None:
+    """
+    The command of `COMMANDS` that installs or starts the program `name` with `manager`;
+    None without one, and for the Python of a project served (`PROJECT_PYTHON`).
+    """
+    if name == 'python' and project.project_dir is not None:
+        return None
+    return COMMANDS.get(manager, {}).get(name)
+
+
 def _command(manager: str | None, name: str) -> dict:
-    command = COMMANDS.get(manager, {}).get(name)
+    command = table_command(manager, name)
     return {
         'install_command': shlex.join(command) if command else None,
         'needs_sudo': bool(command) and command[0] == 'sudo',
@@ -165,9 +194,10 @@ def check() -> dict:
     each one its `status` (`ok`; `missing`; `old`, older than a project needs; `stopped`,
     a server not running), what was `found` (its version), the command that installs or
     starts it with the `manager` of the machine (`install_command`, null without one) and
-    whether it `needs_sudo`. The Python is that of the project served, else that of the
-    server (which creates the `.venv` of a new project). `missing` names the programs not
-    `ok`.
+    whether it `needs_sudo`. The Python is that of the project served (without a command:
+    its `.venv` is created again, `PROJECT_PYTHON`), else that of the server (which creates
+    the `.venv` of a new project). The PostgreSQL of Homebrew is found in its keg too.
+    `missing` names the programs not `ok`.
     """
     manager = package_manager()
     postgresql, redis = reachable(POSTGRESQL_PORT), reachable(REDIS_PORT)
@@ -175,7 +205,7 @@ def check() -> dict:
         'python': _python(),
         'uv': _program('uv'),
         'node': _node(),
-        'postgresql': _server('postgres', POSTGRESQL_PORT, postgresql),
+        'postgresql': _postgresql(manager, postgresql),
         'postgresql-service': ('ok', f'port {POSTGRESQL_PORT}') if postgresql else ('stopped', None),
         'redis': _server('redis-server', REDIS_PORT, redis),
         'redis-service': ('ok', f'port {REDIS_PORT}') if redis else ('stopped', None),
@@ -205,20 +235,23 @@ def plan(names: list[str]) -> tuple[list[tuple[str, list[str]]], list[dict]]:
     The commands of `COMMANDS` that `install` may run for the programs `names` (names of
     `REQUIRED_FOR`), and the programs it may not install, each with the `reason` and the
     command the user runs (`run_yourself`, null without one): a command with sudo, a
-    Homebrew this user cannot run, no package manager or no command in it.
+    Homebrew this user cannot run, no package manager or no command in it, the Python of a
+    project. Both in the order of `REQUIRED_FOR`, whatever the order of `names`: a program
+    is installed before its server is started.
     """
     manager = package_manager()
     runs, refused = [], []
-    for name in dict.fromkeys(names):
-        command = COMMANDS.get(manager, {}).get(name)
+    for name in [it for it in REQUIRED_FOR if it in names]:
+        command = table_command(manager, name)
         if command is None:
-            reason = (
-                f'{manager} has no command for it here' if manager
-                else 'No known package manager on this machine (Homebrew on macOS, apt on '
-                'Debian and Ubuntu)'
-            )
-            refused.append({'name': name, 'reason': f'{reason}: install it yourself.',
-                            'run_yourself': None})
+            if name == 'python' and project.project_dir is not None:
+                reason = PROJECT_PYTHON
+            elif manager:
+                reason = f'{manager} has no command for it here: install it yourself.'
+            else:
+                reason = ('No known package manager on this machine (Homebrew on macOS, apt on '
+                          'Debian and Ubuntu): install it yourself.')
+            refused.append({'name': name, 'reason': reason, 'run_yourself': None})
         elif command[0] == 'sudo':
             refused.append({'name': name, 'reason': 'The command needs sudo: run it yourself.',
                             'run_yourself': shlex.join(command)})

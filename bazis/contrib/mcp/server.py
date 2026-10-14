@@ -104,6 +104,10 @@ INSTALLS = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True
 )
 PROGRAMS = Literal[tuple(machine.REQUIRED_FOR)]
+CONFIRMED_BY_USER = (
+    'True only after the user explicitly said yes in this conversation to installing these '
+    'programs; never on your own'
+)
 
 server = MCPServer('bazis', instructions=INSTRUCTIONS, version=__version__)
 
@@ -135,7 +139,8 @@ def check_machine() -> dict:
     `redis` and `redis-service` (port 6379), `gdal` and `gettext`. For each one: what it is
     `required_for`, its `status` (`ok`, `missing`, `old`, or `stopped` for a server), what
     was `found`, the `install_command` of the package `manager` of the machine (Homebrew,
-    apt; null without one) and whether it `needs_sudo`. `missing` names those not `ok`:
+    apt; null without one, and for the Python of a project: its `.venv` is created again
+    with a newer Python) and whether it `needs_sudo`. `missing` names those not `ok`:
     list them to the user and ask before `install_tools`.
     """
     return machine.check()
@@ -165,13 +170,14 @@ def _confirmation(
 def install_tools(
     names: list[PROGRAMS],
     confirmation: Annotated[ElicitationResult[Confirmation], Resolve(_confirmation)],
-    confirmed_by_user: bool = False,
+    confirmed_by_user: Annotated[bool, Field(description=CONFIRMED_BY_USER)] = False,
 ) -> dict:
     """
     Installs or starts the programs `names` of `check_machine` with its `install_command`
     only, once the user agrees: the client asks the user when it can, else
     `confirmed_by_user` must be true, set only after the user said yes in the conversation.
-    Without that nothing runs and `to_confirm` lists the commands to confirm. `installed`
+    Without that nothing runs and `to_confirm` lists the commands to confirm. The commands
+    run in the order of `check_machine` (a program before its server). `installed`
     has the result of each command run (`ok`, the end of its `output`); `run_yourself` the
     programs not installed here with the `reason` and the command for the user (one that
     needs sudo, or a Homebrew this user cannot run; null without a package manager).

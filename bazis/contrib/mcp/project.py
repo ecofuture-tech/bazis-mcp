@@ -36,6 +36,9 @@ from . import prompts, rules, scaffold
 
 
 SETTINGS_RE = re.compile(r"""DJANGO_SETTINGS_MODULE['"]\s*,\s*['"]([\w.]+)['"]""")
+#: the name of a variable of .env: python-dotenv also takes a line without `=`, such as a
+#: line of a value on several lines without quotes or a pasted token, for a name
+ENV_NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 TIMEOUT = 300
 NO_PROJECT = 'No project: call create_project or use_project.'
 
@@ -306,7 +309,8 @@ def facts(directory: Path, settings: str | None = None, interpreter: str | None 
     Python given on the command line: its directory, settings module, Python, whether it
     has a frontend (made by `bazis_front init`), its ports (null until chosen or when
     `.bazis/ports.json` cannot be read) and the names of the variables of its `.env`, never
-    their values: `env_keys` is null without `.env` or for a `.env` outside the project
+    their values nor a line without `=` (`ENV_NAME_RE`): `env_keys` is null without `.env`
+    or for a `.env` outside the project
     directory (a symbolic link), and `env_reason` says why.
     """
     try:
@@ -314,7 +318,12 @@ def facts(directory: Path, settings: str | None = None, interpreter: str | None 
         if env is None:
             keys, reason = None, '.env links outside the project directory: it is not read.'
         elif env.is_file():
-            keys, reason = list(dotenv_values(env, interpolate=False)), None
+            values = dotenv_values(env, interpolate=False)
+            keys = [
+                key for key, value in values.items()
+                if value is not None and ENV_NAME_RE.fullmatch(key)
+            ]
+            reason = None
         else:
             keys, reason = None, 'The project has no .env.'
         ports_file = Path(scaffold.LOCAL_DIR) / 'ports.json'

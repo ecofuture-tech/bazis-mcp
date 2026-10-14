@@ -37,14 +37,16 @@ The programs of the machine:
   `redis`, `redis-service` (port 6379), `gdal`, `gettext`. For each one `required_for`,
   `status` (`ok`, `missing`, `old`, `stopped` for a server), `found`, `install_command`
   (from the closed table of the package `manager`: Homebrew on macOS, apt on Debian and
-  Ubuntu; null without one) and `needs_sudo`; `missing` names those not `ok`.
+  Ubuntu; null without one, and for the Python of a project: create its `.venv` again with
+  a newer Python) and `needs_sudo`; `missing` names those not `ok`. The keg-only
+  PostgreSQL of Homebrew is found in `<prefix>/opt/postgresql@18/bin`.
 - `install_tools(names, confirmed_by_user=False)` — runs the `install_command` of the
   programs `names` (names of `check_machine`; a server is started by its `-service` name),
   never another command, as argv without a shell, once the user agrees: the client asks
   the user when it supports elicitation, else `confirmed_by_user` must be true, set only
   after the user said yes in the conversation. Without that nothing runs and `to_confirm`
-  lists the commands. `installed` has the result of each command (`ok`, the end of its
-  `output`); `run_yourself` the programs it does not install (a command with sudo, as all
+  lists the commands. They run in the order of `check_machine` (a program before its
+  server). `installed` has the result of each command (`ok`, the end of its `output`); `run_yourself` the programs it does not install (a command with sudo, as all
   those of apt, a Homebrew this user cannot run, no package manager or no command in it)
   with the `reason` and the command for the user, or null.
 
@@ -67,7 +69,8 @@ The project of the conversation:
 - `project_status()` — `directory`, `settings`, `python`, `frontend` (made by
   `bazis_front init`; `use_project` adds the rules of the frontend then), `ports` (null
   until chosen or when `.bazis/ports.json` cannot be read) and `env_keys`: the names of the
-  variables of `.env` (read as python-dotenv reads it), never their values; null without
+  variables of `.env` (read as python-dotenv reads it; a line without `=` and a name that
+  is not an identifier are not variables), never their values; null without
   `.env` or for a `.env` that links outside the project directory, `env_reason` says which.
 
 `create_project` and `use_project` run one call at a time: a second call waits for the

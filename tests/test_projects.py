@@ -361,6 +361,18 @@ async def test_project_status_names_the_variables_of_env_only(client, monkeypatc
     for value in ('value-of-the-secret', 'LEAKED', 'pem-body'):
         assert value not in text_of(call_result)
 
+    # the lines without `=` (a pasted token, the lines of a PEM without quotes) and the names
+    # that are no identifiers are not variables; a value of base64 keeps its name
+    (directory / '.env').write_text(
+        'BS_A=1\nghp_PastedToken0123456789\nBS_KEY=YWJjZA==\nmy-key=x\n'
+        'BS_PEM=-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n'
+        '-----END PRIVATE KEY-----\nBS_B=2\n'
+    )
+    call_result = await client.call_tool('project_status', {})
+    assert result(call_result)['env_keys'] == ['BS_A', 'BS_KEY', 'BS_PEM', 'BS_B']
+    for value in ('ghp_PastedToken', 'YWJjZA', 'MIIEvQIBADAN', 'my-key'):
+        assert value not in text_of(call_result)
+
     # a .env of another directory is not read
     outside = tmp_path / 'secrets.env'
     outside.write_text('BS_OTHER=secret-of-another-directory\n')

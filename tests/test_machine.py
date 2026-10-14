@@ -49,15 +49,17 @@ EVERYTHING = {
 
 class FakeMachine:
     """
-    The programs of `versions` (name: the first line of `--version`) are found in `bin`,
-    the servers listen on `ports`, `node_problem` is that of the Node.js found, and the
-    commands of the package managers are recorded in `runs` (failing for `fail`).
+    The programs of `versions` (name: the first line of `--version`) are found in `bin`
+    (but those `hidden`, out of the PATH), the servers listen on `ports`, `node_problem` is
+    that of the Node.js found, and the commands of the package managers are recorded in
+    `runs` (failing for `fail`).
     """
 
     def __init__(self, monkeypatch, tmp_path, platform='darwin', manager='brew'):
         self.bin = tmp_path / 'bin'
         self.bin.mkdir()
         self.versions = {manager: f'{manager} 1.0'} if manager else {}
+        self.hidden = set()
         self.ports = set()
         self.node_problem = None
         self.runs = []
@@ -69,7 +71,7 @@ class FakeMachine:
         monkeypatch.setattr(scaffold, 'node_problem', lambda: self.node_problem)
 
     def which(self, name):
-        return str(self.bin / name) if name in self.versions else None
+        return str(self.bin / name) if name in self.versions.keys() - self.hidden else None
 
     def run(self, command, **kwargs):
         name = Path(command[0]).name
@@ -232,16 +234,17 @@ async def test_install_tools_runs_only_the_programs_of_the_table(client, fake):
 
 
 @pytest.mark.parametrize('platform, manager, expected', [
+    # in the order of the table, not that of the names
     ('linux', 'apt-get', [
-        {'name': 'redis', 'reason': 'The command needs sudo: run it yourself.',
-         'run_yourself': 'sudo apt-get install -y redis-server'},
         {'name': 'uv', 'reason': 'apt has no command for it here: install it yourself.',
          'run_yourself': None},
+        {'name': 'redis', 'reason': 'The command needs sudo: run it yourself.',
+         'run_yourself': 'sudo apt-get install -y redis-server'},
     ]),
     ('win32', None, [
         {'name': name, 'reason': 'No known package manager on this machine (Homebrew on macOS, '
          'apt on Debian and Ubuntu): install it yourself.', 'run_yourself': None}
-        for name in ('redis', 'uv')
+        for name in ('uv', 'redis')
     ]),
 ])
 async def test_install_tools_leaves_sudo_to_the_user(
@@ -329,3 +332,83 @@ async def test_install_tools_takes_the_names_of_check_machine(client):
     schema = tools['install_tools'].input_schema
     assert schema['properties']['names']['items']['enum'] == list(machine.REQUIRED_FOR)
     assert set(schema['properties']) == {'names', 'confirmed_by_user'}
+    # the client is told when the user agreed
+    description = schema['properties']['confirmed_by_user']['description']
+    assert 'only after the user explicitly said yes in this conversation' in description
+
+
+async def test_install_tools_installs_before_it_starts(client, fake):
+    """
+    The commands run in the order of the table, whatever the order of the names: a program
+    is installed before its server is started.
+    """
+    names = ['redis-service', 'postgresql-service', 'redis', 'postgresql']
+
+    waiting = result(await client.call_tool('install_tools', {'names': names}))
+    assert [it['name'] for it in waiting['to_confirm']] == [
+        'postgresql', 'postgresql-service', 'redis', 'redis-service'
+    ]
+    result(await client.call_tool('install_tools', {'names': names, 'confirmed_by_user': True}))
+    assert [command for command, _ in fake.runs] == [
+        ['brew', 'install', 'postgresql@18', 'postgis'],
+        ['brew', 'services', 'start', 'postgresql@18'],
+        ['brew', 'install', 'redis'],
+        ['brew', 'services', 'start', 'redis'],
+    ]
+
+
+async def test_check_machine_finds_the_postgresql_of_homebrew_in_its_keg(client, fake, tmp_path):
+    """
+    postgresql@18 of Homebrew is keg-only: its programs are not on the PATH, but in
+    `<prefix>/opt/postgresql@18/bin` (the prefix is the parent of the directory of brew).
+    """
+    fake.versions['postgres'] = 'postgres (PostgreSQL) 18.0'
+    fake.hidden.add('postgres')
+    tools = by_name(result(await client.call_tool('check_machine', {})))
+    assert tools['postgresql']['status'] == 'missing'
+
+    keg = tmp_path / 'opt' / 'postgresql@18' / 'bin'
+    keg.mkdir(parents=True)
+    (keg / 'postgres').write_text('')
+    tools = by_name(result(await client.call_tool('check_machine', {})))
+    assert tools['postgresql']['status'] == 'ok'
+    assert tools['postgresql']['found'] == 'postgres (PostgreSQL) 18.0'
+    assert tools['postgresql-service']['status'] == 'stopped'  # the server is another matter
+    assert fake.runs == []
+
+
+async def test_check_machine_looks_for_the_keg_with_homebrew_only(monkeypatch, client, tmp_path):
+    fake = FakeMachine(monkeypatch, tmp_path, 'linux', 'apt-get')
+    keg = tmp_path / 'opt' / 'postgresql@18' / 'bin'
+    keg.mkdir(parents=True)
+    (keg / 'postgres').write_text('')
+
+    tools = by_name(result(await client.call_tool('check_machine', {})))
+
+    assert tools['postgresql']['status'] == 'missing'
+    assert fake.runs == []
+
+
+async def test_the_python_of_a_project_is_not_installed(client, fake, monkeypatch):
+    """
+    A new Python does not change .venv of the project served: no command for it, the user
+    creates .venv again. Without a project the Python of the server has its command.
+    """
+    fake.versions['python'] = '3.11.9'
+    tools = by_name(result(await client.call_tool('check_machine', {})))
+    assert tools['python']['status'] == 'old'
+    assert tools['python']['install_command'] is None
+
+    done = result(await client.call_tool(
+        'install_tools', {'names': ['python'], 'confirmed_by_user': True}
+    ))
+    assert done == {
+        'installed': [], 'to_confirm': [],
+        'run_yourself': [{'name': 'python', 'reason': machine.PROJECT_PYTHON, 'run_yourself': None}],
+    }
+    assert 'create .venv again' in machine.PROJECT_PYTHON
+    assert fake.runs == []
+
+    monkeypatch.setattr(project, 'project_dir', None)
+    tools = by_name(result(await client.call_tool('check_machine', {})))
+    assert tools['python']['install_command'] == 'brew install python@3.13'
