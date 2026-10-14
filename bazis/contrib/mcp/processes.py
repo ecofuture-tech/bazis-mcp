@@ -109,7 +109,8 @@ def server_command(which: str, directory: Path) -> tuple[list[str], Path, dict[s
     frontend = project.inside('frontend')
     if not frontend.is_dir():
         raise project.ProjectError('The project has no frontend/: `bazis_front init` creates it.')
-    return ['npm', 'run', 'dev', '--', '--port', str(port), '--strictPort'], frontend, env, port
+    npm = machine.node_program('npm')
+    return [npm, 'run', 'dev', '--', '--port', str(port), '--strictPort'], frontend, env, port
 
 
 def _running(which: str) -> Server | None:

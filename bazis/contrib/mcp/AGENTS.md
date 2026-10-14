@@ -93,9 +93,15 @@ The work on the project served (never a command or a path of the caller outside 
   progress reported every 5 seconds: `manage` (`.venv/bin/python manage.py`: makemigrations,
   migrate, check, bazis_doctor, collectstatic, e2e_data, `bazis_front` with one of its
   subcommands, `bazis_messages` with one of its actions), `pytest` (`python -m pytest`) and
-  `pip` (only `install -r requirements-dev.txt`) in the project directory, `npm` (`npm run`
-  of build, lint, test, e2e, format; not dev) and `npx` (only `tsc --noEmit` and
-  `playwright install chromium`) in `frontend/`. An argument with a character of a shell,
+  `pip` (only `install -r requirements-dev.txt`) in the project directory, `npm` (`npm
+  install` and `npm ci` without arguments, the dependencies of the frontend after
+  `bazis_front add` or `update`; `npm run` of build, lint, test, e2e, format, not dev, and
+  only test and e2e take arguments, after `--`: the names of tests and the options
+  `-t`/`--testNamePattern` of test, `-g`/`--grep`, `--grep-invert`, `--project`,
+  `--workers` of e2e) and `npx` (only `tsc --noEmit` and `playwright install chromium`,
+  as `npx --no`: a tool of `frontend/node_modules`, never downloaded; without it the
+  command is refused) in `frontend/`. npm and npx are found on the `PATH` (`npm.cmd` on
+  Windows). An argument with a character of a shell,
   with `..` or with a path outside the project (also through a symbolic link) is refused.
   The commands read no stdin (pass `--noinput` where Django asks), and get the settings
   module of the project, `E2E_PORT` of `.bazis/ports.json` and `E2E_PASSWORD` of `.env`
@@ -109,7 +115,10 @@ The work on the project served (never a command or a path of the caller outside 
   `pid`, `port`, `url`, `running`, `ready`, and the `exit_code` and `output` of a server
   that ended at once. Refused when it runs already or another process has its port.
 - `stop_server(which)` — SIGTERM to its group, SIGKILL after 10 seconds: `stopped` and
-  `exit_code`, or the `reason`. The servers started stop when bazis-mcp ends.
+  `exit_code`, or the `reason`. The servers started stop when bazis-mcp ends. On Windows a
+  process group is not stopped: only the process itself is (the processes it started,
+  such as the node of `npm run dev` or of a command over its timeout, may stay), so the
+  servers and the long commands are not supported there.
 - `server_logs(which, lines=100)` — the last lines of its log (at most 20,000 bytes) and
   whether it is `running`.
 - `read_file(path, offset=0, limit=None)`, `write_file(path, content)`,

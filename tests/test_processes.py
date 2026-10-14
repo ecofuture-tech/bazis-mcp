@@ -28,7 +28,7 @@ import urllib.request
 
 import pytest
 
-from bazis.contrib.mcp import processes, project, scaffold
+from bazis.contrib.mcp import machine, processes, project, scaffold
 
 from .support import SAMPLE_DIR, result
 from .test_projects import error
@@ -187,7 +187,7 @@ async def test_server_logs_without_a_log(client, shop):
     assert (lines['minimum'], lines['maximum']) == (1, 1000)
 
 
-def test_the_commands_of_the_servers(shop):
+def test_the_commands_of_the_servers(shop, monkeypatch):
     ports = project.read_ports(shop)
 
     command, cwd, env, port = processes.server_command('backend', shop)
@@ -198,8 +198,9 @@ def test_the_commands_of_the_servers(shop):
     with pytest.raises(project.ProjectError, match='The project has no frontend/'):
         processes.server_command('frontend', shop)
     (shop / 'frontend').mkdir()
+    monkeypatch.setattr(machine.shutil, 'which', {'npm': r'C:\node\npm.CMD'}.get)
     command, cwd, env, port = processes.server_command('frontend', shop)
-    assert command == ['npm', 'run', 'dev', '--', '--port', str(ports['frontend']), '--strictPort']
+    assert command == [r'C:\node\npm.CMD', 'run', 'dev', '--', '--port', str(ports['frontend']), '--strictPort']
     assert cwd == shop / 'frontend' and port == ports['frontend']
 
     (shop / '.bazis' / 'ports.json').unlink()

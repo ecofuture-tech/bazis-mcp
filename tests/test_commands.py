@@ -28,7 +28,7 @@ from importlib import metadata
 
 import pytest
 
-from bazis.contrib.mcp import catalog, commands, project, scaffold
+from bazis.contrib.mcp import catalog, commands, machine, project, scaffold
 
 from .support import SAMPLE_DIR, result
 from .test_projects import error
@@ -37,6 +37,8 @@ from .test_projects import error
 pytestmark = pytest.mark.anyio
 
 PASSWORD = 'e2e-password-of-the-tests'
+#: the programs of Node.js as `shutil.which` finds them (`npm.cmd` on Windows)
+NODE = {'npm': '/node/bin/npm', 'npx': '/node/bin/npx'}
 
 
 class FakePopen:
@@ -81,7 +83,9 @@ def shop(monkeypatch, tmp_path):
     """
     directory = tmp_path / 'shop'
     shutil.copytree(SAMPLE_DIR, directory, ignore=shutil.ignore_patterns('__pycache__'))
-    (directory / 'frontend').mkdir()
+    (directory / 'frontend' / 'node_modules' / '.bin').mkdir(parents=True)
+    for tool in ('tsc', 'playwright'):
+        (directory / 'frontend' / 'node_modules' / '.bin' / tool).write_text('')
     (directory / '.bazis').mkdir()
     ports = {'backend': 8101, 'frontend': 5101, 'e2e': 5102}
     (directory / '.bazis' / 'ports.json').write_text(json.dumps(ports))
@@ -91,6 +95,7 @@ def shop(monkeypatch, tmp_path):
         '-r requirements.txt\n# the tools\nbazis-test-utils>=2.5.2\n'
     )
     monkeypatch.setattr(project, 'project_dir', directory)
+    monkeypatch.setattr(machine.shutil, 'which', lambda name: NODE.get(name))
     return directory
 
 
@@ -114,10 +119,17 @@ async def test_run_command_manage(client):
      ['{python}', '-m', 'pytest', 'tests/test_shop.py::test_list[2-items]', '-k', 'not slow']),
     ('pip', ['install', '-r', 'requirements-dev.txt'],
      ['{python}', '-m', 'pip', 'install', '-r', 'requirements-dev.txt']),
-    ('npm', ['build'], ['npm', 'run', 'build']),
-    ('npm', ['e2e', '--', '--grep', 'login'], ['npm', 'run', 'e2e', '--', '--grep', 'login']),
-    ('npx', ['tsc', '--noEmit'], ['npx', 'tsc', '--noEmit']),
-    ('npx', ['playwright', 'install', 'chromium'], ['npx', 'playwright', 'install', 'chromium']),
+    ('npm', ['build'], ['{npm}', 'run', 'build']),
+    ('npm', ['e2e', '--', '--grep', 'login'], ['{npm}', 'run', 'e2e', '--', '--grep', 'login']),
+    ('npm', ['e2e', '--', 'e2e/login.spec.ts', '--project=chromium', '--workers', '1'],
+     ['{npm}', 'run', 'e2e', '--', 'e2e/login.spec.ts', '--project=chromium', '--workers', '1']),
+    ('npm', ['test', '--', 'src/app.test.ts', '-t', 'renders'],
+     ['{npm}', 'run', 'test', '--', 'src/app.test.ts', '-t', 'renders']),
+    ('npm', ['install'], ['{npm}', 'install']),
+    ('npm', ['ci'], ['{npm}', 'ci']),
+    ('npx', ['tsc', '--noEmit'], ['{npx}', '--no', '--', 'tsc', '--noEmit']),
+    ('npx', ['playwright', 'install', 'chromium'],
+     ['{npx}', '--no', '--', 'playwright', 'install', 'chromium']),
 ])
 async def test_run_command_table(client, shop, fake_popen, kind, args, expected):
     """
@@ -131,7 +143,8 @@ async def test_run_command_table(client, shop, fake_popen, kind, args, expected)
     done = result(call_result)
 
     [(command, kwargs)] = fake_popen.ran
-    assert command == [sys.executable if it == '{python}' else it for it in expected]
+    programs = {'{python}': sys.executable, '{npm}': NODE['npm'], '{npx}': NODE['npx']}
+    assert command == [programs.get(it, it) for it in expected]
     assert kwargs['cwd'] == (shop / 'frontend' if kind in ('npm', 'npx') else shop)
     assert 'shell' not in kwargs and kwargs['start_new_session'] is True
     assert kwargs['stdin'] == subprocess.DEVNULL
@@ -151,8 +164,16 @@ async def test_run_command_table(client, shop, fake_popen, kind, args, expected)
     ('manage', ['bazis_front', 'nuke'], 'manage bazis_front needs one of:'),
     ('manage', ['bazis_messages', 'makemessages'], 'manage bazis_messages needs one of:'),
     ('npm', ['dev'], 'npm runs only the scripts:'),
-    ('npm', ['install', 'left-pad'], 'npm runs only the scripts:'),
+    ('npm', ['install', 'left-pad'], 'npm install takes no arguments.'),
+    ('npm', ['ci', '--ignore-scripts=false'], 'npm ci takes no arguments.'),
+    ('npm', ['exec', 'left-pad'], 'npm runs only the scripts:'),
     ('npm', [], 'npm runs only the scripts:'),
+    ('npm', ['build', '--', '--outDir', 'src'], 'npm run build takes no arguments'),
+    ('npm', ['build', '--prefix', 'src'], 'npm run build takes no arguments'),
+    ('npm', ['e2e', '--grep', 'login'], 'The arguments of npm run e2e follow --.'),
+    ('npm', ['e2e', '--', '--config', 'evil.config.ts'], "not '--config'"),
+    ('npm', ['e2e', '--', '--output=src'], "not '--output=src'"),
+    ('npm', ['test', '--', '--root', 'src'], "not '--root'"),
     ('npx', ['tsc'], 'npx runs only:'),
     ('npx', ['prettier', '--write', '.'], 'npx runs only:'),
     ('pip', ['install', 'requests'], 'pip runs only:'),
@@ -197,6 +218,29 @@ async def test_run_command_needs_a_frontend_for_npm(client, shop, fake_popen):
     shutil.rmtree(shop / 'frontend')
     message = error(await client.call_tool('run_command', {'kind': 'npm', 'args': ['build']}))
     assert message == 'The project has no frontend/: `bazis_front init` creates it.'
+    assert fake_popen.ran == []
+
+
+async def test_npx_never_downloads(client, shop, fake_popen):
+    """
+    npx runs only a tool installed in `frontend/node_modules`: without it the command is
+    refused before npx can download a package.
+    """
+    shutil.rmtree(shop / 'frontend' / 'node_modules')
+    for args in (['tsc', '--noEmit'], ['playwright', 'install', 'chromium']):
+        message = error(await client.call_tool('run_command', {'kind': 'npx', 'args': args}))
+        assert message == (
+            f'{args[0]} is not installed in frontend/node_modules: run_command("npm", ["install"]) '
+            'installs the dependencies of the frontend (npx never downloads).'
+        )
+    assert fake_popen.ran == []
+
+
+async def test_run_command_without_node(client, shop, fake_popen, monkeypatch):
+    monkeypatch.setattr(machine.shutil, 'which', lambda name: None)
+    for kind, args in (('npm', ['build']), ('npx', ['tsc', '--noEmit'])):
+        message = error(await client.call_tool('run_command', {'kind': kind, 'args': args}))
+        assert message == f'{kind} is not found: check_machine says how to install Node.js.'
     assert fake_popen.ran == []
 
 

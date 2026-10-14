@@ -86,7 +86,8 @@ conversation (`project_status` says which); without one they answer "No project"
 - Run the commands of the rules only with `run_command`: `.venv/bin/python manage.py
   <command> <options>` is `run_command("manage", ["<command>", "<options>"])`, the tests
   `run_command("pytest")`, the commands in `frontend/` `run_command("npm", ["build"])` and
-  `run_command("npx", ["tsc", "--noEmit"])`; it sets `E2E_PORT` and `E2E_PASSWORD` itself.
+  `run_command("npx", ["tsc", "--noEmit"])` (after `run_command("npm", ["install"])`); it
+  sets `E2E_PORT` and `E2E_PASSWORD` itself.
   Start and stop the backend and the dev server of the frontend with `start_server` and
   `stop_server` (`server_logs` shows their output), add Bazis packages with
   `add_packages`. Never run a command in another way.
@@ -307,9 +308,12 @@ def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dic
     is makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, or bazis_front
     or bazis_messages with their subcommand), `pytest` (`.venv/bin/python -m pytest
     <args>`), `pip` (`args` only `["install", "-r", "requirements-dev.txt"]`) in the project
-    directory; `npm` (`npm run <args>`, the scripts build, lint, test, e2e, format) and `npx`
-    (`args` only `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`) in
-    `frontend/`. The arguments are plain words (no character of a shell, no `..`, no path
+    directory; `npm` (`["install"]` or `["ci"]` alone, the dependencies of the frontend; else
+    `npm run <args>`, the scripts build, lint, test, e2e, format, and for test and e2e after
+    `--` the names of tests and `-t`, `--testNamePattern` (test) or `-g`, `--grep`,
+    `--grep-invert`, `--project`, `--workers` (e2e)) and `npx` (`args` only
+    `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`, installed in
+    `frontend/node_modules`: npx never downloads) in `frontend/`. The arguments are plain words (no character of a shell, no `..`, no path
     outside the project); a command never reads stdin: pass `--noinput` where Django asks.
     `E2E_PORT` (`.bazis/ports.json`) and `E2E_PASSWORD` (`.env`) are set by the server,
     never shown. Returns `exit_code`, `ok`, `timed_out` and the ends of `stdout` and

@@ -146,6 +146,15 @@ def _program(*names: str) -> tuple[str, str | None]:
     return 'ok', version(paths[0], '--version') or paths[0]
 
 
+def node_program(name: str) -> str:
+    """
+    The path of `npm` or `npx` (`npm.cmd` on Windows); ProjectError without Node.js.
+    """
+    if path := shutil.which(name):
+        return path
+    raise project.ProjectError(f'{name} is not found: check_machine says how to install Node.js.')
+
+
 def _node() -> tuple[str, str | None]:
     status, found = _program('node', 'npm')
     if status == 'ok' and scaffold.node_problem():

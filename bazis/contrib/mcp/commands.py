@@ -26,7 +26,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from . import catalog, processes, project, scaffold
+from . import catalog, machine, processes, project, scaffold
 
 
 #: the longest run of a command, in seconds
@@ -45,7 +45,17 @@ MANAGE_SUBCOMMANDS = {
 }
 #: the scripts of `npm run` in `frontend/` (not `dev`: the dev server is `processes.start`)
 NPM_SCRIPTS = {'build', 'lint', 'test', 'e2e', 'format'}
-#: the commands of `npx` in `frontend/`, whole
+#: the scripts that take arguments after `--`, the filters of the tests they run: words, and
+#: these options only
+NPM_FILTERS = {
+    'test': {'-t', '--testNamePattern'},
+    'e2e': {'-g', '--grep', '--grep-invert', '--project', '--workers'},
+}
+#: the commands of `npm` without arguments: the dependencies of `frontend/` (after
+#: `bazis_front add` or `update`)
+NPM_COMMANDS = {'install', 'ci'}
+#: the commands of `npx` in `frontend/`, whole, run only from `frontend/node_modules` (`--no`:
+#: npx never downloads a package)
 NPX = [['tsc', '--noEmit'], ['playwright', 'install', 'chromium']]
 #: the only command of `pip` in `.venv`, whole
 PIP = ['install', '-r', 'requirements-dev.txt']
@@ -70,6 +80,54 @@ def _check_args(args: list[str], cwd: Path) -> None:
         # a path, also that of an option (`--rootdir=<path>`) or of a test (`<path>::<test>`)
         for part in re.split('=|::', arg):
             project.inside(cwd / part)
+
+
+def _check_filters(script: str, args: list[str]) -> None:
+    """
+    The arguments of `npm run <script>`: none, or `--` and the filters of NPM_FILTERS.
+    """
+    if not args:
+        return
+    if script not in NPM_FILTERS:
+        raise project.ProjectError(
+            f'npm run {script} takes no arguments (the filters of the tests follow -- for '
+            f'{" and ".join(sorted(NPM_FILTERS))}).'
+        )
+    options = NPM_FILTERS[script]
+    if args[0] != '--':
+        raise project.ProjectError(f'The arguments of npm run {script} follow --.')
+    for arg in args[1:]:
+        if arg.startswith('-') and arg.split('=', 1)[0] not in options:
+            raise project.ProjectError(
+                f'npm run {script} -- takes the names of tests and the options '
+                f'{", ".join(sorted(options))}, not {arg!r}.'
+            )
+
+
+def _npm(args: list[str]) -> list[str]:
+    first = args[0] if args else None
+    if first in NPM_COMMANDS:
+        if len(args) > 1:
+            raise project.ProjectError(f'npm {first} takes no arguments.')
+        return [machine.node_program('npm'), first]
+    if first not in NPM_SCRIPTS:
+        raise project.ProjectError(
+            f'npm runs only the scripts: {", ".join(sorted(NPM_SCRIPTS))}, and '
+            f'{" and ".join(sorted(NPM_COMMANDS))} without arguments.'
+        )
+    _check_filters(first, args[1:])
+    return [machine.node_program('npm'), 'run', *args]
+
+
+def _npx(args: list[str], cwd: Path) -> list[str]:
+    if args not in NPX:
+        raise project.ProjectError(f'npx runs only: {"; ".join(shlex.join(it) for it in NPX)}.')
+    if not (cwd / 'node_modules' / '.bin' / args[0]).exists():
+        raise project.ProjectError(
+            f'{args[0]} is not installed in frontend/node_modules: run_command("npm", '
+            '["install"]) installs the dependencies of the frontend (npx never downloads).'
+        )
+    return [machine.node_program('npx'), '--no', '--', *args]
 
 
 def frontend_dir() -> Path:
@@ -106,13 +164,9 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
     if kind == 'pytest':
         return [python, '-m', 'pytest', *args], cwd
     if kind == 'npm':
-        if first not in NPM_SCRIPTS:
-            raise project.ProjectError(f'npm runs only the scripts: {", ".join(sorted(NPM_SCRIPTS))}.')
-        return ['npm', 'run', *args], cwd
+        return _npm(args), cwd
     if kind == 'npx':
-        if args not in NPX:
-            raise project.ProjectError(f'npx runs only: {"; ".join(shlex.join(it) for it in NPX)}.')
-        return ['npx', *args], cwd
+        return _npx(args, cwd), cwd
     if kind == 'pip':
         if args != PIP:
             raise project.ProjectError(f'pip runs only: {shlex.join(PIP)}.')
