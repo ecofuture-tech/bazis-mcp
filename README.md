@@ -98,6 +98,12 @@ still work and the project tools return the error.
 | `front_status()` | The parts of the frontend that are stale (`bazis_front status --json`), by the `bazis_front` command that updates them |
 | `front_catalog()` | The assets of bazis-front (components, hooks) with the capabilities and assets they require |
 
+The limits of the tools that change the project (the files in the project directory, the
+commands of a closed table, pip only from PyPI into `.venv`) keep an agent from mistakes and
+misuse; they are not a boundary against the code of the project, which the commands run
+with the rights of the user (the settings, the tests and their plugins, the scripts of
+`package.json`, the packages installed with their install scripts).
+
 Resources: `bazis://packages/{name}/agents.md`, `bazis://rules` (the rules of Bazis for an
 agent) and `bazis://rules/frontend` (those of a product with a frontend). Prompts:
 `new_project(description)` (create a project and build it), `change_project(request)`

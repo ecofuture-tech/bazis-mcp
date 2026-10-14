@@ -130,10 +130,10 @@ The work on the project served (never a command or a path of the caller outside 
   that ended at once. Refused when it runs already or another process has its port.
 - `stop_server(which)` — SIGTERM to its group, SIGKILL after 10 seconds: `stopped` and
   `exit_code`, or the `reason`. The servers started stop when bazis-mcp ends, also by
-  SIGTERM (as a client ends its server) or SIGINT. On Windows a
-  process group is not stopped: only the process itself is (the processes it started,
-  such as the node of `npm run dev` or of a command over its timeout, may stay), so the
-  servers and the long commands are not supported there.
+  SIGTERM (as a client ends its server) or SIGINT. On Windows a process group is not
+  stopped: only the process itself is (the processes it started, such as the node of
+  `npm run dev` or of a command over its timeout, may stay), so the servers and the long
+  commands are not supported there.
 - `server_logs(which, lines=100)` — the last lines of its log (at most 20,000 bytes) and
   whether it is `running`.
 - `read_file(path, offset=0, limit=None)`, `write_file(path, content)`,
@@ -147,6 +147,14 @@ The work on the project served (never a command or a path of the caller outside 
   at the end, so a longer file is read in parts. A file written has at most 1,000,000
   bytes, its directories are created; `list_files` lists one directory (`name`, `type`:
   `directory`, `file`, `link` never followed, `other`; `size`), at most 400 entries.
+
+These limits keep an agent from mistakes and misuse of the tools (a command, a path or a
+package from outside the project, a secret in a result, the Python of bazis-mcp changed);
+they are not a boundary against the code of the project. The commands run that code with
+the rights of the user: the management commands and the settings, the tests with their
+`conftest.py` and plugins, the scripts of `frontend/package.json` and the packages installed
+from PyPI and npm with their install scripts. An agent that writes the files of the project
+changes what that code does: review its changes as those of any contributor.
 
 The catalog and the project served:
 
