@@ -4,8 +4,10 @@ The MCP server of a Bazis project. It gives an agent the catalog of the Bazis pa
 (also the ones not installed) with their guides, and the facts and system checks of the
 project it serves: the one it runs in, or the one created (`create_project`) or chosen
 (`use_project`) in the conversation, and the programs a project needs on the machine
-(`check_machine`), installed once the user agrees (`install_tools`). The other tools only
-read; the agent changes the files itself.
+(`check_machine`), installed once the user agrees (`install_tools`). For a client without
+a shell or files of its own it also reads and writes the files of the project, runs its
+commands from a closed table, starts its servers and adds its Bazis packages; the other
+tools only read.
 
 ## Setup
 
@@ -76,6 +78,49 @@ The project of the conversation:
 `create_project` and `use_project` run one call at a time: a second call waits for the
 first one to end.
 
+The work on the project served (never a command or a path of the caller outside them):
+
+- `add_packages(names)` — adds the Bazis packages `names` (names of the catalog; another
+  name is refused) and those they require (`requires` of their manifests) that the
+  requirements do not name yet to `requirements.txt`, with the version of the catalog as
+  the minimum, installs `requirements-dev.txt` from PyPI into `.venv`
+  (`python -m pip install -r requirements-dev.txt`) and raises the minimums to the
+  installed releases: `added`, `required` (named already), `installed` (their versions)
+  and `install` (the result of pip; when it fails, `requirements.txt` stays as it was).
+  The apps and settings (`BS_INSTALLED_APPS`) are added by the agent as the guides say.
+- `run_command(kind, args=[])` — a command of a closed table, as argv without a shell,
+  with a timeout of 600 seconds (the group of its processes is killed then) and its
+  progress reported every 5 seconds: `manage` (`.venv/bin/python manage.py`: makemigrations,
+  migrate, check, bazis_doctor, collectstatic, e2e_data, `bazis_front` with one of its
+  subcommands, `bazis_messages` with one of its actions), `pytest` (`python -m pytest`) and
+  `pip` (only `install -r requirements-dev.txt`) in the project directory, `npm` (`npm run`
+  of build, lint, test, e2e, format; not dev) and `npx` (only `tsc --noEmit` and
+  `playwright install chromium`) in `frontend/`. An argument with a character of a shell,
+  with `..` or with a path outside the project (also through a symbolic link) is refused.
+  The commands read no stdin (pass `--noinput` where Django asks), and get the settings
+  module of the project, `E2E_PORT` of `.bazis/ports.json` and `E2E_PASSWORD` of `.env`
+  (a new project has one), whose value is hidden in their output. Returns `command`,
+  `directory`, `exit_code` (null after the timeout), `ok`, `timed_out` and the last 10,000
+  bytes of `stdout` and `stderr`.
+- `start_server(which)` — `backend` (`python -m uvicorn <project package>.main:app --port
+  <backend>`) or `frontend` (`npm run dev -- --port <frontend> --strictPort` in
+  `frontend/`), on the ports of `.bazis/ports.json`, in the background in a new process
+  group, the output in `.bazis/logs/<which>.log`; it waits up to 60 seconds for the port:
+  `pid`, `port`, `url`, `running`, `ready`, and the `exit_code` and `output` of a server
+  that ended at once. Refused when it runs already or another process has its port.
+- `stop_server(which)` — SIGTERM to its group, SIGKILL after 10 seconds: `stopped` and
+  `exit_code`, or the `reason`. The servers started stop when bazis-mcp ends.
+- `server_logs(which, lines=100)` — the last lines of its log (at most 20,000 bytes) and
+  whether it is `running`.
+- `read_file(path)`, `write_file(path, content)`, `list_files(subdir='')` — the files of
+  the project directory (a path relative to it or absolute in it, symbolic links
+  resolved). `.env` is never read nor written (`project_status` gives the names of its
+  variables); `.venv/`, `.git/`, `contract/` and the `generated/` directories are never
+  written. A file read is UTF-8 text that fits in a result (about 40,000 bytes); a file
+  written has at most 1,000,000 bytes, its directories are created; `list_files` lists one
+  directory (`name`, `type`: `directory`, `file`, `link` never followed, `other`; `size`),
+  at most 400 entries.
+
 The catalog and the project served:
 
 - `list_packages` — every Bazis package: `summary`, `solves`, `requires`, `pairs_well`,
@@ -142,6 +187,8 @@ bazis-front).
 - Without a project, create it (`create_project`) or choose it (`use_project`) first; the
   rules speak of the current directory: it is `directory` of the project. Change only the
   files in it, and never read `.env` (`project_status` gives the names of its variables).
+- Run the commands of the rules with `run_command`, the servers with `start_server` and
+  `stop_server`, and add Bazis packages with `add_packages`; never in another way.
 - Choose packages by `solves` and read `package_guide` before using a package; follow the
   guide of the installed version. Find the section that answers a question with
   `guide_search` instead of reading every section (when `guide_version` differs from `installed_version`,

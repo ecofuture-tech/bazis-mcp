@@ -163,6 +163,8 @@ BS_MEDIA_ROOT=__BASE_DIR__/media
 BS_STATIC_ROOT=__BASE_DIR__/static
 # the mails are printed, not sent: a development environment has no SMTP server
 BS_BAZIS_EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+# the password of the test users of the end-to-end tests (manage.py e2e_data, npm run e2e)
+E2E_PASSWORD={e2e_password}
 '''
 
 GITIGNORE = '''.env
@@ -620,7 +622,9 @@ def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path
             name=name, installed_apps=json.dumps(installed_apps), templates=json.dumps(TEMPLATES),
             languages=json.dumps([ENGLISH]), language=ENGLISH[0],
         ),
-        '.env': DOT_ENV.format(name=name, secret_key=secrets.token_urlsafe(48)),
+        '.env': DOT_ENV.format(
+            name=name, secret_key=secrets.token_urlsafe(48), e2e_password=secrets.token_urlsafe(16)
+        ),
         '.gitignore': GITIGNORE,
         'requirements.txt': '\n'.join(requirements) + '\n',
         'requirements-dev.txt': '-r requirements.txt\n' + '\n'.join(REQUIREMENTS_DEV) + '\n',
@@ -678,6 +682,16 @@ def create_venv(directory: Path, run=subprocess.run) -> Path:
         done = run(command, cwd=directory, capture_output=True, text=True)
         if done.returncode:
             raise ScaffoldError(f'{" ".join(command)} failed:\n{done.stderr.strip()[-2000:]}')
+    raise_minimums(directory, python, run)
+    return python
+
+
+def raise_minimums(directory: Path, python: Path | str, run=subprocess.run) -> dict[str, str]:
+    """
+    Raises the minimums of the requirements of the project in `directory` to the releases
+    installed in its `python` (`require_installed`) and returns the installed versions of
+    the requirements with a minimum (none when they cannot be read: the minimums stay).
+    """
     names = [
         match[1] for file in ('requirements.txt', 'requirements-dev.txt')
         for line in (directory / file).read_text(encoding='utf-8').splitlines()
@@ -688,9 +702,10 @@ def create_venv(directory: Path, run=subprocess.run) -> Path:
     try:
         versions = json.loads(done.stdout)
     except ValueError:
-        versions = {}  # the minimums of the skeleton stay
-    require_installed(directory, versions if isinstance(versions, dict) else {})
-    return python
+        versions = {}
+    versions = versions if isinstance(versions, dict) else {}
+    require_installed(directory, versions)
+    return versions
 
 
 def create_database(directory: Path, name: str, python: Path | str = sys.executable,

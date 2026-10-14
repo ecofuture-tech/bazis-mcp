@@ -12,6 +12,7 @@ solves = [
     "an AI agent checks the frontend specs, finds the stale parts of the frontend and chooses its components (bazis-front)",
     "an AI agent creates a Bazis project from the conversation, or chooses the existing one it changes",
     "an AI agent finds the programs a project needs on the machine and installs them once the user agrees",
+    "an AI agent without a shell reads and writes the files of the project, runs its commands and servers and adds its Bazis packages",
 ]
 requires = ["bazis"]
 pairs_well = []
@@ -37,3 +38,9 @@ text = "install_tools runs only the commands of its table (Homebrew); the comman
 
 [[pitfalls]]
 text = "a server started outside a project serves none: the tools answer No project until create_project or use_project"
+
+[[pitfalls]]
+text = "run_command runs only the commands of its closed table, with plain arguments that stay in the project: a command of the caller, a character of a shell, .. or a path outside the project is refused"
+
+[[pitfalls]]
+text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env: they are written by the user, installed, committed or generated"

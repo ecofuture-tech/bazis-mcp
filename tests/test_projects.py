@@ -45,6 +45,13 @@ PROJECT_TOOLS = {
     'front_status': {},
     'front_catalog': {},
     'project_status': {},
+    'add_packages': {'names': ['bazis-permit']},
+    'run_command': {'kind': 'manage', 'args': ['check']},
+    'start_server': {'which': 'backend'},
+    'server_logs': {'which': 'backend'},
+    'read_file': {'path': 'manage.py'},
+    'write_file': {'path': 'notes.txt', 'content': 'x'},
+    'list_files': {},
 }
 
 
@@ -122,17 +129,20 @@ async def test_create_project(client, no_project, machine, tmp_path):
     assert status['settings'] == 'my_shop.settings'
     assert status['python'] == str(directory.resolve() / '.venv' / 'bin' / 'python')
     assert status['frontend'] is False
-    assert {'BS_SECRET_KEY', 'BS_DATABASES__DEFAULT__PASSWORD'} <= set(status['env_keys'])
+    assert {'BS_SECRET_KEY', 'BS_DATABASES__DEFAULT__PASSWORD', 'E2E_PASSWORD'} <= set(
+        status['env_keys']
+    )
     doctor = result(await client.call_tool('run_doctor', {}))
     assert doctor['ok'] is True, doctor
 
     # the values of .env are never returned
-    secret = next(
-        line.split('=', 1)[1] for line in (directory / '.env').read_text().splitlines()
-        if line.startswith('BS_SECRET_KEY=')
-    )
-    assert secret not in text_of(call_result)
-    assert secret not in text_of(await client.call_tool('project_status', {}))
+    for key in ('BS_SECRET_KEY=', 'E2E_PASSWORD='):
+        secret = next(
+            line.split('=', 1)[1] for line in (directory / '.env').read_text().splitlines()
+            if line.startswith(key)
+        )
+        assert secret not in text_of(call_result)
+        assert secret not in text_of(await client.call_tool('project_status', {}))
 
 
 async def test_create_project_with_a_frontend(client, no_project, machine, tmp_path):
@@ -475,6 +485,7 @@ async def test_project_prompts(client, monkeypatch, tmp_path):
     assert text.startswith('Create a Bazis project: A shop of books\n')
     assert '`create_project`' in text and '`next_steps`' in text
     assert text.index('`check_machine`') < text.index('`install_tools`') < text.index('`create_project`')
+    assert '`run_command`' in text and '`start_server`' in text
 
     # the project served, without a frontend
     prompt = await client.get_prompt('change_project', {'request': 'Add coupons'})

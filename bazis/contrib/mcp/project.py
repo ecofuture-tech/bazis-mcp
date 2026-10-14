@@ -314,30 +314,47 @@ def facts(directory: Path, settings: str | None = None, interpreter: str | None 
     directory (a symbolic link), and `env_reason` says why.
     """
     try:
-        env = _resolve(directory, '.env')
-        if env is None:
-            keys, reason = None, '.env links outside the project directory: it is not read.'
-        elif env.is_file():
-            values = dotenv_values(env, interpolate=False)
-            keys = [
-                key for key, value in values.items()
-                if value is not None and ENV_NAME_RE.fullmatch(key)
-            ]
-            reason = None
-        else:
-            keys, reason = None, 'The project has no .env.'
-        ports_file = Path(scaffold.LOCAL_DIR) / 'ports.json'
+        values, reason = env_values(directory)
         return {
             'directory': str(directory),
             'settings': settings or find_settings(directory),
             'python': find_python(directory, interpreter),
             'frontend': prompts.has_frontend(directory),
-            'ports': scaffold.read_ports(directory) if _resolve(directory, ports_file) else None,
-            'env_keys': keys,
+            'ports': read_ports(directory),
+            'env_keys': None if values is None else list(values),
             'env_reason': reason,
         }
     except OSError as err:
         raise ProjectError(f'The files of the project {directory} cannot be read: {err}') from err
+
+
+def read_ports(directory: Path) -> dict[str, int] | None:
+    """
+    The ports of the project in `directory` (resolved), `scaffold.read_ports`: None until
+    chosen, when `.bazis/ports.json` cannot be read or links outside the project directory.
+    """
+    if _resolve(directory, Path(scaffold.LOCAL_DIR) / 'ports.json') is None:
+        return None
+    return scaffold.read_ports(directory)
+
+
+def env_values(directory: Path) -> tuple[dict[str, str] | None, str | None]:
+    """
+    The variables of `.env` of the project in `directory` (resolved), as python-dotenv reads
+    them without the lines that are no variables (`ENV_NAME_RE`), for the server only: never
+    in a result. None without `.env` or for a `.env` outside the project directory (a
+    symbolic link), with the reason.
+    """
+    env = _resolve(directory, '.env')
+    if env is None:
+        return None, '.env links outside the project directory: it is not read.'
+    if not env.is_file():
+        return None, 'The project has no .env.'
+    values = dotenv_values(env, interpolate=False)
+    return {
+        key: value for key, value in values.items()
+        if value is not None and ENV_NAME_RE.fullmatch(key)
+    }, None
 
 
 def use(directory: str) -> dict:

@@ -14,6 +14,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -113,6 +114,11 @@ def test_scaffold_is_a_working_project(tmp_path):
     assert [Path(it).resolve() for it in roots] == [(directory / 'media').resolve(), (directory / 'static').resolve()], done.stderr
     # the mails of development are printed: no SMTP server is needed (`e2e_data`, the tasks)
     assert mailer == 'django.core.mail.backends.console.EmailBackend'
+    # the password of the test users of the end-to-end tests, its own, which the settings
+    # put in the environment of the commands (`e2e_data`)
+    password = re.search(r'^E2E_PASSWORD=(\S{16,})$', (directory / '.env').read_text(), re.M)[1]
+    done = manage(directory, 'shell', '-c', "import os; print(os.environ['E2E_PASSWORD'])")
+    assert done.stdout.splitlines()[-1] == password, done.stderr
     assert '`BS_BAZIS_EMAIL_BACKEND` of `.env`' in (directory / 'AGENTS.md').read_text()
     # the ports of the project, in its local directory that Git ignores
     ports = json.loads((directory / '.bazis' / 'ports.json').read_text())

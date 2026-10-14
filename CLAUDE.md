@@ -3,8 +3,9 @@
 The MCP server of a Bazis project (`bazis-mcp` command, `MCPServer` of the official `mcp`
 SDK 2.x): the catalog of the Bazis packages and the facts and system checks of the
 project, for AI agents, the project of the conversation (`create_project` writes a new
-one, `use_project` chooses an existing one) and the programs of the machine
-(`check_machine`, `install_tools`); the other tools only read.
+one, `use_project` chooses an existing one), the programs of the machine
+(`check_machine`, `install_tools`) and, for a client without a shell, the work on the
+project (`add_packages`, `run_command`, the servers, the files); the other tools only read.
 
 - `bazis/contrib/mcp/server.py` — the tools, the resources, the prompts and `main()`;
 - `bazis/contrib/mcp/catalog.py` — the packages installed in the Python of the project
@@ -30,6 +31,18 @@ one, `use_project` chooses an existing one) and the programs of the machine
   argv without a shell, never a command of the caller. `install_tools` gets the consent of
   the user through `Resolve` (`Elicit` when the client supports elicitation, on every
   protocol of the SDK), else `confirmed_by_user`;
+- `bazis/contrib/mcp/commands.py` — `run_command`: the closed table `KINDS` (manage,
+  pytest, npm, npx, pip), its arguments checked (no character of a shell, no `..`, no path
+  outside the project), run as argv without a shell in a new process group with
+  `TIMEOUT` and progress, `E2E_PORT` and `E2E_PASSWORD` set and the password hidden in the
+  output; `add_packages` (the closure of `requires` in the catalog, `requirements.txt`,
+  pip, `scaffold.raise_minimums`);
+- `bazis/contrib/mcp/processes.py` — the servers of the project (uvicorn, vite) started in
+  the background (`start_new_session`, the log in `.bazis/logs`), the registry `RUNNING`
+  under `LOCK`, their stop by process group (SIGTERM, then SIGKILL) and `atexit`;
+- `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `list_files` within
+  `project.inside`, `.env` never read nor written, `NOT_WRITTEN` and `generated/` never
+  written, the sizes bounded by `catalog.RESULT_LIMIT` and `WRITE_LIMIT`;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
   `bazis_front status` (its issues grouped by their `command`) and the registry of the
   assets;

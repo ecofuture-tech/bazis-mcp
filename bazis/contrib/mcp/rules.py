@@ -39,6 +39,11 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   find out how to use them. Only when the guide lacks a fact you need, read the source,
   and name the gap in "Guide gaps" of the summary.
 - Read `AGENTS.md` (and `CLAUDE.md` if there is one) of the project first.
+- Without a shell, with the tools of the MCP server `bazis` only, run the commands of these
+  rules with `run_command` (`.venv/bin/python manage.py <command>` is
+  `run_command("manage", ["<command>"])`; `"pytest"`, `"pip"`, and `"npm"` and `"npx"` in
+  `frontend/`), start and stop the servers with `start_server` and `stop_server`, and add
+  packages with `add_packages`.
 - The Python environment is `.venv` (`.venv/bin/python`, on Windows
   `.venv\\Scripts\\python.exe`); `installed_version` of `list_packages` is the version in it.
   Add a package to `requirements.txt`, install it with `.venv/bin/python -m pip install -r

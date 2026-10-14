@@ -186,3 +186,16 @@ def test_rules_of_the_coverage_of_the_tests():
     assert 'the tests and the translations that the rules require' in steps
     assert 'at least 10' not in steps.lower()
 
+
+
+def test_rules_of_an_agent_without_a_shell():
+    """
+    The commands of the rules run through the tools of the MCP server when the agent has no
+    shell; bazis-cli, whose agent has one, keeps the same rules.
+    """
+    rules = ' '.join(RULES.split())
+    for text in ('Without a shell, with the tools of the MCP server `bazis` only',
+                 'run the commands of these rules with `run_command`',
+                 '`.venv/bin/python manage.py <command>` is `run_command("manage", ["<command>"])`',
+                 '`start_server` and `stop_server`', '`add_packages`'):
+        assert text in rules, text

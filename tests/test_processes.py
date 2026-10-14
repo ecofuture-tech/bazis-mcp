@@ -1,0 +1,247 @@
+# Copyright 2026 EcoFuture Technology Services LLC and contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+The servers of the project: `start_server`, `stop_server` and `server_logs`, with servers
+made of a small Python program in place of uvicorn and vite, and one real backend.
+"""
+
+import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+
+import pytest
+
+from bazis.contrib.mcp import processes, project, scaffold
+
+from .support import SAMPLE_DIR, result
+from .test_projects import error
+
+
+pytestmark = pytest.mark.anyio
+
+#: a server: listens on the port of its first argument and starts a child; `stubborn`
+#: (second argument) ignores SIGTERM, as its child does
+SERVE = """\
+import signal, socket, subprocess, sys
+if sys.argv[2] == 'stubborn':
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])
+print('child', child.pid, flush=True)
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(('127.0.0.1', int(sys.argv[1])))
+server.listen()
+print('serving', flush=True)
+while True:
+    server.accept()[0].close()
+"""
+
+
+def gone(pid: int) -> bool:
+    """
+    Whether the process `pid` has ended (waiting for it a little).
+    """
+    for _ in range(50):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.1)
+    os.kill(pid, 9)
+    return False
+
+
+def child_of(log: str) -> int:
+    return int(next(line for line in log.splitlines() if line.startswith('child ')).split()[1])
+
+
+@pytest.fixture
+def shop(monkeypatch, tmp_path):
+    """
+    A copy of the sample project with free ports, served; the servers left running are
+    stopped after the test.
+    """
+    directory = tmp_path / 'shop'
+    shutil.copytree(SAMPLE_DIR, directory, ignore=shutil.ignore_patterns('__pycache__'))
+    backend, frontend, e2e = scaffold.free_ports(3)
+    (directory / '.bazis').mkdir()
+    (directory / '.bazis' / 'ports.json').write_text(
+        json.dumps({'backend': backend, 'frontend': frontend, 'e2e': e2e})
+    )
+    monkeypatch.setattr(project, 'project_dir', directory)
+    yield directory
+    processes.stop_all()
+
+
+@pytest.fixture
+def fake_server(monkeypatch):
+    """
+    The servers are SERVE (`plain` or `stubborn`) on their port, else the `program` given.
+    """
+    def use(mode='plain', program=None):
+        def server_command(which, directory):
+            port = project.read_ports(directory)[which]
+            command = [sys.executable, '-c', program] if program else [
+                sys.executable, '-c', SERVE, str(port), mode
+            ]
+            return command, directory, dict(os.environ), port
+
+        monkeypatch.setattr(processes, 'server_command', server_command)
+
+    return use
+
+
+async def test_start_and_stop_a_server(client, shop, fake_server):
+    fake_server()
+
+    started = result(await client.call_tool('start_server', {'which': 'backend'}))
+    port = project.read_ports(shop)['backend']
+    assert started['running'] is True and started['ready'] is True
+    assert started['port'] == port and started['url'] == f'http://localhost:{port}'
+    assert started['log'] == str(shop / '.bazis' / 'logs' / 'backend.log')
+    assert (shop / '.bazis' / '.gitignore').read_text() == '*\n'  # never committed
+
+    logs = result(await client.call_tool('server_logs', {'which': 'backend'}))
+    assert logs['running'] is True and 'serving' in logs['output']
+    child = child_of(logs['output'])
+    last = result(await client.call_tool('server_logs', {'which': 'backend', 'lines': 1}))
+    assert last['output'] == 'serving\n'
+
+    # once at a time
+    message = error(await client.call_tool('start_server', {'which': 'backend'}))
+    assert message.startswith(f'The backend runs already (pid {started["pid"]}, port {port}')
+
+    stopped = result(await client.call_tool('stop_server', {'which': 'backend'}))
+    assert stopped == {'which': 'backend', 'stopped': True, 'exit_code': -15}
+    assert gone(started['pid']) and gone(child)
+    assert result(await client.call_tool('stop_server', {'which': 'backend'})) == {
+        'which': 'backend', 'stopped': False, 'reason': 'The backend was not started.'
+    }
+    # the log stays to be read
+    logs = result(await client.call_tool('server_logs', {'which': 'backend'}))
+    assert logs['running'] is False and 'serving' in logs['output']
+
+
+async def test_stop_kills_a_server_that_ignores_sigterm(client, shop, fake_server, monkeypatch):
+    fake_server('stubborn')
+    monkeypatch.setattr(processes, 'STOP_TIMEOUT', 1)
+
+    started = result(await client.call_tool('start_server', {'which': 'frontend'}))
+    assert started['ready'] is True
+    child = child_of(result(await client.call_tool('server_logs', {'which': 'frontend'}))['output'])
+
+    stopped = result(await client.call_tool('stop_server', {'which': 'frontend'}))
+    assert stopped['stopped'] is True and stopped['exit_code'] == -9
+    assert gone(started['pid']) and gone(child)
+
+
+async def test_start_server_refuses_a_port_taken_by_another_process(client, shop, fake_server):
+    fake_server()
+    port = project.read_ports(shop)['backend']
+    with socket.socket() as other:
+        other.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        other.bind(('127.0.0.1', port))
+        other.listen()
+        message = error(await client.call_tool('start_server', {'which': 'backend'}))
+
+    assert message.startswith(f'Port {port} of the backend is taken by a process that bazis-mcp did not start')
+    assert processes.RUNNING == {}
+    assert not (shop / '.bazis' / 'logs' / 'backend.log').exists()
+
+
+async def test_a_server_that_ends_at_once(client, shop, fake_server):
+    fake_server(program="print('broken settings'); raise SystemExit(3)")
+
+    started = result(await client.call_tool('start_server', {'which': 'backend'}))
+
+    assert started['running'] is False and started['ready'] is False
+    assert started['exit_code'] == 3 and started['output'] == 'broken settings\n'
+    # it can start again, and stopping it says that it ended
+    assert result(await client.call_tool('start_server', {'which': 'backend'}))['exit_code'] == 3
+    stopped = result(await client.call_tool('stop_server', {'which': 'backend'}))
+    assert stopped['stopped'] is False and stopped['exit_code'] == 3
+
+
+async def test_server_logs_without_a_log(client, shop):
+    message = error(await client.call_tool('server_logs', {'which': 'frontend'}))
+    assert message == 'The frontend has no log: start_server starts it.'
+    tools = {it.name: it for it in (await client.list_tools()).tools}
+    lines = tools['server_logs'].input_schema['properties']['lines']
+    assert (lines['minimum'], lines['maximum']) == (1, 1000)
+
+
+def test_the_commands_of_the_servers(shop):
+    ports = project.read_ports(shop)
+
+    command, cwd, env, port = processes.server_command('backend', shop)
+    assert command == [sys.executable, '-m', 'uvicorn', 'sample.main:app', '--port', str(ports['backend'])]
+    assert cwd == shop and port == ports['backend']
+    assert env['DJANGO_SETTINGS_MODULE'] == 'sample.settings'
+
+    with pytest.raises(project.ProjectError, match='The project has no frontend/'):
+        processes.server_command('frontend', shop)
+    (shop / 'frontend').mkdir()
+    command, cwd, env, port = processes.server_command('frontend', shop)
+    assert command == ['npm', 'run', 'dev', '--', '--port', str(ports['frontend']), '--strictPort']
+    assert cwd == shop / 'frontend' and port == ports['frontend']
+
+    (shop / '.bazis' / 'ports.json').unlink()
+    with pytest.raises(project.ProjectError, match='The project has no ports'):
+        processes.server_command('backend', shop)
+
+
+async def test_the_backend_of_the_project(client, shop):
+    """
+    The real backend of the sample project: uvicorn with the Python of the project.
+    """
+    started = result(await client.call_tool('start_server', {'which': 'backend'}))
+    try:
+        assert started['ready'] is True, started
+        # the schema of the routes of the project (BS_DEBUG of the tests)
+        with urllib.request.urlopen(f'{started["url"]}/api/openapi.json', timeout=30) as response:
+            schema = json.load(response)
+    finally:
+        stopped = result(await client.call_tool('stop_server', {'which': 'backend'}))
+    assert any(path.startswith('/api/v1/') for path in schema['paths'])
+    assert stopped['stopped'] is True and gone(started['pid'])
+
+
+def test_the_servers_end_with_bazis_mcp(shop, tmp_path):
+    """
+    A server process that ends stops the servers it started (atexit), with their children.
+    """
+    port = project.read_ports(shop)['backend']
+    script = f"""\
+import os, sys
+from pathlib import Path
+from bazis.contrib.mcp import processes, project
+
+project.configure(Path({str(shop)!r}))
+processes.server_command = lambda which, directory: (
+    [sys.executable, '-c', {SERVE!r}, '{port}', 'plain'], directory, dict(os.environ), {port}
+)
+print(processes.start('backend')['pid'], flush=True)
+"""
+    done = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, timeout=60)
+
+    assert done.returncode == 0, done.stderr
+    pid = int(done.stdout.strip())
+    child = child_of((shop / '.bazis' / 'logs' / 'backend.log').read_text())
+    assert gone(pid) and gone(child)

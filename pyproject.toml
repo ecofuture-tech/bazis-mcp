@@ -39,6 +39,7 @@ classifiers = [
     "Framework :: FastAPI",
 ]
 dependencies = [
+    "anyio>=4.0",  # the progress of the commands, reported from the worker thread of a tool
     "mcp>=2.0",
     "python-dotenv>=1.0",  # the names of the variables of .env, values in quotes on several lines too
 ]

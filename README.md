@@ -15,11 +15,15 @@ check a Bazis project from the project itself rather than from memory:
 - the programs a project needs on this machine (Python, uv, Node.js, PostgreSQL, Redis,
   GDAL, gettext) and their installation with the package manager, once the user agrees;
 - a new project created from the conversation (the skeleton, `.venv`, the database), or an
-  existing one chosen, with the rules of Bazis for the agent and its task.
+  existing one chosen, with the rules of Bazis for the agent and its task;
+- for a client without a shell or files of its own: the files of the project, its
+  commands from a closed table, its servers and its Bazis packages.
 
 The tools only read, but `create_project`, which writes a new project, `use_project`,
-which chooses the project of the next calls, and `install_tools`, which installs programs
-of the machine. The agent changes the files itself and checks the result with the server.
+which chooses the project of the next calls, `install_tools`, which installs programs of
+the machine, and the tools of the project: `add_packages`, `run_command`, `start_server`,
+`stop_server` and `write_file`. They never run a command of the caller: the commands come
+from closed tables, as argv without a shell, and the files stay in the project directory.
 
 ## Installation
 
@@ -76,10 +80,14 @@ still work and the project tools return the error.
 
 | Tool | Returns |
 |---|---|
-| `check_machine()` | The programs a project needs on this machine, found without changing anything: for each one what it is `required_for`, its `status` (`ok`, `missing`, `old`, `stopped` for a server), what was `found`, the `install_command` of the package `manager` (Homebrew on macOS, apt on Debian and Ubuntu; null without one) and `needs_sudo`; `missing` names those not `ok` |
-| `install_tools(names, confirmed_by_user)` | Runs the `install_command` of the programs `names` of `check_machine`, and nothing else, once the user agrees: the client asks the user when it supports elicitation, else `confirmed_by_user` must be true; without that nothing runs and `to_confirm` lists the commands. A command with sudo, a Homebrew this user cannot run or no package manager: `run_yourself` gives the command (or null) for the user to run |
+| `check_machine()` | The programs a project needs on this machine, found without changing anything: for each one what it is `required_for`, its `status` (`ok`, `missing`, `old`, `stopped` for a server), what was `found`, the `install_command` of the package `manager` (Homebrew on macOS, apt on Debian and Ubuntu; null without one, and for the Python of a project, whose `.venv` is created again) and `needs_sudo`; `missing` names those not `ok` |
+| `install_tools(names, confirmed_by_user)` | Runs the `install_command` of the programs `names` of `check_machine`, and nothing else, in the order of `check_machine`, once the user agrees: the client asks the user when it supports elicitation, else `confirmed_by_user` must be true; without that nothing runs and `to_confirm` lists the commands. A command with sudo, a Homebrew this user cannot run or no package manager: `run_yourself` gives the command (or null) for the user to run |
 | `create_project(directory, description, name, frontend, language)` | Creates a project in a new or empty directory (an absolute path, not a temporary one nor inside another project) and serves it: the skeleton (with bazis-front unless `frontend` is false), `.venv` installed from PyPI, the project package `name` and the `language` checked with the Python of the project, the database when PostgreSQL is reachable, the ports; a failed step leaves the directory as it was. Returns the facts, the `rules` and the task `next_steps` |
 | `use_project(directory)` | Serves an existing project (the directory of its `manage.py`): its status and its `rules`; the project of the command line keeps its `--settings` and `--python` |
+| `add_packages(names)` | Adds the Bazis packages `names` (names of the catalog) and those they require to `requirements.txt`, with the version of the catalog as the minimum, installs `requirements-dev.txt` from PyPI into `.venv` and raises the minimums to the installed releases; when pip fails, `requirements.txt` stays as it was. The apps and settings are added by the agent as the guides say |
+| `run_command(kind, args)` | Runs a command of a closed table as argv without a shell, with a timeout of 600 seconds and its progress reported: `manage` (makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, `bazis_front <subcommand>`, `bazis_messages <subcommand>`), `pytest`, `pip` (`install -r requirements-dev.txt` only) in the project directory; `npm` (the scripts build, lint, test, e2e, format) and `npx` (`tsc --noEmit`, `playwright install chromium`) in `frontend/`. The arguments have no character of a shell, no `..` and no path outside the project. `E2E_PORT` (`.bazis/ports.json`) and `E2E_PASSWORD` (`.env`) are set by the server, never shown. Returns `exit_code`, `ok`, `timed_out` and the ends of `stdout` and `stderr` |
+| `start_server(which)`, `stop_server(which)`, `server_logs(which, lines)` | The `backend` (`uvicorn <package>.main:app`) and the dev server of the `frontend` (`npm run dev`) on their ports of `.bazis/ports.json`, in the background, their output in `.bazis/logs/<which>.log`; refused when the port is taken by another process. Stopped with the processes they started (SIGTERM, then SIGKILL), and when bazis-mcp ends |
+| `read_file(path)`, `write_file(path, content)`, `list_files(subdir)` | The files of the project directory (symbolic links resolved): `.env` is never read nor written, `.venv/`, `.git/`, `contract/` and the `generated/` directories are never written; a file read fits in a result (about 40,000 bytes), a file written has at most 1,000,000 bytes |
 | `project_status()` | The project served: `directory`, `settings`, `python`, `frontend`, `ports`, and `env_keys`, the names of the variables of `.env` (never their values; null without `.env` or for a `.env` that links outside the project, `env_reason` says which) |
 | `list_packages` | Every Bazis package: `summary`, `solves`, `requires`, `pairs_well`, `installed_version`, `catalog_version`, `guide_version` |
 | `package_guide(name, section)` | The `AGENTS.md` and the manifest of a package (`bazis` for the core), with the titles of its `sections`; a guide with sections whose result would be over 12,000 bytes of JSON comes as its introduction (`complete` false), and `section` returns one section |

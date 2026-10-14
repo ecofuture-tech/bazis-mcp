@@ -27,6 +27,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+import anyio.from_thread
+
 from mcp.server.mcpserver import (
     AcceptedElicitation,
     Context,
@@ -38,7 +40,20 @@ from mcp.server.mcpserver import (
 from mcp.server.mcpserver.exceptions import ResourceError, ResourceNotFoundError, ToolError
 from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
 
-from . import __version__, catalog, front, machine, project, prompts, rules, scaffold, search
+from . import (
+    __version__,
+    catalog,
+    commands,
+    files,
+    front,
+    machine,
+    processes,
+    project,
+    prompts,
+    rules,
+    scaffold,
+    search,
+)
 
 
 INSTRUCTIONS = """\
@@ -66,8 +81,15 @@ conversation (`project_status` says which); without one they answer "No project"
   `rules` it returns. The user goes on with the next changes in this conversation: each
   one on the same project, ending with the final checks of the rules.
 - The rules speak of the current directory: it is the project directory. Change only the
-  files in it and run the commands of the rules there. Never read `.env`:
+  files in it (`read_file`, `write_file`, `list_files`). Never read `.env`:
   `project_status` gives the names of its variables.
+- Run the commands of the rules only with `run_command`: `.venv/bin/python manage.py
+  <command> <options>` is `run_command("manage", ["<command>", "<options>"])`, the tests
+  `run_command("pytest")`, the commands in `frontend/` `run_command("npm", ["build"])` and
+  `run_command("npx", ["tsc", "--noEmit"])`; it sets `E2E_PORT` and `E2E_PASSWORD` itself.
+  Start and stop the backend and the dev server of the frontend with `start_server` and
+  `stop_server` (`server_logs` shows their output), add Bazis packages with
+  `add_packages`. Never run a command in another way.
 - End every task with the summary in the sections the rules name.
 
 - Choose packages with `list_packages` (what each one solves and requires), then read the
@@ -99,11 +121,31 @@ CREATES = ToolAnnotations(
 CHOOSES = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
 )
-#: installs programs on the machine (from the package manager) and starts its servers
+#: installs programs on the machine (from the package manager) and starts its servers, or the
+#: packages of the project (from PyPI)
 INSTALLS = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True
 )
+#: runs a command of the closed table: it may change the files and the database of the project
+#: (migrate, bazis_front) and download (npm, npx, pip)
+RUNS = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True
+)
+#: starts a server of the project in the background
+STARTS = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
+)
+#: stops a server that `start_server` started
+STOPS = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+)
+#: writes a file of the project, replacing it
+WRITES = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False
+)
 PROGRAMS = Literal[tuple(machine.REQUIRED_FOR)]
+KINDS = Literal[commands.KINDS]
+SERVERS = Literal[processes.SERVERS]
 CONFIRMED_BY_USER = (
     'True only after the user explicitly said yes in this conversation to installing these '
     'programs; never on your own'
@@ -231,6 +273,112 @@ def project_status() -> dict:
     `.env` or for a `.env` outside the project directory, `env_reason` says which).
     """
     return _project_call(project.status)
+
+
+def _progress(ctx: Context):
+    """
+    Reports to the client the seconds a command has run (from the worker thread of a tool).
+    """
+    def report(elapsed: float) -> None:
+        anyio.from_thread.run(ctx.report_progress, elapsed, None, f'{int(elapsed)} s')
+
+    return report
+
+
+@server.tool(annotations=INSTALLS)
+def add_packages(names: list[str], ctx: Context) -> dict:
+    """
+    Adds the Bazis packages `names` (names of `list_packages`) with the Bazis packages they
+    require to `requirements.txt` of the project, those it does not name yet, with the
+    version of the catalog as the minimum, installs `requirements-dev.txt` from PyPI into
+    `.venv` and raises the minimums to the installed releases. `added` lists the lines
+    written, `required` the packages named already, `installed` the installed versions and
+    `install` the result of pip; when pip fails, `requirements.txt` stays as it was. Then
+    add the apps and settings their guides name (`BS_INSTALLED_APPS`) yourself.
+    """
+    return _project_call(commands.add_packages, names, _progress(ctx))
+
+
+@server.tool(annotations=RUNS)
+def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dict:
+    """
+    Runs a command of the project from a closed table, as argv without a shell, with a
+    timeout of 600 seconds: `manage` (`.venv/bin/python manage.py` with `args`, whose first
+    is makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, or bazis_front
+    or bazis_messages with their subcommand), `pytest` (`.venv/bin/python -m pytest
+    <args>`), `pip` (`args` only `["install", "-r", "requirements-dev.txt"]`) in the project
+    directory; `npm` (`npm run <args>`, the scripts build, lint, test, e2e, format) and `npx`
+    (`args` only `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`) in
+    `frontend/`. The arguments are plain words (no character of a shell, no `..`, no path
+    outside the project); a command never reads stdin: pass `--noinput` where Django asks.
+    `E2E_PORT` (`.bazis/ports.json`) and `E2E_PASSWORD` (`.env`) are set by the server,
+    never shown. Returns `exit_code`, `ok`, `timed_out` and the ends of `stdout` and
+    `stderr`. The servers are started with `start_server`, not here.
+    """
+    return _project_call(commands.run, kind, args or [], _progress(ctx))
+
+
+@server.tool(annotations=STARTS)
+def start_server(which: SERVERS) -> dict:
+    """
+    Starts in the background the `backend` (`uvicorn <project package>.main:app`) or the dev
+    server of the `frontend` (`npm run dev` in `frontend/`) on its port of
+    `.bazis/ports.json`, its output in `.bazis/logs/<which>.log`, and waits up to 60 seconds
+    for its port: `pid`, `port`, `url`, `running`, `ready` (the port answers), and when it
+    ended at once its `exit_code` and `output`. Refused when it runs already or another
+    process has its port. Stop it with `stop_server`; the servers end with bazis-mcp.
+    """
+    return _project_call(processes.start, which)
+
+
+@server.tool(annotations=STOPS)
+def stop_server(which: SERVERS) -> dict:
+    """
+    Stops the server `which` started by `start_server`, with the processes it started
+    (SIGTERM, then SIGKILL after 10 seconds): `stopped`, its `exit_code`, or the `reason`
+    when it was not running.
+    """
+    return _project_call(processes.stop, which)
+
+
+@server.tool(annotations=READ_ONLY)
+def server_logs(which: SERVERS, lines: Annotated[int, Field(ge=1, le=1000)] = 100) -> dict:
+    """
+    The last `lines` lines of the log of the server `which` (at most 20,000 bytes) and
+    whether it is `running`.
+    """
+    return _project_call(processes.logs, which, lines)
+
+
+@server.tool(annotations=READ_ONLY)
+def read_file(path: str) -> dict:
+    """
+    The text of a file of the project (`path` relative to the project directory, or
+    absolute in it), whole, up to about 40,000 bytes. `.env` is never read
+    (`project_status` gives the names of its variables), nor a path outside the project.
+    """
+    return _project_call(files.read, path)
+
+
+@server.tool(annotations=WRITES)
+def write_file(path: str, content: str) -> dict:
+    """
+    Writes `content` to a file of the project (`path` relative to the project directory),
+    replacing it, with the missing directories; up to 1,000,000 bytes. Never `.env`,
+    `.venv/`, `.git/`, `contract/` or a `generated/` directory (generated by the bazis_front
+    commands), nor a path outside the project. Returns `path`, `bytes` and `created`.
+    """
+    return _project_call(files.write, path, content)
+
+
+@server.tool(annotations=READ_ONLY)
+def list_files(subdir: str = '') -> dict:
+    """
+    The entries of a directory of the project (`subdir`, default the project directory):
+    `name`, `type` (`directory`, `file`, `link`, `other`) and the `size` of a file, at most
+    400 (`truncated`).
+    """
+    return _project_call(files.listing, subdir)
 
 
 @server.tool(annotations=READ_ONLY)
@@ -396,7 +544,8 @@ Call `check_machine` first; if programs are `missing`, list them to the user and
 `install_tools` only after the user agrees. Then ask for its directory unless it is named
 above (a new directory, never a temporary one), and call `create_project` with it, this
 description and the language of the description.
-Do its `next_steps` following its `rules` in the project directory.
+Do its `next_steps` following its `rules` in the project directory, with the commands of
+`run_command` and the servers of `start_server`.
 """
 
 
@@ -425,8 +574,9 @@ Add the Bazis package {name} to this project.
 
 1. Read its guide with `package_guide("{name}")` and the guides of the Bazis packages it
    requires that are not installed yet (`list_packages` shows them).
-2. Add the packages to the dependencies of the project, and the apps and settings the
-   guides name (`BS_INSTALLED_APPS`, `BS_BAZIS_APPS` if the project sets it).
+2. Install it with `add_packages(["{name}"])` (it adds the packages it requires too), then
+   add the apps and settings the guides name (`BS_INSTALLED_APPS`, `BS_BAZIS_APPS` if the
+   project sets it).
 3. Change the models and routes as the guide says, then create the migrations.
 4. Run `run_doctor` and the tests of the project; fix every error and every warning of
    the new package, or explain why a warning stays.
@@ -467,7 +617,8 @@ install it as the guide says first. The tools of the frontend layer take the pla
 commands that only read: `front_check` is `bazis_front check`, `front_status` says what is
 stale and the command that updates it, `front_catalog` lists the components. Run
 `run_doctor` after a change of the backend, and finish with the checks of the last step of
-the guide and the end-to-end tests against the running backend; fix every failure.
+the guide and the end-to-end tests against the running backend (`start_server("backend")`,
+then `run_command("npm", ["e2e"])`); fix every failure.
 """
 
 
