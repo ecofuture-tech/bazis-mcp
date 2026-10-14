@@ -277,3 +277,86 @@ time.sleep(60)
 
     assert bazis_mcp.wait(30) == -signum
     assert gone(pid) and gone(child)
+
+
+def test_the_servers_end_together_and_a_repeated_signal_waits(shop):
+    """
+    SIGTERM goes to all the servers before the wait for any of them, so that two servers that
+    ignore it are killed after STOP_TIMEOUT once, not after their sum; a signal that comes
+    meanwhile does not end bazis-mcp before all of them are stopped.
+    """
+    ports = project.read_ports(shop)
+    script = f"""\
+import os, sys, time
+from pathlib import Path
+from bazis.contrib.mcp import processes, project
+
+project.configure(Path({str(shop)!r}))
+processes.STOP_TIMEOUT = 4
+ports = {ports!r}
+processes.server_command = lambda which, directory: (
+    [sys.executable, '-c', {SERVE!r}, str(ports[which]), 'stubborn'], directory,
+    dict(os.environ), ports[which],
+)
+processes.stop_on_signals()
+print(*(processes.start(which)['pid'] for which in processes.SERVERS), flush=True)
+time.sleep(60)
+"""
+    bazis_mcp = subprocess.Popen([sys.executable, '-c', script], stdout=subprocess.PIPE, text=True)
+    pids = [int(pid) for pid in bazis_mcp.stdout.readline().split()]
+    children = [child_of((shop / '.bazis' / 'logs' / f'{which}.log').read_text())
+                for which in processes.SERVERS]
+
+    started = time.monotonic()
+    bazis_mcp.send_signal(signal.SIGTERM)
+    time.sleep(1)
+    bazis_mcp.send_signal(signal.SIGINT)
+
+    assert bazis_mcp.wait(30) == -signal.SIGTERM
+    assert time.monotonic() - started < 7
+    assert len(pids) == 2 and all([gone(pid) for pid in [*pids, *children]])
+
+
+#: a command: starts a child, writes its pid and that of the child to the file of its
+#: argument, and runs a minute
+COMMAND = """\
+import os, pathlib, subprocess, sys, time
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+pathlib.Path(sys.argv[1] + '.part').write_text(f'{os.getpid()} {child.pid}')
+os.replace(sys.argv[1] + '.part', sys.argv[1])
+time.sleep(60)
+"""
+
+
+@pytest.mark.parametrize('end', ['signal', 'exit'])
+def test_the_commands_end_with_bazis_mcp(tmp_path, end):
+    """
+    A command that runs (`run_command`, `add_packages`) is stopped with its children when
+    bazis-mcp ends by SIGTERM or by itself (atexit), as the servers are.
+    """
+    pid_file = tmp_path / 'command.pid'
+    script = f"""\
+import os, sys, threading, time
+from pathlib import Path
+from bazis.contrib.mcp import commands, processes
+
+processes.stop_on_signals()
+command = [sys.executable, '-c', {COMMAND!r}, {str(pid_file)!r}]
+threading.Thread(
+    target=commands.execute, args=(command, Path.cwd(), dict(os.environ)), daemon=True
+).start()
+while not Path({str(pid_file)!r}).exists():
+    time.sleep(0.1)
+print('running', flush=True)
+if {end!r} == 'signal':
+    time.sleep(60)
+"""
+    bazis_mcp = subprocess.Popen([sys.executable, '-c', script], cwd=tmp_path,
+                                 stdout=subprocess.PIPE, text=True)
+    assert bazis_mcp.stdout.readline() == 'running\n'
+    pids = [int(pid) for pid in pid_file.read_text().split()]
+
+    if end == 'signal':
+        bazis_mcp.send_signal(signal.SIGTERM)
+    assert bazis_mcp.wait(30) == (-signal.SIGTERM if end == 'signal' else 0)
+    assert all([gone(pid) for pid in pids])

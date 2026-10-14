@@ -100,7 +100,8 @@ The work on the project served (never a command or a path of the caller outside 
   The apps and settings (`BS_INSTALLED_APPS`) are added by the agent as the guides say.
 - `run_command(kind, args=[])` — a command of a closed table, as argv without a shell,
   with a timeout of 600 seconds (the group of its processes is killed then, and when the
-  call fails meanwhile, such as when the client is gone) and its progress reported every 5
+  call fails meanwhile, such as when the client is gone, or bazis-mcp ends, as the
+  servers do) and its progress reported every 5
   seconds: `manage` (`.venv/bin/python manage.py`: makemigrations,
   migrate, check, bazis_doctor, collectstatic, e2e_data, `bazis_front` with one of its
   subcommands, `bazis_messages` with one of its actions), `pytest` (`python -m pytest`) and
@@ -131,8 +132,10 @@ The work on the project served (never a command or a path of the caller outside 
   `pid`, `port`, `url`, `running`, `ready`, and the `exit_code` and `output` of a server
   that ended at once. Refused when it runs already or another process has its port.
 - `stop_server(which)` — SIGTERM to its group, SIGKILL after 10 seconds: `stopped` and
-  `exit_code`, or the `reason`. The servers started stop when bazis-mcp ends, also by
-  SIGTERM (as a client ends its server) or SIGINT. On Windows a process group is not
+  `exit_code`, or the `reason`. The servers started and the commands that run (of
+  `run_command` and `add_packages`) stop when bazis-mcp ends, also by SIGTERM (as a client
+  ends its server) or SIGINT: all together, SIGTERM to every group, then SIGKILL after 10
+  seconds; a signal that comes meanwhile waits for that. On Windows a process group is not
   stopped: only the process itself is (the processes it started, such as the node of
   `npm run dev` or of a command over its timeout, may stay), so the servers and the long
   commands are not supported there.

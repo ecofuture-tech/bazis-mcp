@@ -15,9 +15,11 @@
 """
 The servers of the project served, run in the background: the backend (uvicorn) and the dev
 server of the frontend (vite), each on its port of `.bazis/ports.json`, in a new process
-group with its output in `.bazis/logs/<server>.log`. The registry `RUNNING` has those this
-server started: they are stopped by `stop` (the whole group, SIGTERM then SIGKILL) and when
-the server ends (`atexit`, and `stop_on_signals` for SIGTERM and SIGINT).
+group with its output in `.bazis/logs/<server>.log`. The registry has the process groups this
+server started: the servers by name (`RUNNING`) and the commands that run (`COMMANDS`, of
+`commands.execute`). A server is stopped by `stop` (the whole group, SIGTERM then SIGKILL);
+all of them are stopped together when this server ends (`stop_all`: `atexit`, and
+`stop_on_signals` for SIGTERM and SIGINT).
 """
 
 import atexit
@@ -51,8 +53,12 @@ class Server:
 
 #: the servers started by this server, by name
 RUNNING: dict[str, Server] = {}
-#: one change of `RUNNING` at a time (the tools run in worker threads)
+#: the commands that run, each in its process group
+COMMANDS: set[subprocess.Popen] = set()
+#: one change of `RUNNING` and `COMMANDS` at a time (the tools run in worker threads)
 LOCK = threading.Lock()
+#: the signals that end this server once `stop_all` is done (`stop_on_signals`)
+SIGNALS = (signal.SIGTERM, signal.SIGINT)
 
 
 def signal_group(process: subprocess.Popen, kill: bool = False) -> None:
@@ -72,18 +78,23 @@ def signal_group(process: subprocess.Popen, kill: bool = False) -> None:
         pass
 
 
-def terminate(process: subprocess.Popen) -> int:
+def terminate(*group: subprocess.Popen) -> None:
     """
-    Stops the process group of `process`: SIGTERM, then SIGKILL to what is left after
-    STOP_TIMEOUT seconds or after the process ended. Returns its exit code.
+    Stops the process groups of `group` together: SIGTERM to each one, then SIGKILL to what
+    is left of each one after STOP_TIMEOUT seconds or once they all ended, so that stopping
+    them takes as long as the slowest one, not their sum.
     """
-    signal_group(process)
-    try:
-        process.wait(STOP_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        pass
-    signal_group(process, kill=True)
-    return process.wait()
+    for process in group:
+        signal_group(process)
+    deadline = time.monotonic() + STOP_TIMEOUT
+    for process in group:
+        try:
+            process.wait(max(deadline - time.monotonic(), 0))
+        except subprocess.TimeoutExpired:
+            pass
+    for process in group:
+        signal_group(process, kill=True)
+        process.wait()
 
 
 def server_command(which: str, directory: Path) -> tuple[list[str], Path, dict[str, str], int]:
@@ -172,19 +183,20 @@ def stop(which: str) -> dict:
     if server.process.poll() is not None:
         return {'which': which, 'stopped': False, 'exit_code': server.process.returncode,
                 'reason': f'The {which} had ended already.'}
-    return {'which': which, 'stopped': True, 'exit_code': terminate(server.process)}
+    terminate(server.process)
+    return {'which': which, 'stopped': True, 'exit_code': server.process.returncode}
 
 
 def stop_all() -> None:
     """
-    Stops every server started by `start` (at the end of this server).
+    Stops every server started by `start` and every command that runs, together
+    (`terminate`), at the end of this server.
     """
     with LOCK:
-        servers = list(RUNNING.values())
+        group = [server.process for server in RUNNING.values()] + list(COMMANDS)
         RUNNING.clear()
-    for server in servers:
-        if server.process.poll() is None:
-            terminate(server.process)
+        COMMANDS.clear()
+    terminate(*(process for process in group if process.poll() is None))
 
 
 atexit.register(stop_all)
@@ -192,16 +204,20 @@ atexit.register(stop_all)
 
 def stop_on_signals() -> None:
     """
-    Stops the servers started (`stop_all`) when this process gets SIGTERM, as a client sends
-    to end its server, or SIGINT, then ends it by that signal: `atexit` runs only when the
-    process ends by itself. In the main thread, before the server runs.
+    Stops the servers started and the commands that run (`stop_all`) when this process gets
+    a signal of SIGNALS (SIGTERM, as a client sends to end its server, or SIGINT), then ends
+    it by that signal: `atexit` runs only when the process ends by itself. The signals that
+    come meanwhile are ignored, so that a repeated one does not end it before all are
+    stopped. In the main thread, before the server runs.
     """
     def stopped(signum, frame):
+        for each in SIGNALS:
+            signal.signal(each, signal.SIG_IGN)
         stop_all()
         signal.signal(signum, signal.SIG_DFL)
         signal.raise_signal(signum)
 
-    for signum in (signal.SIGTERM, signal.SIGINT):
+    for signum in SIGNALS:
         signal.signal(signum, stopped)
 
 

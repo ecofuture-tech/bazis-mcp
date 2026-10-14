@@ -280,14 +280,18 @@ def execute(
     `progress` every PROGRESS_INTERVAL, and kills the group after TIMEOUT seconds: the
     `exit_code` (null after the timeout), `ok`, `timed_out` and the ends of `stdout` and
     `stderr` (`tail`). On an exception, such as one of `progress`, the group is killed too.
+    While it runs, the command is in `processes.COMMANDS`, stopped with the servers when this
+    server ends.
     """
-    try:
-        process = subprocess.Popen(
-            command, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, errors='replace', start_new_session=True,
-        )
-    except OSError as err:
-        raise project.ProjectError(f'{command[0]} cannot be run: {err}') from err
+    with processes.LOCK:
+        try:
+            process = subprocess.Popen(
+                command, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, errors='replace', start_new_session=True,
+            )
+        except OSError as err:
+            raise project.ProjectError(f'{command[0]} cannot be run: {err}') from err
+        processes.COMMANDS.add(process)
     started = time.monotonic()
     timed_out = False
     try:
@@ -308,6 +312,9 @@ def execute(
         processes.signal_group(process, kill=True)
         process.wait()
         raise
+    finally:
+        with processes.LOCK:
+            processes.COMMANDS.discard(process)
     return {
         'command': shlex.join(command),
         'directory': str(cwd),
