@@ -11,6 +11,7 @@ solves = [
     "an AI agent checks the project after a change",
     "an AI agent checks the frontend specs, finds the stale parts of the frontend and chooses its components (bazis-front)",
     "an AI agent creates a Bazis project from the conversation, or chooses the existing one it changes",
+    "an AI agent finds the programs a project needs on the machine and installs them once the user agrees",
 ]
 requires = ["bazis"]
 pairs_well = []
@@ -30,6 +31,9 @@ text = "the project tools run the management commands with .venv of the project 
 
 [[pitfalls]]
 text = "the guides of packages that are not installed come from a snapshot taken at the release of bazis-mcp"
+
+[[pitfalls]]
+text = "install_tools runs only the commands of its table (Homebrew); the commands with sudo (apt) and a machine without a package manager are left to the user (run_yourself)"
 
 [[pitfalls]]
 text = "a server started outside a project serves none: the tools answer No project until create_project or use_project"

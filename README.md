@@ -12,12 +12,14 @@ check a Bazis project from the project itself rather than from memory:
   from bazis 2.13 also those against its database;
 - its frontend layer made by bazis-front: the issues of the specs, what is stale and the
   components that can be added (`manage.py bazis_front`);
+- the programs a project needs on this machine (Python, uv, Node.js, PostgreSQL, Redis,
+  GDAL, gettext) and their installation with the package manager, once the user agrees;
 - a new project created from the conversation (the skeleton, `.venv`, the database), or an
   existing one chosen, with the rules of Bazis for the agent and its task.
 
-The tools only read, but `create_project`, which writes a new project, and `use_project`,
-which chooses the project of the next calls. The agent changes the files itself and checks
-the result with the server.
+The tools only read, but `create_project`, which writes a new project, `use_project`,
+which chooses the project of the next calls, and `install_tools`, which installs programs
+of the machine. The agent changes the files itself and checks the result with the server.
 
 ## Installation
 
@@ -74,6 +76,8 @@ still work and the project tools return the error.
 
 | Tool | Returns |
 |---|---|
+| `check_machine()` | The programs a project needs on this machine, found without changing anything: for each one what it is `required_for`, its `status` (`ok`, `missing`, `old`, `stopped` for a server), what was `found`, the `install_command` of the package `manager` (Homebrew on macOS, apt on Debian and Ubuntu; null without one) and `needs_sudo`; `missing` names those not `ok` |
+| `install_tools(names, confirmed_by_user)` | Runs the `install_command` of the programs `names` of `check_machine`, and nothing else, once the user agrees: the client asks the user when it supports elicitation, else `confirmed_by_user` must be true; without that nothing runs and `to_confirm` lists the commands. A command with sudo, a Homebrew this user cannot run or no package manager: `run_yourself` gives the command (or null) for the user to run |
 | `create_project(directory, description, name, frontend, language)` | Creates a project in a new or empty directory (an absolute path, not a temporary one nor inside another project) and serves it: the skeleton (with bazis-front unless `frontend` is false), `.venv` installed from PyPI, the project package `name` and the `language` checked with the Python of the project, the database when PostgreSQL is reachable, the ports; a failed step leaves the directory as it was. Returns the facts, the `rules` and the task `next_steps` |
 | `use_project(directory)` | Serves an existing project (the directory of its `manage.py`): its status and its `rules`; the project of the command line keeps its `--settings` and `--python` |
 | `project_status()` | The project served: `directory`, `settings`, `python`, `frontend`, `ports`, and `env_keys`, the names of the variables of `.env` (never their values; null without `.env` or for a `.env` that links outside the project, `env_reason` says which) |

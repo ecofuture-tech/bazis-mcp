@@ -2,8 +2,9 @@
 
 The MCP server of a Bazis project (`bazis-mcp` command, `MCPServer` of the official `mcp`
 SDK 2.x): the catalog of the Bazis packages and the facts and system checks of the
-project, for AI agents, and the project of the conversation: `create_project` writes a new
-one, `use_project` chooses an existing one; the other tools only read.
+project, for AI agents, the project of the conversation (`create_project` writes a new
+one, `use_project` chooses an existing one) and the programs of the machine
+(`check_machine`, `install_tools`); the other tools only read.
 
 - `bazis/contrib/mcp/server.py` — the tools, the resources, the prompts and `main()`;
 - `bazis/contrib/mcp/catalog.py` — the packages installed in the Python of the project
@@ -23,6 +24,12 @@ one, `use_project` chooses an existing one; the other tools only read.
   `bazis.core.introspect` and the system checks. The project served is global state of
   the process (the tools run in worker threads): `create` and `use` change it under
   `CHANGE_LOCK`, one at a time, and `use` reads the facts of a project before serving it;
+- `bazis/contrib/mcp/machine.py` — the programs a project needs on this machine (`check`,
+  without writing anything) and their installation (`plan`, `install`): only the commands
+  of the closed table `COMMANDS` (Homebrew; apt, whose sudo commands go to the user), as
+  argv without a shell, never a command of the caller. `install_tools` gets the consent of
+  the user through `Resolve` (`Elicit` when the client supports elicitation, on every
+  protocol of the SDK), else `confirmed_by_user`;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
   `bazis_front status` (its issues grouped by their `command`) and the registry of the
   assets;

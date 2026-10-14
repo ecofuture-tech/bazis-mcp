@@ -34,18 +34,21 @@ pytestmark = pytest.mark.anyio
 
 async def test_tool_annotations(client):
     """
-    The tools only read, but those that create the project or choose it; only
-    `create_project` reaches outside the machine (PyPI).
+    The tools only read, but those that create the project or choose it and install the
+    programs of the machine; only `create_project` and `install_tools` reach outside the
+    machine (PyPI, the package manager).
     """
     tools = {it.name: it.annotations for it in (await client.list_tools()).tools}
     assert {name for name, it in tools.items() if it.read_only_hint} == {
         'list_packages', 'package_guide', 'guide_search', 'project_info', 'run_doctor',
-        'front_check', 'front_status', 'front_catalog', 'project_status',
+        'front_check', 'front_status', 'front_catalog', 'project_status', 'check_machine',
     }
     assert {name for name, it in tools.items() if not it.read_only_hint} == {
-        'create_project', 'use_project'
+        'create_project', 'use_project', 'install_tools'
     }
-    assert {name for name, it in tools.items() if it.open_world_hint} == {'create_project'}
+    assert {name for name, it in tools.items() if it.open_world_hint} == {
+        'create_project', 'install_tools'
+    }
     assert not tools['create_project'].destructive_hint
     assert not tools['create_project'].idempotent_hint
     assert not tools['use_project'].destructive_hint and tools['use_project'].idempotent_hint

@@ -3,8 +3,9 @@
 The MCP server of a Bazis project. It gives an agent the catalog of the Bazis packages
 (also the ones not installed) with their guides, and the facts and system checks of the
 project it serves: the one it runs in, or the one created (`create_project`) or chosen
-(`use_project`) in the conversation. The other tools only read; the agent changes the
-files itself.
+(`use_project`) in the conversation, and the programs a project needs on the machine
+(`check_machine`), installed once the user agrees (`install_tools`). The other tools only
+read; the agent changes the files itself.
 
 ## Setup
 
@@ -27,6 +28,25 @@ see the current code) with the Python of the project: `--python`, else `.venv` o
 of its parent, else the Python of the server. It is not a Django app: do not add it to `BS_INSTALLED_APPS`.
 
 ## Tools
+
+The programs of the machine:
+
+- `check_machine()` — the programs a project needs here, found without changing anything:
+  `python` (that of the project, else that of the server, 3.12 or newer), `uv`, `node`
+  (with npm, for the frontend), `postgresql`, `postgresql-service` (a server on port 5432),
+  `redis`, `redis-service` (port 6379), `gdal`, `gettext`. For each one `required_for`,
+  `status` (`ok`, `missing`, `old`, `stopped` for a server), `found`, `install_command`
+  (from the closed table of the package `manager`: Homebrew on macOS, apt on Debian and
+  Ubuntu; null without one) and `needs_sudo`; `missing` names those not `ok`.
+- `install_tools(names, confirmed_by_user=False)` — runs the `install_command` of the
+  programs `names` (names of `check_machine`; a server is started by its `-service` name),
+  never another command, as argv without a shell, once the user agrees: the client asks
+  the user when it supports elicitation, else `confirmed_by_user` must be true, set only
+  after the user said yes in the conversation. Without that nothing runs and `to_confirm`
+  lists the commands. `installed` has the result of each command (`ok`, the end of its
+  `output`); `run_yourself` the programs it does not install (a command with sudo, as all
+  those of apt, a Homebrew this user cannot run, no package manager or no command in it)
+  with the `reason` and the command for the user, or null.
 
 The project of the conversation:
 
@@ -113,6 +133,9 @@ bazis-front).
 
 ## Rules
 
+- Before creating a project, call `check_machine`; list the `missing` programs to the user
+  with what they are for and their `install_command`, and call `install_tools` only after
+  the user said yes. Give the user the `run_yourself` commands, then check again.
 - Without a project, create it (`create_project`) or choose it (`use_project`) first; the
   rules speak of the current directory: it is `directory` of the project. Change only the
   files in it, and never read `.env` (`project_status` gives the names of its variables).

@@ -462,6 +462,7 @@ async def test_project_prompts(client, monkeypatch, tmp_path):
     text = prompt.messages[0].content.text
     assert text.startswith('Create a Bazis project: A shop of books\n')
     assert '`create_project`' in text and '`next_steps`' in text
+    assert text.index('`check_machine`') < text.index('`install_tools`') < text.index('`create_project`')
 
     # the project served, without a frontend
     prompt = await client.get_prompt('change_project', {'request': 'Add coupons'})

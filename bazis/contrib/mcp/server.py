@@ -21,16 +21,24 @@ Run in the project directory, or anywhere to create a project: `bazis-mcp` (see 
 """
 
 import argparse
+import shlex
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import (
+    AcceptedElicitation,
+    Context,
+    Elicit,
+    ElicitationResult,
+    MCPServer,
+    Resolve,
+)
 from mcp.server.mcpserver.exceptions import ResourceError, ResourceNotFoundError, ToolError
-from mcp.types import ToolAnnotations
+from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
 
-from . import __version__, catalog, front, project, prompts, rules, scaffold, search
+from . import __version__, catalog, front, machine, project, prompts, rules, scaffold, search
 
 
 INSTRUCTIONS = """\
@@ -41,11 +49,17 @@ packages the project needs.
 The tools work on one project, the one the server was started in or the one chosen in the
 conversation (`project_status` says which); without one they answer "No project".
 
-- A new application: ask for its directory unless the user named one (a new directory,
-  never a temporary one; else the current working directory of the conversation under a
-  new name), then call `create_project` with it, the description of the user and the
-  `language` of the description (its code, such as `ru`; `frontend` false only for a
-  backend without screens).
+- A new application: call `check_machine` first. If programs are `missing`, list them to
+  the user with what each one is for and its `install_command`, and ask whether to install
+  them; only after the user says yes in this conversation call `install_tools` with their
+  names (`confirmed_by_user` true; the client may ask the user itself). Give the user the
+  `run_yourself` commands it returns (sudo, or no package manager) to run, then call
+  `check_machine` again. Never install anything in another way.
+- Then ask for the directory of the application unless the user named one (a new
+  directory, never a temporary one; else the current working directory of the
+  conversation under a new name), and call `create_project` with it, the description of
+  the user and the `language` of the description (its code, such as `ru`; `frontend`
+  false only for a backend without screens).
   It writes the skeleton, installs `.venv`, creates the database and serves the new
   project: do its `next_steps` following its `rules`.
 - An existing project: `use_project(directory)`, then do what is asked following the
@@ -85,6 +99,11 @@ CREATES = ToolAnnotations(
 CHOOSES = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
 )
+#: installs programs on the machine (from the package manager) and starts its servers
+INSTALLS = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True
+)
+PROGRAMS = Literal[tuple(machine.REQUIRED_FOR)]
 
 server = MCPServer('bazis', instructions=INSTRUCTIONS, version=__version__)
 
@@ -101,6 +120,67 @@ def _project_call(func, *args):
         return func(*args)
     except project.ProjectError as err:
         raise ToolError(str(err)) from err
+
+
+class Confirmation(BaseModel):
+    install: bool = Field(description='Run these commands on this machine')
+
+
+@server.tool(annotations=READ_ONLY)
+def check_machine() -> dict:
+    """
+    The programs a Bazis project needs on this machine, found without changing anything:
+    `python` (that of the project, 3.12 or newer), `uv`, `node` (with npm, for the
+    frontend), `postgresql` and `postgresql-service` (the server running on port 5432),
+    `redis` and `redis-service` (port 6379), `gdal` and `gettext`. For each one: what it is
+    `required_for`, its `status` (`ok`, `missing`, `old`, or `stopped` for a server), what
+    was `found`, the `install_command` of the package `manager` of the machine (Homebrew,
+    apt; null without one) and whether it `needs_sudo`. `missing` names those not `ok`:
+    list them to the user and ask before `install_tools`.
+    """
+    return machine.check()
+
+
+def _confirmation(
+    names: list[PROGRAMS], confirmed_by_user: bool, ctx: Context
+) -> Confirmation | Elicit[Confirmation]:
+    """
+    Whether the user agrees to the commands of `install_tools`: asked by the client when it
+    supports elicitation (on every protocol: a request during the call, or the input
+    required by the call), else `confirmed_by_user`.
+    """
+    runs, _ = machine.plan(names)
+    if runs and ctx.session.check_client_capability(
+        ClientCapabilities(elicitation=ElicitationCapability())
+    ):
+        return Elicit(
+            'bazis-mcp will run on this machine:\n'
+            + '\n'.join(shlex.join(command) for _, command in runs),
+            Confirmation,
+        )
+    return Confirmation(install=confirmed_by_user)
+
+
+@server.tool(annotations=INSTALLS)
+def install_tools(
+    names: list[PROGRAMS],
+    confirmation: Annotated[ElicitationResult[Confirmation], Resolve(_confirmation)],
+    confirmed_by_user: bool = False,
+) -> dict:
+    """
+    Installs or starts the programs `names` of `check_machine` with its `install_command`
+    only, once the user agrees: the client asks the user when it can, else
+    `confirmed_by_user` must be true, set only after the user said yes in the conversation.
+    Without that nothing runs and `to_confirm` lists the commands to confirm. `installed`
+    has the result of each command run (`ok`, the end of its `output`); `run_yourself` the
+    programs not installed here with the `reason` and the command for the user (one that
+    needs sudo, or a Homebrew this user cannot run; null without a package manager).
+    """
+    runs, refused = machine.plan(names)
+    if runs and not (isinstance(confirmation, AcceptedElicitation) and confirmation.data.install):
+        commands = [{'name': name, 'command': shlex.join(command)} for name, command in runs]
+        return {'installed': [], 'to_confirm': commands, 'run_yourself': refused}
+    return {'installed': machine.install(runs), 'to_confirm': [], 'run_yourself': refused}
 
 
 @server.tool(annotations=CREATES)
@@ -306,8 +386,10 @@ def new_project(description: str) -> str:
     return f"""\
 Create a Bazis project: {description}
 
-Ask for its directory unless it is named above (a new directory, never a temporary one),
-then call `create_project` with it, this description and the language of the description.
+Call `check_machine` first; if programs are `missing`, list them to the user and call
+`install_tools` only after the user agrees. Then ask for its directory unless it is named
+above (a new directory, never a temporary one), and call `create_project` with it, this
+description and the language of the description.
 Do its `next_steps` following its `rules` in the project directory.
 """
 
