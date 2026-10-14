@@ -17,6 +17,8 @@ The helpers of the tests of the tools.
 """
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -39,3 +41,23 @@ def result(call_result):
     """
     assert not call_result.is_error, call_result.content
     return json.loads(call_result.content[0].text)
+
+
+def make_venv(directory: Path, with_packages: bool = True) -> Path:
+    """
+    A `.venv` in `directory` made without installing anything, and its Python: with the
+    packages of the tests (their site-packages added by a `.pth` file), as `.venv` of a
+    project that `scaffold.create_venv` installed, or without any.
+    """
+    venv = directory / '.venv'
+    subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(venv)], check=True)
+    if with_packages:
+        sites = [it for it in sys.path if it.endswith('site-packages')]
+        (site_packages(venv) / 'tests.pth').write_text(
+            ''.join(f'import site; site.addsitedir({it!r})\n' for it in sites)
+        )
+    return venv / 'bin' / 'python'
+
+
+def site_packages(venv: Path) -> Path:
+    return next(venv.glob('lib/python*/site-packages'))

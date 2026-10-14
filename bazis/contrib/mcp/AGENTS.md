@@ -2,7 +2,9 @@
 
 The MCP server of a Bazis project. It gives an agent the catalog of the Bazis packages
 (also the ones not installed) with their guides, and the facts and system checks of the
-project it runs in. All tools only read; the agent changes the files itself.
+project it serves: the one it runs in, or the one created (`create_project`) or chosen
+(`use_project`) in the conversation. The other tools only read; the agent changes the
+files itself.
 
 ## Setup
 
@@ -14,13 +16,38 @@ starts it in its own working directory):
 claude mcp add bazis -- .venv/bin/bazis-mcp --project-dir <directory of manage.py>
 ```
 
+Without a project (`uvx bazis-mcp`, started anywhere) it serves none until the agent calls
+`create_project` or `use_project`: the other tools answer "No project: call create_project
+or use_project".
+
 `bazis-mcp [--project-dir DIR] [--settings MODULE]` serves the project in `DIR` (default:
-the current directory) with `project.env` and the settings module of `manage.py` (or
+the current directory when it has `manage.py`) with `project.env` and the settings module of `manage.py` (or
 `DJANGO_SETTINGS_MODULE`). The project tools run its management commands at every call (so they
 see the current code) with the Python of the project: `--python`, else `.venv` of `DIR` or
 of its parent, else the Python of the server. It is not a Django app: do not add it to `BS_INSTALLED_APPS`.
 
 ## Tools
+
+The project of the conversation:
+
+- `create_project(directory, description, name=None, frontend=True, language=None)` — a
+  new project in `directory` (an absolute path to a new or empty directory; a temporary
+  directory, the home directory and a directory inside another project are refused),
+  served from then on: the skeleton (bazis-front in its requirements and apps unless
+  `frontend` is false, which needs Node.js), `.venv` installed from PyPI, the project
+  package `name` (default: from the name of the directory) checked against the modules of
+  the Python of the project, the `language` of the product (a code of Django such as `ru`,
+  `pt-br`; default English, until the agent sets that of the description), the database
+  when PostgreSQL is reachable (`database` says what was done) and the `ports`. A failed
+  step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
+  task of building the project.
+- `use_project(directory)` — serves the existing project in `directory` (the directory of
+  its `manage.py`): its status and its `rules`.
+- `project_status()` — `directory`, `settings`, `python`, `frontend` (made by
+  `bazis_front init`; `use_project` adds the rules of the frontend then), `ports` (null
+  until chosen) and `env_keys`: the names of the variables of `.env`, never their values.
+
+The catalog and the project served:
 
 - `list_packages` — every Bazis package: `summary`, `solves`, `requires`, `pairs_well`,
   `installed_version` (null if not installed in the Python of the project),
@@ -71,12 +98,18 @@ Without bazis-front, installed and with `"bazis.contrib.front"` in `INSTALLED_AP
 without `spec/` for `front_check`), they return `checked: false` (`source: null` for
 `front_catalog`) with the `reason` and the fix, not an error.
 
-The resource `bazis://packages/{name}/agents.md` is the AGENTS.md of a package; the prompts
-`add_package(name)`, `audit_project` and `build_frontend` describe these tasks step by step
-(`build_frontend` with the steps of the guide of bazis-front).
+The resource `bazis://packages/{name}/agents.md` is the AGENTS.md of a package,
+`bazis://rules` and `bazis://rules/frontend` the rules of an agent (also in the results of
+`create_project` and `use_project`); the prompts `new_project(description)`,
+`change_project(request)`, `add_package(name)`, `audit_project` and `build_frontend`
+describe these tasks step by step (`build_frontend` with the steps of the guide of
+bazis-front).
 
 ## Rules
 
+- Without a project, create it (`create_project`) or choose it (`use_project`) first; the
+  rules speak of the current directory: it is `directory` of the project. Change only the
+  files in it, and never read `.env` (`project_status` gives the names of its variables).
 - Choose packages by `solves` and read `package_guide` before using a package; follow the
   guide of the installed version. Find the section that answers a question with
   `guide_search` instead of reading every section (when `guide_version` differs from `installed_version`,

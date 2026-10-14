@@ -14,9 +14,10 @@
 
 """
 The MCP server of a Bazis project: the catalog of the Bazis packages and the facts and
-checks of the project, for AI agents. All tools only read.
+checks of the project, for AI agents, and the creation of a project or the choice of the
+project during the conversation.
 
-Run in the project directory: `bazis-mcp` (see the README).
+Run in the project directory, or anywhere to create a project: `bazis-mcp` (see the README).
 """
 
 import argparse
@@ -29,13 +30,31 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError, ResourceNotFoundError, ToolError
 from mcp.types import ToolAnnotations
 
-from . import __version__, catalog, front, project, search
+from . import __version__, catalog, front, project, prompts, rules, scaffold, search
 
 
 INSTRUCTIONS = """\
 Bazis builds JSON:API services on Django, FastAPI and Pydantic. The core is the package
 `bazis`; every other feature is a separate package `bazis-<name>`. Install only the
 packages the project needs.
+
+The tools work on one project, the one the server was started in or the one chosen in the
+conversation (`project_status` says which); without one they answer "No project".
+
+- A new application: ask for its directory unless the user named one (a new directory,
+  never a temporary one; else the current working directory of the conversation under a
+  new name), then call `create_project` with it, the description of the user and the
+  `language` of the description (its code, such as `ru`; `frontend` false only for a
+  backend without screens).
+  It writes the skeleton, installs `.venv`, creates the database and serves the new
+  project: do its `next_steps` following its `rules`.
+- An existing project: `use_project(directory)`, then do what is asked following the
+  `rules` it returns. The user goes on with the next changes in this conversation: each
+  one on the same project, ending with the final checks of the rules.
+- The rules speak of the current directory: it is the project directory. Change only the
+  files in it and run the commands of the rules there. Never read `.env`:
+  `project_status` gives the names of its variables.
+- End every task with the summary in the sections the rules name.
 
 - Choose packages with `list_packages` (what each one solves and requires), then read the
   guide of each chosen package with `package_guide` before using it, also for the core
@@ -58,6 +77,14 @@ packages the project needs.
 SECTIONS = Literal['packages', 'settings', 'models', 'routes']
 LAYERS = Literal['product', 'screens', 'design']
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
+#: writes a new directory and installs its packages from PyPI
+CREATES = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True
+)
+#: changes only which project the next calls serve
+CHOOSES = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
+)
 
 server = MCPServer('bazis', instructions=INSTRUCTIONS, version=__version__)
 
@@ -74,6 +101,50 @@ def _project_call(func, *args):
         return func(*args)
     except project.ProjectError as err:
         raise ToolError(str(err)) from err
+
+
+@server.tool(annotations=CREATES)
+def create_project(
+    directory: str,
+    description: str,
+    name: str | None = None,
+    frontend: bool = True,
+    language: str | None = None,
+) -> dict:
+    """
+    Creates a Bazis project and serves it from now on. `directory` is an absolute path to a
+    new or empty directory, not a temporary one nor inside another project. `name` is the
+    project package (default: from the name of the directory), `frontend` adds bazis-front
+    (it needs Node.js; false: a backend only), `language` is the language of the product,
+    a code such as `ru`, `pt-br` (default: English, until the agent sets the language of
+    the description). It writes the skeleton, installs `.venv` from PyPI, checks the name
+    and the language with the Python of the project, creates the database when PostgreSQL
+    is reachable and chooses the ports; when a step fails, the directory is left as it was.
+    Returns the facts (`database` says what was done), `rules` to follow and `next_steps`,
+    the task of building the project.
+    """
+    return _project_call(project.create, directory, description, name, frontend, language)
+
+
+@server.tool(annotations=CHOOSES)
+def use_project(directory: str) -> dict:
+    """
+    Serves the existing project in `directory` (an absolute path, the directory of its
+    manage.py) from now on: the facts of `project_status` and the `rules` to follow when
+    changing it.
+    """
+    return _project_call(project.use, directory)
+
+
+@server.tool(annotations=READ_ONLY)
+def project_status() -> dict:
+    """
+    The project served: its `directory`, `settings` module, `python`, whether it has a
+    `frontend` (made by `bazis_front init`), its `ports` (null until chosen) and
+    `env_keys`, the names of the variables of its `.env` (never their values; null without
+    `.env`).
+    """
+    return _project_call(project.status)
 
 
 @server.tool(annotations=READ_ONLY)
@@ -211,6 +282,51 @@ def agents_md(name: str) -> str:
     return package['agents_md']
 
 
+@server.resource(
+    'bazis://rules', title='The rules of Bazis for an agent', mime_type='text/markdown'
+)
+def rules_md() -> str:
+    return rules.RULES
+
+
+@server.resource(
+    'bazis://rules/frontend',
+    title='The rules of a product with a frontend made by bazis-front',
+    mime_type='text/markdown',
+)
+def frontend_rules_md() -> str:
+    return rules.FRONTEND_RULES
+
+
+@server.prompt(title='Create a Bazis project')
+def new_project(description: str) -> str:
+    """
+    Creates a Bazis project from a description and builds it.
+    """
+    return f"""\
+Create a Bazis project: {description}
+
+Ask for its directory unless it is named above (a new directory, never a temporary one),
+then call `create_project` with it, this description and the language of the description.
+Do its `next_steps` following its `rules` in the project directory.
+"""
+
+
+@server.prompt(title='Change the Bazis project')
+def change_project(request: str) -> str:
+    """
+    Changes the Bazis project served (or the one named by the user) as requested.
+    """
+    if project.project_dir is None:
+        return (
+            'Call `use_project` with the directory of the project first (ask for it if it is '
+            'not known), and follow the `rules` it returns.\n\n' + prompts.change_prompt(request)
+        )
+    directory = project.project_dir
+    ports = scaffold.project_ports(directory) if prompts.has_frontend(directory) else None
+    return prompts.change_prompt(request, ports=ports)
+
+
 @server.prompt(title='Add a Bazis package')
 def add_package(name: str) -> str:
     """
@@ -274,8 +390,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         '--project-dir',
         type=Path,
-        default=Path.cwd(),
-        help='The directory of manage.py and project.env (default: the current directory).',
+        help='The directory of manage.py and project.env (default: the current directory when '
+        'it has manage.py, else none until create_project or use_project).',
     )
     parser.add_argument(
         '--settings',
@@ -288,7 +404,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    project.configure(args.project_dir, args.settings, args.python)
+    directory = args.project_dir or (Path.cwd() if project.is_project(Path.cwd()) else None)
+    if directory:
+        project.configure(directory, args.settings, args.python)
     server.run()
 
 

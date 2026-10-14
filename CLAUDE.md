@@ -2,9 +2,10 @@
 
 The MCP server of a Bazis project (`bazis-mcp` command, `MCPServer` of the official `mcp`
 SDK 2.x): the catalog of the Bazis packages and the facts and system checks of the
-project, for AI agents. All tools only read.
+project, for AI agents, and the project of the conversation: `create_project` writes a new
+one, `use_project` chooses an existing one; the other tools only read.
 
-- `bazis/contrib/mcp/server.py` — the tools, the resource, the prompts and `main()`;
+- `bazis/contrib/mcp/server.py` — the tools, the resources, the prompts and `main()`;
 - `bazis/contrib/mcp/catalog.py` — the packages installed in the Python of the project
   (`project.packages`, read at every call) and the snapshot `catalog.json`,
   and the guides by sections (measured on the JSON of a result: a guide with sections
@@ -16,14 +17,17 @@ project, for AI agents. All tools only read.
   their headings within the sections of `package_guide` (`catalog.guide_parts`), and the
   extension points and pitfalls of the manifests, ranked by BM25 without dependencies;
   each text within `TEXT_LIMIT`, so that `LIMIT_MAX` results stay under `RESULT_LIMIT`;
-- `bazis/contrib/mcp/project.py` — loading the project, `bazis.core.introspect` and the
-  system checks;
+- `bazis/contrib/mcp/project.py` — the project served (none until `create_project` or
+  `use_project` when the server starts outside a project), its creation (all or nothing),
+  its status, `inside` (the boundary of the paths of the project), loading the project,
+  `bazis.core.introspect` and the system checks;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
   `bazis_front status` (its issues grouped by their `command`) and the registry of the
   assets;
 - `bazis/contrib/mcp/scaffold.py`, `rules.py`, `prompts.py` — the skeleton of a new project
-  and its `.venv`, `.bazis/ports.json`, the database and the language of the product (read
-  by a Python with Django, that of the project: nothing here imports Django), the rules of
+  and its `.venv`, `.bazis/ports.json`, the database, the language of the product and the
+  modules the project package must not hide (read by a Python with Django, that of the
+  project: nothing here imports Django), the rules of
   Bazis for an agent (`RULES`, `FRONTEND_RULES`) and its tasks (`new_prompt`, `add_prompt`,
   `change_prompt`); bazis-cli builds its commands on them;
 - `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI;

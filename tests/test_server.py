@@ -32,13 +32,23 @@ pytestmark = pytest.mark.anyio
 
 
 
-async def test_tools_are_read_only(client):
-    tools = (await client.list_tools()).tools
-    assert {it.name for it in tools} == {
+async def test_tool_annotations(client):
+    """
+    The tools only read, but those that create the project or choose it; only
+    `create_project` reaches outside the machine (PyPI).
+    """
+    tools = {it.name: it.annotations for it in (await client.list_tools()).tools}
+    assert {name for name, it in tools.items() if it.read_only_hint} == {
         'list_packages', 'package_guide', 'guide_search', 'project_info', 'run_doctor',
-        'front_check', 'front_status', 'front_catalog',
+        'front_check', 'front_status', 'front_catalog', 'project_status',
     }
-    assert all(it.annotations.read_only_hint for it in tools)
+    assert {name for name, it in tools.items() if not it.read_only_hint} == {
+        'create_project', 'use_project'
+    }
+    assert {name for name, it in tools.items() if it.open_world_hint} == {'create_project'}
+    assert not tools['create_project'].destructive_hint
+    assert not tools['create_project'].idempotent_hint
+    assert not tools['use_project'].destructive_hint and tools['use_project'].idempotent_hint
 
 
 async def test_list_packages(client):
@@ -483,7 +493,7 @@ async def test_agents_md_resource(client):
 
 async def test_prompts(client):
     assert {it.name for it in (await client.list_prompts()).prompts} == {
-        'add_package', 'audit_project', 'build_frontend'
+        'add_package', 'audit_project', 'build_frontend', 'new_project', 'change_project'
     }
     prompt = await client.get_prompt('add_package', {'name': 'bazis-author'})
     assert 'package_guide("bazis-author")' in prompt.messages[0].content.text

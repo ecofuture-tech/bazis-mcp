@@ -19,7 +19,6 @@ with bazis-front, its frontend. Nothing here imports Django: what needs it (the 
 of the product, the database) runs in a Python with Django, such as that of the project.
 """
 
-import importlib.util
 import json
 import keyword
 import os
@@ -384,6 +383,10 @@ for name in sys.argv[1:]:
 print(json.dumps(versions))
 """
 
+#: run by a Python (`valid_package_name`): prints whether the module of its argument is
+#: installed in it
+FIND_MODULE_PY = 'import importlib.util, sys; print(importlib.util.find_spec(sys.argv[1]) is not None)'
+
 #: a requirement with a minimum, as the skeleton writes them
 MINIMUM_RE = re.compile(r'([A-Za-z0-9][A-Za-z0-9._-]*)>=(\d+(?:\.\d+)*)')
 #: a PEP 440 version as installed: the release, a pre-release, a post-release, a dev release
@@ -397,7 +400,7 @@ class ScaffoldError(Exception):
 def package_name(directory: Path) -> str:
     """
     The name of the project package: the directory name as a Python identifier that does
-    not hide a module (`django`, `json`) or the tests.
+    not hide a module of this Python (`django`, `json`) or the tests.
     """
     name = re.sub(r'\W+', '_', directory.name.lower()).strip('_')
     if not name or name[0].isdigit():
@@ -407,13 +410,20 @@ def package_name(directory: Path) -> str:
     return name
 
 
-def valid_package_name(name: str) -> bool:
-    return (
-        name.isidentifier()
-        and not keyword.iskeyword(name)
-        and name not in ('tests', 'test')
-        and importlib.util.find_spec(name) is None
+def valid_package_name(name: str, python: Path | str = sys.executable) -> bool:
+    """
+    Whether `name` can be the project package: an identifier that is not a keyword or the
+    tests and hides no module installed in `python` (the project directory comes first on
+    the path of its commands). The modules are those of the `python` asked, such as that of
+    the project: a Python without Django, such as that of bazis-mcp, does not know `django`.
+    """
+    if not name.isidentifier() or keyword.iskeyword(name) or name in ('tests', 'test'):
+        return False
+    # isolated: neither the current directory nor PYTHONPATH, only the installed modules
+    done = subprocess.run(
+        [str(python), '-I', '-c', FIND_MODULE_PY, name], capture_output=True, text=True, timeout=60
     )
+    return done.stdout.strip() == 'False'
 
 
 def frontend_requirement() -> str:

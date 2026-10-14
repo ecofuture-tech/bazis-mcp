@@ -24,6 +24,8 @@ import pytest
 from bazis.contrib.mcp import scaffold
 from bazis.contrib.mcp.scaffold import node_problem
 
+from .support import make_venv
+
 
 @pytest.fixture(autouse=True)
 def released_frontend(monkeypatch):
@@ -40,6 +42,22 @@ def test_package_name(tmp_path):
     assert scaffold.package_name(tmp_path / 'django') == 'django_project'
     assert scaffold.package_name(tmp_path / 'class') == 'class_project'
     assert scaffold.package_name(tmp_path / 'tests') == 'tests_project'
+
+
+def test_package_name_is_checked_in_the_python_asked(tmp_path, monkeypatch):
+    """
+    The modules a project package must not hide are those of the Python asked, such as that
+    of the project: a Python without Django, as that of bazis-mcp, does not know `django`.
+    The current directory, where the project is written, is not one of them.
+    """
+    bare = make_venv(tmp_path, with_packages=False)
+    assert scaffold.valid_package_name('django', bare)
+    assert not scaffold.valid_package_name('json', bare)
+    assert not scaffold.valid_package_name('django') and not scaffold.valid_package_name('bazis')
+    (tmp_path / 'shop').mkdir()
+    (tmp_path / 'shop' / '__init__.py').write_text('')
+    monkeypatch.chdir(tmp_path)
+    assert scaffold.valid_package_name('shop') and scaffold.valid_package_name('shop', bare)
 
 
 def test_scaffold_refuses_a_bad_package_name(tmp_path):

@@ -13,25 +13,33 @@
 # limitations under the License.
 
 """
-The Bazis project the server serves. Its facts and checks come from the management
-commands `bazis_introspect` and `bazis_doctor`, run in a new process at every call: the
-result reflects the code as it is now (an agent changes it while the server runs), and a
-project that fails to load cannot break the server.
+The Bazis project the server serves: the one it was started in, else the one that
+`use_project` or `create_project` chose during the conversation. Its facts and checks come
+from the management commands `bazis_introspect` and `bazis_doctor`, run in a new process at
+every call: the result reflects the code as it is now (an agent changes it while the server
+runs), and a project that fails to load cannot break the server.
 """
 
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+from . import prompts, rules, scaffold
 
 
 SETTINGS_RE = re.compile(r"""DJANGO_SETTINGS_MODULE['"]\s*,\s*['"]([\w.]+)['"]""")
+#: a variable of a `.env` file: only its name is ever read
+ENV_KEY_RE = re.compile(r'^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=', re.MULTILINE)
 TIMEOUT = 300
+NO_PROJECT = 'No project: call create_project or use_project.'
 
-#: the project directory (the directory of manage.py and project.env)
-project_dir: Path = Path.cwd()
+#: the project directory (the directory of manage.py and project.env), None without a project
+project_dir: Path | None = None
 #: the settings module given on the command line, if any
 settings_module: str | None = None
 #: the Python of the project given on the command line, if any
@@ -49,6 +57,13 @@ def configure(directory: Path, settings: str | None = None, interpreter: str | N
     project_dir = directory.resolve()
     settings_module = settings
     python = interpreter
+
+
+def is_project(directory: Path) -> bool:
+    """
+    Whether a directory is that of a project: it has `manage.py`.
+    """
+    return (directory / 'manage.py').is_file()
 
 
 def find_python(directory: Path) -> str:
@@ -103,14 +118,29 @@ def run(name: str, *args: str, **env: str) -> subprocess.CompletedProcess:
 
 
 def _check_dir():
+    if project_dir is None:
+        raise ProjectError(NO_PROJECT)
     if not project_dir.is_dir():
         raise ProjectError(f'The project directory {project_dir} does not exist.')
+
+
+def inside(path: Path | str) -> Path:
+    """
+    A path of the project, relative to its directory or absolute, resolved with its symbolic
+    links: the boundary of what the tools read and write. ProjectError if it is outside.
+    """
+    _check_dir()
+    resolved = (project_dir / path).resolve()
+    if not resolved.is_relative_to(project_dir):
+        raise ProjectError(f'{path} is outside the project directory {project_dir}.')
+    return resolved
 
 
 def settings_name() -> str | None:
     """
     The settings module of the project: the one given with --settings, else `find_settings`.
     """
+    _check_dir()
     return settings_module or find_settings(project_dir)
 
 
@@ -120,8 +150,6 @@ def django(command: str, *args: str) -> subprocess.CompletedProcess:
     """
     settings = settings_name()
     if not settings:
-        # a missing project directory has no manage.py either: that is the reason then
-        _check_dir()
         raise ProjectError(
             f'No settings module: {project_dir} has no manage.py that sets '
             'DJANGO_SETTINGS_MODULE. Pass --project-dir, --settings or set DJANGO_SETTINGS_MODULE.'
@@ -230,4 +258,137 @@ def doctor(deploy: bool = False) -> dict:
     return {
         'ok': not any(it['level'] in ('error', 'critical') for it in messages),
         'messages': messages,
+    }
+
+
+def project_rules(frontend: bool) -> str:
+    """
+    The rules of Bazis for the agent of a project: `rules.RULES`, and `rules.FRONTEND_RULES`
+    for a product with a frontend.
+    """
+    return '\n'.join([rules.RULES, *([rules.FRONTEND_RULES] if frontend else [])])
+
+
+def status() -> dict:
+    """
+    The facts of the project: its directory, settings module, Python, whether it has a
+    frontend (made by `bazis_front init`), its ports (null until chosen) and the names of
+    the variables of its `.env`, never their values (null without `.env`).
+    """
+    env, ports = inside('.env'), inside(Path(scaffold.LOCAL_DIR) / 'ports.json')
+    return {
+        'directory': str(project_dir),
+        'settings': settings_name(),
+        'python': find_python(project_dir),
+        'frontend': prompts.has_frontend(project_dir),
+        'ports': json.loads(ports.read_text(encoding='utf-8')) if ports.is_file() else None,
+        'env_keys': (
+            ENV_KEY_RE.findall(env.read_text(encoding='utf-8', errors='replace'))
+            if env.is_file() else None
+        ),
+    }
+
+
+def use(directory: str) -> dict:
+    """
+    Serves the project in `directory` (an absolute path) from now on: its `status` and its
+    rules.
+    """
+    path = Path(directory)
+    if not path.is_absolute():
+        raise ProjectError(f'{directory} is not an absolute path.')
+    if not is_project(path):
+        raise ProjectError(
+            f'{path} is not a project: it has no manage.py. Call create_project for a new one.'
+        )
+    configure(path)
+    facts = status()
+    return {**facts, 'rules': project_rules(facts['frontend'])}
+
+
+def temp_dirs() -> list[Path]:
+    """
+    The temporary directories of this machine, which the system empties.
+    """
+    names = [tempfile.gettempdir(), *(['/tmp'] if os.name == 'posix' else [])]
+    return [Path(it).resolve() for it in names]
+
+
+def refusal(directory: Path) -> str | None:
+    """
+    Why a new project cannot be created in `directory` (absolute, resolved), or None.
+    """
+    if any(directory.is_relative_to(it) for it in temp_dirs()):
+        return f'{directory} is in a temporary directory, which the system empties.'
+    if directory == Path.home().resolve():
+        return 'The home directory cannot be a project: choose a new directory in it.'
+    if directory.exists() and (not directory.is_dir() or any(directory.iterdir())):
+        return f'{directory} is not an empty directory: choose a new one.'
+    if owner := next((it for it in directory.parents if is_project(it)), None):
+        return f'{directory} is inside the project {owner}: choose a directory outside it.'
+    return None
+
+
+def create(
+    directory: str,
+    description: str,
+    name: str | None = None,
+    frontend: bool = True,
+    language: str | None = None,
+) -> dict:
+    """
+    Creates a project in `directory` (an absolute path to a missing or empty directory) and
+    serves it: the skeleton, `.venv` with its packages, the language of the product, the
+    database, the ports. Either all of it is done or the directory is left as it was. Returns
+    the facts, the rules and the task of the agent (`next_steps`).
+    """
+    path = Path(directory)
+    if not path.is_absolute():
+        raise ProjectError(f'{directory} is not an absolute path.')
+    path = path.resolve()
+    if problem := refusal(path):
+        raise ProjectError(problem)
+    if frontend and (problem := scaffold.node_problem()):
+        raise ProjectError(f'{problem}. Install it, or pass frontend false for a backend only.')
+    name = name or scaffold.package_name(path)
+    # what is removed when the creation fails: the directory, or the first of its missing parents
+    top = path
+    while not top.parent.exists():
+        top = top.parent
+    existed = path.exists()
+    try:
+        scaffold.write_files(path, name, frontend=frontend)
+        python = scaffold.create_venv(path)
+        if not scaffold.valid_package_name(name, python):
+            raise ProjectError(
+                f'{name!r} cannot be the project package: it would hide a module installed in '
+                'the Python of the project. Pass another name.'
+            )
+        product = scaffold.product_language(language, python) if language else None
+        if product:
+            scaffold.set_language(path, product)
+    except Exception as err:
+        if existed:
+            for child in path.iterdir():
+                if child.is_dir() and not child.is_symlink():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+        elif top.exists():
+            shutil.rmtree(top)
+        if isinstance(err, scaffold.ScaffoldError):
+            raise ProjectError(str(err)) from err
+        raise
+    database = scaffold.create_database(path, name, python)
+    ports = scaffold.project_ports(path)
+    configure(path)
+    return {
+        'directory': str(path),
+        'name': name,
+        'frontend': frontend,
+        'language': list(product) if product else None,
+        'database': database,
+        'ports': ports,
+        'rules': project_rules(frontend),
+        'next_steps': prompts.new_prompt(description, name, frontend, product, database, ports),
     }
