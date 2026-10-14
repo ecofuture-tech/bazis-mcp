@@ -93,8 +93,10 @@ The work on the project served (never a command or a path of the caller outside 
   `.venv`), and only from PyPI: every line of `requirements.txt` and
   `requirements-dev.txt` is a requirement (a name, its `[extras]` and versions, a
   comment), or `-r requirements.txt` in `requirements-dev.txt`; a URL, `git+`, a path,
-  `-e`, another `-r`, `-c`, `--index-url`, `--find-links` or another option of pip, and
-  an environment marker are refused before pip runs.
+  the file of an archive (a name ending with `.whl`, `.zip`, `.tar`, `.tar.gz` or another
+  extension of an archive of pip, such as `demo-0.1-py3-none-any.whl`, which pip installs
+  as a local file), `-e`, another `-r`, `-c`, `--index-url`, `--find-links` or another
+  option of pip, and an environment marker are refused before pip runs.
   The apps and settings (`BS_INSTALLED_APPS`) are added by the agent as the guides say.
 - `run_command(kind, args=[])` — a command of a closed table, as argv without a shell,
   with a timeout of 600 seconds (the group of its processes is killed then, and when the

@@ -85,6 +85,12 @@ _VERSION = r'(?:~=|===?|!=|<=?|>=?)\s*[A-Za-z0-9.*+!_-]+'
 REQUIREMENT_RE = re.compile(
     rf'({_NAME})\s*(?:\[\s*{_NAME}(?:\s*,\s*{_NAME})*\s*\])?\s*(?:{_VERSION}(?:\s*,\s*{_VERSION})*)?'
 )
+#: the extensions of the archives of pip (`ARCHIVE_EXTENSIONS`, in any case): a name ending
+#: with one of them, such as `demo-0.1-py3-none-any.whl`, pip installs as a local file
+ARCHIVES = (
+    '.whl', '.zip', '.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz', '.tar.xz', '.txz', '.tlz',
+    '.tar.lz', '.tar.lzma',
+)
 #: a comment of a requirements file, as pip strips it
 COMMENT_RE = re.compile(r'(^|\s)#.*')
 #: the requirements files of a project, and the only line of them that is not a requirement:
@@ -344,8 +350,9 @@ def venv_python() -> str:
 def requirements() -> set[str]:
     """
     The names of the requirements of the project (REQUIREMENTS); ProjectError for a line that
-    is not a requirement of PyPI (`REQUIREMENT_RE`) nor INCLUDE: a URL, a path, an option of
-    pip (`-e`, `-r`, `--index-url`...). pip installs here only from PyPI.
+    is not a requirement of PyPI (`REQUIREMENT_RE`, a name that is not the file of an archive
+    of `ARCHIVES`) nor INCLUDE: a URL, a path, an option of pip (`-e`, `-r`,
+    `--index-url`...). pip installs here only from PyPI.
     """
     names = set()
     for file in REQUIREMENTS:
@@ -356,11 +363,12 @@ def requirements() -> set[str]:
             line = COMMENT_RE.sub('', line).strip()
             if not line or (file == 'requirements-dev.txt' and line.split() == INCLUDE):
                 continue
-            if not (match := REQUIREMENT_RE.fullmatch(line)):
+            match = REQUIREMENT_RE.fullmatch(line)
+            if not match or match[1].lower().endswith(ARCHIVES):
                 raise project.ProjectError(
                     f'{file}, line {number}: {line!r} is not a requirement of PyPI (a name, its '
                     '[extras] and versions): pip installs here only from PyPI, never from a '
-                    'URL, a path or with an option of pip.'
+                    'URL, a path, the file of an archive or with an option of pip.'
                 )
             names.add(_name(match[1]))
     return names

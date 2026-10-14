@@ -297,7 +297,8 @@ def add_packages(names: list[str], ctx: Context) -> dict:
     `install` the result of pip; when pip fails, `requirements.txt` stays as it was. Then
     add the apps and settings their guides name (`BS_INSTALLED_APPS`) yourself. Refused
     without `.venv` (pip never installs into the Python of bazis-mcp) and when a line of the
-    requirements is not a requirement of PyPI (a URL, a path, an option of pip).
+    requirements is not a requirement of PyPI (a URL, a path, the file of an archive such as
+    `demo-0.1-py3-none-any.whl`, an option of pip).
     """
     return _project_call(commands.add_packages, names, _progress(ctx))
 
