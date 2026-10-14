@@ -129,7 +129,8 @@ The work on the project served (never a command or a path of the caller outside 
   `pid`, `port`, `url`, `running`, `ready`, and the `exit_code` and `output` of a server
   that ended at once. Refused when it runs already or another process has its port.
 - `stop_server(which)` — SIGTERM to its group, SIGKILL after 10 seconds: `stopped` and
-  `exit_code`, or the `reason`. The servers started stop when bazis-mcp ends. On Windows a
+  `exit_code`, or the `reason`. The servers started stop when bazis-mcp ends, also by
+  SIGTERM (as a client ends its server) or SIGINT. On Windows a
   process group is not stopped: only the process itself is (the processes it started,
   such as the node of `npm run dev` or of a command over its timeout, may stay), so the
   servers and the long commands are not supported there.

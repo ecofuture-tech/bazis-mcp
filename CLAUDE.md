@@ -39,7 +39,8 @@ project (`add_packages`, `run_command`, the servers, the files); the other tools
   pip, `scaffold.raise_minimums`);
 - `bazis/contrib/mcp/processes.py` — the servers of the project (uvicorn, vite) started in
   the background (`start_new_session`, the log in `.bazis/logs`), the registry `RUNNING`
-  under `LOCK`, their stop by process group (SIGTERM, then SIGKILL) and `atexit`;
+  under `LOCK`, their stop by process group (SIGTERM, then SIGKILL), `atexit` and
+  `stop_on_signals` (SIGTERM, SIGINT; installed by `main`);
 - `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `list_files` within
   `project.inside`, `.env` never read nor written, `NOT_WRITTEN` and `generated/` never
   written (the names compared in any case, and with `os.path.samefile`), the sizes

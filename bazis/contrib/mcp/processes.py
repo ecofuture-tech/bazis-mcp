@@ -17,7 +17,7 @@ The servers of the project served, run in the background: the backend (uvicorn) 
 server of the frontend (vite), each on its port of `.bazis/ports.json`, in a new process
 group with its output in `.bazis/logs/<server>.log`. The registry `RUNNING` has those this
 server started: they are stopped by `stop` (the whole group, SIGTERM then SIGKILL) and when
-the server ends (`atexit`).
+the server ends (`atexit`, and `stop_on_signals` for SIGTERM and SIGINT).
 """
 
 import atexit
@@ -188,6 +188,21 @@ def stop_all() -> None:
 
 
 atexit.register(stop_all)
+
+
+def stop_on_signals() -> None:
+    """
+    Stops the servers started (`stop_all`) when this process gets SIGTERM, as a client sends
+    to end its server, or SIGINT, then ends it by that signal: `atexit` runs only when the
+    process ends by itself. In the main thread, before the server runs.
+    """
+    def stopped(signum, frame):
+        stop_all()
+        signal.signal(signum, signal.SIG_DFL)
+        signal.raise_signal(signum)
+
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(signum, stopped)
 
 
 def _tail(log: Path, lines: int) -> str:

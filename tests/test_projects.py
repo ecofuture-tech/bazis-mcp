@@ -517,6 +517,7 @@ def test_main_without_a_project_directory(monkeypatch, tmp_path, in_project):
     from bazis.contrib.mcp import server as server_module
 
     monkeypatch.setattr(server_module.server, 'run', lambda: None)
+    monkeypatch.setattr(server_module.processes, 'stop_on_signals', lambda: None)
     monkeypatch.setattr(project, 'project_dir', None)
     if in_project:
         (tmp_path / 'manage.py').write_text('')

@@ -589,9 +589,12 @@ def test_main(monkeypatch, tmp_path):
     monkeypatch.setattr(project, 'project_dir', project.project_dir)
     monkeypatch.setattr(project, 'settings_module', None)
     monkeypatch.setattr(project, 'python', None)
+    handled = []
+    monkeypatch.setattr(server_module.processes, 'stop_on_signals', lambda: handled.append(True))
 
     server_module.main(['--project-dir', str(tmp_path), '--settings', 'myproject.settings'])
 
+    assert handled == [True]
     assert project.project_dir == tmp_path.resolve()
     assert project.settings_module == 'myproject.settings'
     assert project.python is None

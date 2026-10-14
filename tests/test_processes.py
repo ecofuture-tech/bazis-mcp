@@ -20,6 +20,7 @@ made of a small Python program in place of uvicorn and vite, and one real backen
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -245,4 +246,34 @@ print(processes.start('backend')['pid'], flush=True)
     assert done.returncode == 0, done.stderr
     pid = int(done.stdout.strip())
     child = child_of((shop / '.bazis' / 'logs' / 'backend.log').read_text())
+    assert gone(pid) and gone(child)
+
+
+@pytest.mark.parametrize('signum', [signal.SIGTERM, signal.SIGINT])
+def test_the_servers_end_with_a_signal(shop, signum):
+    """
+    bazis-mcp ended by SIGTERM (as a client ends its server) or SIGINT stops the servers it
+    started, with their children, and ends by that signal.
+    """
+    port = project.read_ports(shop)['backend']
+    script = f"""\
+import os, sys, time
+from pathlib import Path
+from bazis.contrib.mcp import processes, project
+
+project.configure(Path({str(shop)!r}))
+processes.server_command = lambda which, directory: (
+    [sys.executable, '-c', {SERVE!r}, '{port}', 'plain'], directory, dict(os.environ), {port}
+)
+processes.stop_on_signals()
+print(processes.start('backend')['pid'], flush=True)
+time.sleep(60)
+"""
+    bazis_mcp = subprocess.Popen([sys.executable, '-c', script], stdout=subprocess.PIPE, text=True)
+    pid = int(bazis_mcp.stdout.readline())
+    child = child_of((shop / '.bazis' / 'logs' / 'backend.log').read_text())
+
+    bazis_mcp.send_signal(signum)
+
+    assert bazis_mcp.wait(30) == -signum
     assert gone(pid) and gone(child)

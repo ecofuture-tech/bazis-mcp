@@ -662,6 +662,7 @@ def main(argv: list[str] | None = None) -> None:
     directory = args.project_dir or (Path.cwd() if project.is_project(Path.cwd()) else None)
     if directory:
         project.launch(directory, args.settings, args.python)
+    processes.stop_on_signals()
     server.run()
 
 
