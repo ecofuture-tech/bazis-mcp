@@ -510,6 +510,14 @@ def test_create_database(tmp_path):
     assert (tmp_path / '.env').read_text() == (
         'BS_DEBUG=true\nBS_DATABASES__DEFAULT__NAME=store_3\nE2E_PASSWORD=x\n'
     )
+    # `.env` has no line of the name (it comes from `project.env`): the line is added
+    (tmp_path / '.env').write_text('BS_DEBUG=true\nE2E_PASSWORD=x')
+    assert outcome('exists', name='store_2', taken=['store']).endswith(
+        '`.env` sets it: `BS_DATABASES__DEFAULT__NAME=store_2`.'
+    )
+    assert (tmp_path / '.env').read_text() == (
+        'BS_DEBUG=true\nE2E_PASSWORD=x\nBS_DATABASES__DEFAULT__NAME=store_2\n'
+    )
     # the script failed: its last error line
     failed = scaffold.create_database(tmp_path, 'store', run=runner('', 'Traceback\nImportError: x'))
     assert failed == 'The database of the project was not created: ImportError: x'

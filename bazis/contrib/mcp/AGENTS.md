@@ -75,7 +75,9 @@ The project of the conversation:
   `bazis_front init`; `use_project` adds the rules of the frontend then), `ports` (null
   until chosen or when `.bazis/ports.json` cannot be read), `database_name` (the name of
   the database: `BS_DATABASES__DEFAULT__NAME` of the environment of the server, else of
-  `.env`, else of `project.env`; null when none sets it) and `env_keys`: the names of the
+  the env file, `BS_ENV_FILE` of that environment or `.env`, else of `project.env`; null
+  when none sets it or for an env file outside the project directory, which is not read)
+  and `env_keys`: the names of the
   variables of `.env` (read as python-dotenv reads it; a line without `=` and a name that
   is not an identifier are not variables), never their values; null without
   `.env` or for a `.env` that links outside the project directory, `env_reason` says which.

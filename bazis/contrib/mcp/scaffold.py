@@ -771,10 +771,12 @@ def create_database(directory: Path, name: str, python: Path | str = sys.executa
     )
     if result['outcome'] not in ('created', 'exists'):
         return f'{message}. Set `{DATABASE_NAME}` in `.env` to a free database before migrating.'
-    # the line of the skeleton (DOT_ENV)
+    # the line of the skeleton (DOT_ENV), else a line added at the end: the last one counts
     path, line = directory / '.env', f'{DATABASE_NAME}={result["name"]}'
     text = path.read_text(encoding='utf-8')
-    text = re.sub(rf'^{DATABASE_NAME}=.*$', line, text, flags=re.MULTILINE)
+    text, replaced = re.subn(rf'^{DATABASE_NAME}=.*$', line, text, flags=re.MULTILINE)
+    if not replaced:
+        text += ('\n' if text and not text.endswith('\n') else '') + f'{line}\n'
     path.write_text(text, encoding='utf-8')
     return f'{message} `.env` sets it: `{line}`.'
 

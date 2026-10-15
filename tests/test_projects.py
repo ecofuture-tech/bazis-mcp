@@ -443,11 +443,13 @@ async def test_project_status_names_the_variables_of_env_only(client, monkeypatc
 async def test_project_status_names_the_database(client, monkeypatch, tmp_path):
     """
     The name of the database as the settings take it: from the environment of the server,
-    which the commands of the project get, else from `.env`, else from `project.env`.
+    which the commands of the project get, else from its env file (`BS_ENV_FILE` of that
+    environment, `.env` by default), else from `project.env`.
     """
     (tmp_path / 'manage.py').write_text('')
     monkeypatch.setattr(project, 'project_dir', tmp_path)
     monkeypatch.delenv('BS_DATABASES__DEFAULT__NAME', raising=False)
+    monkeypatch.delenv('BS_ENV_FILE', raising=False)
 
     async def name():
         return result(await client.call_tool('project_status', {}))['database_name']
@@ -457,6 +459,18 @@ async def test_project_status_names_the_database(client, monkeypatch, tmp_path):
     assert await name() == 'shared'
     (tmp_path / '.env').write_text('BS_SECRET_KEY=secret\nBS_DATABASES__DEFAULT__NAME=shop_2\n')
     assert await name() == 'shop_2'
+    # the env file of `BS_ENV_FILE` of the environment instead of `.env`, as the settings read it
+    monkeypatch.setenv('BS_ENV_FILE', 'local.env')
+    assert await name() == 'shared'
+    (tmp_path / 'local.env').write_text('BS_DATABASES__DEFAULT__NAME=local\n')
+    assert await name() == 'local'
+    # an env file outside the project is not read, nor taken for absent
+    outside = tmp_path.parent / f'{tmp_path.name}-outside.env'
+    outside.write_text('BS_DATABASES__DEFAULT__NAME=outside\n')
+    monkeypatch.setenv('BS_ENV_FILE', str(outside))
+    assert await name() is None
+    monkeypatch.setenv('BS_ENV_FILE', str(tmp_path / 'local.env'))
+    assert await name() == 'local'
     monkeypatch.setenv('BS_DATABASES__DEFAULT__NAME', 'from_environment')
     assert await name() == 'from_environment'
 

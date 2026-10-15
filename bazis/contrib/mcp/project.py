@@ -327,7 +327,7 @@ def facts(directory: Path, settings: str | None = None, interpreter: str | None 
             'python': find_python(directory, interpreter),
             'frontend': prompts.has_frontend(directory),
             'ports': read_ports(directory),
-            'database_name': database_name(directory, values),
+            'database_name': database_name(directory),
             'env_keys': None if values is None else list(values),
             'env_reason': reason,
         }
@@ -345,19 +345,23 @@ def read_ports(directory: Path) -> dict[str, int] | None:
     return scaffold.read_ports(directory)
 
 
-def database_name(directory: Path, env: dict[str, str] | None) -> str | None:
+def database_name(directory: Path) -> str | None:
     """
     The name of the database of the project in `directory` (resolved), a name and no
     secret, as its settings take it: `scaffold.DATABASE_NAME` of the environment of the
-    server (that of the commands of the project), else of its `.env` (the variables `env`),
-    else of its `project.env`; None when none of them sets it.
+    server (that of the commands of the project), else of its env file (`BS_ENV_FILE` of
+    that environment, `.env` by default), else of its `project.env`; None when none of them
+    sets it, or when the env file is outside the project directory (it is not read).
     """
-    if name := os.environ.get(scaffold.DATABASE_NAME) or (env or {}).get(scaffold.DATABASE_NAME):
+    if name := os.environ.get(scaffold.DATABASE_NAME):
         return name
-    path = _resolve(directory, 'project.env')
-    if path is None or not path.is_file():
-        return None
-    return dotenv_values(path, interpolate=False).get(scaffold.DATABASE_NAME)
+    for file in (os.environ.get('BS_ENV_FILE', '.env'), 'project.env'):
+        path = _resolve(directory, file)
+        if path is None:
+            return None
+        if path.is_file() and (name := dotenv_values(path, interpolate=False).get(scaffold.DATABASE_NAME)):
+            return name
+    return None
 
 
 def env_values(directory: Path) -> tuple[dict[str, str] | None, str | None]:

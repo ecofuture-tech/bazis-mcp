@@ -115,10 +115,13 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   PostGIS (the task says what it did). Never drop or recreate it: after the first
   `migrate` add new migrations, never delete or generate again the applied ones. You may
   create it when it is missing (`CREATE DATABASE`, then `CREATE EXTENSION postgis` in it);
-  report it. When the task says that the database already has data of another project or
-  could not be inspected, it is not ready: never migrate it nor change its data, say that
-  the user checks the access to it or sets another `BS_DATABASES__DEFAULT__NAME` in `.env`
-  (`project_status` gives `database_name`, the name the project uses).
+  report it. When the task says that the database of `.env` already has data of another
+  project or could not be inspected, it is not ready: never migrate it nor change its data,
+  say that the user checks the access to it or sets another `BS_DATABASES__DEFAULT__NAME`
+  in `.env` (`project_status` gives `database_name`, the name the project uses). When it
+  says that databases were taken and left as they are and that `.env` sets another one,
+  only the taken ones are not ready (never change them): the one `.env` sets is the
+  database of the project, migrate it.
 - The final checks are `run_doctor`, the tests and, with a frontend, the checks of its
   rules. Run the final checks once, after the last change: fix what fails and run again only
   the checks that failed, not the whole round.

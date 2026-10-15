@@ -273,7 +273,9 @@ def project_status() -> dict:
     The project served: its `directory`, `settings` module, `python`, whether it has a
     `frontend` (made by `bazis_front init`), its `ports` (null until chosen),
     `database_name` (`BS_DATABASES__DEFAULT__NAME` of the environment of the server, else
-    of `.env`, else of `project.env`; null when none sets it) and `env_keys`, the names of
+    of the env file, `BS_ENV_FILE` of that environment or `.env`, else of `project.env`;
+    null when none sets it or for an env file outside the project directory) and
+    `env_keys`, the names of
     the variables of its `.env` (never their values; null without `.env` or for a `.env`
     outside the project directory, `env_reason` says which).
     """

@@ -87,8 +87,8 @@ def test_rules_of_the_packages_and_of_what_the_agent_leaves():
     """
     The minimum of a package is its installed release, in numbers; temporary files stay in
     the project, secrets stay out of the messages, the database of `bazis new` is kept (and
-    one the agent creates is reported); the summary has fixed sections, with the gaps of
-    the guides.
+    one the agent creates is reported; one with data is not migrated, the one chosen
+    instead is); the summary has fixed sections, with the gaps of the guides.
     """
     rules = ' '.join(RULES.split())
     for text in ('then give it its installed release as the minimum: `<name>>=X.Y.Z`',
@@ -100,6 +100,10 @@ def test_rules_of_the_packages_and_of_what_the_agent_leaves():
                  'never delete or generate again the applied ones', 'CREATE EXTENSION postgis',
                  'already has data of another project or could not be inspected',
                  'it is not ready', 'never migrate it',
+                 # a database chosen instead of the taken ones and set in `.env` is ready
+                 'When it says that databases were taken and left as they are and that `.env` '
+                 'sets another one, only the taken ones are not ready (never change them): '
+                 'the one `.env` sets is the database of the project, migrate it.',
                  'Built (', 'Packages (', 'Run (', 'Outside the files (', 'such as the database',
                  'Left for you (', 'Guide gaps (',
                  'Run the final checks once, after the last change',
