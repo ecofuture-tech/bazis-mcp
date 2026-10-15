@@ -94,8 +94,10 @@ python -m pytest ../tests -o addopts="" -p no:cacheprovider
 
 The tests of the skeleton (`tests/test_scaffold.py`) run `bazis_doctor` in generated
 projects; those of a product with a frontend run only where bazis-front is installed, and
-the one that creates the database of a project with `BAZIS_CLI_TEST_POSTGRES=host:port`
-(a PostgreSQL server with PostGIS, user and password `postgres`; it drops what it creates).
+those that create the database of a project (also when its name is taken:
+`scaffold.create_database` then creates `<name>_N` and sets it in `.env`, also through
+`create_project`) with `BAZIS_CLI_TEST_POSTGRES=host:port` (a PostgreSQL server with
+PostGIS, user and password `postgres`; they drop what they create).
 
 Lint: `ruff check bazis tests sample scripts`.
 

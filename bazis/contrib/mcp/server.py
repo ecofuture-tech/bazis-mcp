@@ -249,8 +249,10 @@ def create_project(
     the description). It writes the skeleton, installs `.venv` from PyPI, checks the name
     and the language with the Python of the project, creates the database when PostgreSQL
     is reachable and chooses the ports; when a step fails, the directory is left as it was.
-    Returns the facts (`database` says what was done), `rules` to follow and `next_steps`,
-    the task of building the project.
+    A database of the name that has data or cannot be opened is left as it is: the first
+    free `<name>_N` is created instead and set in `.env`. Returns the facts (`database`
+    says what was done), `rules` to follow and `next_steps`, the task of building the
+    project.
     """
     return _project_call(project.create, directory, description, name, frontend, language)
 
@@ -269,9 +271,11 @@ def use_project(directory: str) -> dict:
 def project_status() -> dict:
     """
     The project served: its `directory`, `settings` module, `python`, whether it has a
-    `frontend` (made by `bazis_front init`), its `ports` (null until chosen) and
-    `env_keys`, the names of the variables of its `.env` (never their values; null without
-    `.env` or for a `.env` outside the project directory, `env_reason` says which).
+    `frontend` (made by `bazis_front init`), its `ports` (null until chosen),
+    `database_name` (`BS_DATABASES__DEFAULT__NAME` of the environment of the server, else
+    of `.env`, else of `project.env`; null when none sets it) and `env_keys`, the names of
+    the variables of its `.env` (never their values; null without `.env` or for a `.env`
+    outside the project directory, `env_reason` says which).
     """
     return _project_call(project.status)
 

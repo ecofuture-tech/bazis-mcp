@@ -283,25 +283,71 @@ with npm is needed for the frontend.
 '''
 
 
+#: the variable of the name of the database of a project, which `create_database` sets in
+#: its `.env` when the name of its settings is taken
+DATABASE_NAME = 'BS_DATABASES__DEFAULT__NAME'
+
 #: run by the Python of a project in its directory (`create_database`): creates the database
 #: of its settings (`.env`, the `BS_*` variables of the environment) when it is missing, with
 #: PostGIS for the PostGIS backend, and prints the outcome as a JSON object: `outcome`
 #: (`created`, `exists`, `has_data`: tables of another project, `uninspected`: it exists but
-#: could not be opened, `unreachable`, `failed`, `other`: not PostgreSQL), `detail` (the error) and `postgis` (the error of the extension)
+#: could not be opened, `unreachable`, `failed`, `other`: not PostgreSQL), `detail` (the
+#: error) and `postgis` (the error of the extension). A database that has data or could not
+#: be opened is never changed: when the name comes from the files of the project, not from
+#: the environment, the first of `<name>_2` ... `<name>_99` that is missing or empty is
+#: prepared instead and `taken` lists the names passed over
 CREATE_DATABASE_PY = """\
 import json
 import os
 import sys
 
+# a name of the files of the project (.env), which create_database may change, not of the environment
+free = not {'BS_DATABASES__DEFAULT__NAME', 'BS_ENV_FILE'} & os.environ.keys()
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', sys.argv[1] + '.settings')
 
 from django.conf import settings
 
 db = settings.DATABASES['default']
-result = {'name': db['NAME'], 'server': f"{db['HOST'] or 'localhost'}:{db['PORT'] or 5432}"}
+server = f"{db['HOST'] or 'localhost'}:{db['PORT'] or 5432}"
 backend = db['ENGINE'].rsplit('.', 1)[-1]
+TAKEN = ('has_data', 'uninspected')
+
+
+def prepare(connection, name):
+    result = {'name': name, 'server': server}
+    try:
+        query = 'SELECT 1 FROM pg_database WHERE datname = %s'
+        exists = connection.execute(query, [name]).fetchone() is not None
+        if not exists:
+            connection.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(name)))
+        result['outcome'] = 'exists' if exists else 'created'
+        with psycopg.connect(dbname=name, autocommit=True, connect_timeout=5, **params) as database:
+            # a table of the public schema that no extension (PostGIS) owns: data
+            query = (
+                "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT EXISTS "
+                "(SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e') "
+                "LIMIT 1"
+            )
+            if exists and database.execute(query).fetchone():
+                result['outcome'] = 'has_data'
+            elif backend == 'postgis':
+                try:
+                    database.execute('CREATE EXTENSION IF NOT EXISTS postgis')
+                except psycopg.Error as err:
+                    result['postgis'] = ' '.join(str(err).split())
+    except psycopg.Error as err:
+        if result.get('outcome') == 'exists':
+            result.update(outcome='uninspected', detail=' '.join(str(err).split()))
+        elif 'outcome' in result:
+            result['detail'] = ' '.join(str(err).split())
+        else:
+            result.update(outcome='failed', detail=' '.join(str(err).split()))
+    return result
+
+
 if backend not in ('postgresql', 'postgis'):
-    result['outcome'] = 'other'
+    result = {'name': db['NAME'], 'server': server, 'outcome': 'other'}
 else:
     import psycopg
     from psycopg import sql
@@ -309,41 +355,23 @@ else:
     params = dict(host=db['HOST'], port=db['PORT'], user=db['USER'], password=db['PASSWORD'])
     params = {k: v for k, v in params.items() if v}
     try:
-        server = psycopg.connect(dbname='postgres', autocommit=True, connect_timeout=5, **params)
+        connection = psycopg.connect(dbname='postgres', autocommit=True, connect_timeout=5, **params)
     except psycopg.Error as err:
-        result.update(outcome='unreachable', detail=' '.join(str(err).split()))
+        result = {'name': db['NAME'], 'server': server, 'outcome': 'unreachable',
+                  'detail': ' '.join(str(err).split())}
     else:
-        try:
-            with server:
-                query = 'SELECT 1 FROM pg_database WHERE datname = %s'
-                exists = server.execute(query, [db['NAME']]).fetchone() is not None
-                if not exists:
-                    server.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(db['NAME'])))
-            result['outcome'] = 'exists' if exists else 'created'
-            with psycopg.connect(
-                dbname=db['NAME'], autocommit=True, connect_timeout=5, **params
-            ) as database:
-                # a table of the public schema that no extension (PostGIS) owns: data
-                query = (
-                    "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
-                    "WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT EXISTS "
-                    "(SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e') "
-                    "LIMIT 1"
-                )
-                if exists and database.execute(query).fetchone():
-                    result['outcome'] = 'has_data'
-                elif backend == 'postgis':
-                    try:
-                        database.execute('CREATE EXTENSION IF NOT EXISTS postgis')
-                    except psycopg.Error as err:
-                        result['postgis'] = ' '.join(str(err).split())
-        except psycopg.Error as err:
-            if result.get('outcome') == 'exists':
-                result.update(outcome='uninspected', detail=' '.join(str(err).split()))
-            elif 'outcome' in result:
-                result['detail'] = ' '.join(str(err).split())
-            else:
-                result.update(outcome='failed', detail=' '.join(str(err).split()))
+        with connection:
+            result = first = prepare(connection, db['NAME'])
+            taken = []
+            for number in range(2, 100 if free else 2):
+                if result['outcome'] not in TAKEN:
+                    break
+                taken.append(result['name'])
+                result = prepare(connection, f"{db['NAME']}_{number}")
+            if result['outcome'] in TAKEN:
+                result = first
+            elif taken:
+                result['taken'] = taken
 print(json.dumps(result))
 """
 
@@ -711,11 +739,14 @@ def raise_minimums(directory: Path, python: Path | str, run=subprocess.run) -> d
 def create_database(directory: Path, name: str, python: Path | str = sys.executable,
                     run=subprocess.run) -> str:
     """
-    Creates the database of the project `name` as its settings say (`.env`, the `BS_*`
+    Creates the database of the new project `name` as its settings say (`.env`, the `BS_*`
     variables of the environment) when PostgreSQL is reachable and the database is
-    missing, with the extension PostGIS for the PostGIS backend (the default). `python`
-    runs the settings of the project: that of its `.venv`. Never fails: returns what was
-    done, or why nothing was, for the user and the agent.
+    missing, with the extension PostGIS for the PostGIS backend (the default); an empty
+    one is kept. A database with data (of another project) or that cannot be opened is
+    never changed: unless the environment sets the name, the first free `<name>_N` is
+    prepared instead and set in `.env` (`DATABASE_NAME`). `python` runs the settings of
+    the project: that of its `.venv`. Never fails: returns what was done, or why nothing
+    was, for the user and the agent.
     """
     not_created = 'The database of the project was not created'
     try:
@@ -730,6 +761,25 @@ def create_database(directory: Path, name: str, python: Path | str = sys.executa
     except (ValueError, IndexError):
         error = done.stderr.strip().splitlines()
         return f'{not_created}: {error[-1] if error else "its script printed nothing"}'
+    message = _database_message(result)
+    if not (taken := result.get('taken')):
+        return message
+    names = ', '.join(f'`{it}`' for it in taken)
+    message = (
+        f'Taken on PostgreSQL {result["server"]} and left as they are (data of another '
+        f'project, or no access): {names}. {message}'
+    )
+    if result['outcome'] not in ('created', 'exists'):
+        return f'{message}. Set `{DATABASE_NAME}` in `.env` to a free database before migrating.'
+    # the line of the skeleton (DOT_ENV)
+    path, line = directory / '.env', f'{DATABASE_NAME}={result["name"]}'
+    text = path.read_text(encoding='utf-8')
+    text = re.sub(rf'^{DATABASE_NAME}=.*$', line, text, flags=re.MULTILINE)
+    path.write_text(text, encoding='utf-8')
+    return f'{message} `.env` sets it: `{line}`.'
+
+
+def _database_message(result: dict) -> str:
     database, server = f'`{result["name"]}`', f'PostgreSQL {result["server"]}'
     if result.get('postgis'):
         state = f', but PostGIS is not installed in it: {result["postgis"]}'
@@ -746,13 +796,13 @@ def create_database(directory: Path, name: str, python: Path | str = sys.executa
             return (
                 f'The database {database} exists on {server} but could not be inspected: '
                 f'{result["detail"]}. It is not ready for this project: check the access to it, '
-                'or set another `BS_DATABASES__DEFAULT__NAME` in `.env`.'
+                f'or set another `{DATABASE_NAME}` in `.env`.'
             )
         case 'has_data':
             return (
                 f'The database {database} on {server} already has data, probably of another '
-                'project: it is not the database of this project. Set '
-                '`BS_DATABASES__DEFAULT__NAME` in `.env` to a new name before migrating.'
+                f'project: it is not the database of this project. Set `{DATABASE_NAME}` in '
+                '`.env` to a new name before migrating.'
             )
         case 'unreachable':
             return (

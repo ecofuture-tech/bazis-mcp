@@ -25,7 +25,7 @@ import pytest
 from bazis.contrib.mcp import scaffold
 from bazis.contrib.mcp.scaffold import node_problem
 
-from .support import make_venv
+from .support import TEST_POSTGRES, database_exists, drop_databases, make_venv
 
 
 @pytest.fixture(autouse=True)
@@ -493,6 +493,23 @@ def test_create_database(tmp_path):
         'The database `store` was not created on PostgreSQL db:5432: permission denied'
     )
     assert 'not on PostgreSQL' in outcome('other')
+    # the databases of the name are taken: the one prepared instead is set in .env
+    (tmp_path / '.env').write_text('BS_DEBUG=true\nBS_DATABASES__DEFAULT__NAME=store\nE2E_PASSWORD=x\n')
+    assert outcome('failed', name='store_2', taken=['store'], detail='permission denied') == (
+        'Taken on PostgreSQL db:5432 and left as they are (data of another project, or no '
+        'access): `store`. The database `store_2` was not created on PostgreSQL db:5432: '
+        'permission denied. Set `BS_DATABASES__DEFAULT__NAME` in `.env` to a free database '
+        'before migrating.'
+    )
+    assert 'NAME=store\n' in (tmp_path / '.env').read_text()
+    assert outcome('created', name='store_3', taken=['store', 'store_2']) == (
+        'Taken on PostgreSQL db:5432 and left as they are (data of another project, or no '
+        'access): `store`, `store_2`. Created the database `store_3` on PostgreSQL db:5432. '
+        '`.env` sets it: `BS_DATABASES__DEFAULT__NAME=store_3`.'
+    )
+    assert (tmp_path / '.env').read_text() == (
+        'BS_DEBUG=true\nBS_DATABASES__DEFAULT__NAME=store_3\nE2E_PASSWORD=x\n'
+    )
     # the script failed: its last error line
     failed = scaffold.create_database(tmp_path, 'store', run=runner('', 'Traceback\nImportError: x'))
     assert failed == 'The database of the project was not created: ImportError: x'
@@ -503,22 +520,19 @@ def test_create_database(tmp_path):
     assert 'was not created' in scaffold.create_database(tmp_path, 'store', run=broken)
 
 
-#: a PostgreSQL server with PostGIS for the test of the database of a project, `host:port`
-#: with the user `postgres` and the password `postgres`; without it the test is skipped
-TEST_POSTGRES = os.environ.get('BAZIS_CLI_TEST_POSTGRES', '')
-
-
-def project_database_env(monkeypatch, host: str, port: str, name: str) -> None:
+def project_database_env(monkeypatch, host: str, port: str, name: str | None) -> None:
     """
-    The settings of the database of a project in the environment, as a user may set them;
-    the settings module is that of the project, not of the tests.
+    The settings of the database of a project in the environment, as a user may set them,
+    the `name` of the database too unless it is None (that of `.env`); the settings module
+    is that of the project, not of the tests.
     """
     monkeypatch.delenv('DJANGO_SETTINGS_MODULE', raising=False)
-    for key in [k for k in os.environ if k.startswith('BS_DATABASES__')]:
+    for key in [k for k in os.environ if k.startswith('BS_DATABASES__') or k == 'BS_ENV_FILE']:
         monkeypatch.delenv(key)
     for key, value in dict(HOST=host, PORT=port, NAME=name, USER='postgres',
                            PASSWORD='postgres').items():
-        monkeypatch.setenv(f'BS_DATABASES__DEFAULT__{key}', value)
+        if value is not None:
+            monkeypatch.setenv(f'BS_DATABASES__DEFAULT__{key}', value)
 
 
 def test_create_database_of_a_project_without_postgres(tmp_path, monkeypatch):
@@ -539,7 +553,8 @@ def test_create_database_of_a_project_without_postgres(tmp_path, monkeypatch):
 def test_create_database_of_a_project(tmp_path, monkeypatch):
     """
     The database of the settings of the project is created with PostGIS, once: the second
-    run finds it, and one with tables is reported as the data of another project.
+    run finds it, and one with tables is reported as the data of another project. Its name
+    comes from the environment: no other database is chosen.
     """
     import psycopg
 
@@ -563,9 +578,56 @@ def test_create_database_of_a_project(tmp_path, monkeypatch):
             # the data of a project
             database.execute('CREATE TABLE django_migrations (id serial)')
         assert 'already has data, probably of another project' in scaffold.create_database(directory, 'store')
+        assert not database_exists(server, f'{name}_2')
     finally:
+        drop_databases(server, name)
+
+
+@pytest.mark.skipif(not TEST_POSTGRES, reason='BAZIS_CLI_TEST_POSTGRES is not set')
+def test_create_database_with_a_taken_name(tmp_path, monkeypatch):
+    """
+    The name of `.env` is that of a database with tables (of another project, such as one
+    in a directory of the same name), and the next one that of a database that cannot be
+    opened: they are left as they are, the first free `<name>_N` is created and set in
+    `.env`. The next run keeps it: an empty database is that of the project.
+    """
+    import psycopg
+
+    host, port = TEST_POSTGRES.rsplit(':', 1)
+    name = f'bazis_cli_test_{os.getpid()}'
+    directory = tmp_path / name
+    scaffold.write_files(directory, name)
+    project_database_env(monkeypatch, host, port, None)
+    server = dict(host=host, port=port, user='postgres', password='postgres', autocommit=True)
+    env = directory / '.env'
+    try:
         with psycopg.connect(dbname='postgres', **server) as database:
-            database.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+            database.execute(f'CREATE DATABASE "{name}"')
+            database.execute(f'CREATE DATABASE "{name}_2" ALLOW_CONNECTIONS false')
+        with psycopg.connect(dbname=name, **server) as database:
+            database.execute('CREATE TABLE librarian (id serial)')
+
+        chosen = (
+            f'Taken on PostgreSQL {host}:{port} and left as they are (data of another '
+            f'project, or no access): `{name}`, `{name}_2`. Created the database `{name}_3` '
+            f'on PostgreSQL {host}:{port}. `.env` sets it: `BS_DATABASES__DEFAULT__NAME={name}_3`.'
+        )
+        assert scaffold.create_database(directory, name) == chosen
+        assert f'\nBS_DATABASES__DEFAULT__NAME={name}_3\n' in env.read_text()
+        assert f'NAME={name}\n' not in env.read_text()
+        with psycopg.connect(dbname=name, **server) as database:
+            assert database.execute('SELECT count(*) FROM librarian').fetchone() == (0,)
+        with psycopg.connect(dbname=f'{name}_3', **server) as database:
+            query = "SELECT 1 FROM pg_extension WHERE extname = 'postgis'"
+            assert database.execute(query).fetchone()
+
+        assert scaffold.create_database(directory, name) == (
+            f'The database `{name}_3` exists on PostgreSQL {host}:{port} without tables.'
+        )
+        assert f'\nBS_DATABASES__DEFAULT__NAME={name}_3\n' in env.read_text()
+        assert not database_exists(server, f'{name}_4')
+    finally:
+        drop_databases(server, name)
 
 
 def test_requirements_are_the_latest_releases():

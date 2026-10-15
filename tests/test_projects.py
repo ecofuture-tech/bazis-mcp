@@ -29,7 +29,14 @@ from mcp.client.stdio import stdio_client
 
 from bazis.contrib.mcp import catalog, project, prompts, rules, scaffold
 
-from .support import SAMPLE_DIR, make_venv, result, site_packages
+from .support import (
+    SAMPLE_DIR,
+    TEST_POSTGRES,
+    drop_databases,
+    make_venv,
+    result,
+    site_packages,
+)
 
 
 pytestmark = pytest.mark.anyio
@@ -144,6 +151,43 @@ async def test_create_project(client, no_project, machine, tmp_path):
         )
         assert secret not in text_of(call_result)
         assert secret not in text_of(await client.call_tool('project_status', {}))
+
+
+@pytest.mark.skipif(not TEST_POSTGRES, reason='BAZIS_CLI_TEST_POSTGRES is not set')
+async def test_create_project_on_a_taken_database(client, no_project, machine, monkeypatch, tmp_path):
+    """
+    The database of the name of the project has the data of another project (one in a
+    directory of the same name): it is left as it is, the new project gets a database of
+    its own, set in its `.env`, and `project_status` names it.
+    """
+    import psycopg
+
+    host, port = TEST_POSTGRES.rsplit(':', 1)
+    name = f'bazis_cli_test_{os.getpid()}'
+    monkeypatch.delenv('BS_DATABASES__DEFAULT__NAME')
+    for key, value in dict(HOST=host, PORT=port, USER='postgres', PASSWORD='postgres').items():
+        monkeypatch.setenv(f'BS_DATABASES__DEFAULT__{key}', value)
+    server = dict(host=host, port=port, user='postgres', password='postgres', autocommit=True)
+    try:
+        with psycopg.connect(dbname='postgres', **server) as database:
+            database.execute(f'CREATE DATABASE "{name}"')
+        with psycopg.connect(dbname=name, **server) as database:
+            database.execute('CREATE TABLE django_migrations (id serial)')
+
+        created = result(await client.call_tool(
+            'create_project',
+            {'directory': str(tmp_path / name), 'description': 'A library', 'frontend': False},
+        ))
+        assert created['database'].startswith(
+            f'Taken on PostgreSQL {host}:{port} and left as they are (data of another '
+            f'project, or no access): `{name}`. Created the database `{name}_2`'
+        )
+        assert created['database'] in created['next_steps']
+        status = result(await client.call_tool('project_status', {}))
+        assert status['database_name'] == f'{name}_2'
+        assert result(await client.call_tool('run_doctor', {}))['ok'] is True
+    finally:
+        drop_databases(server, name)
 
 
 async def test_create_project_with_a_frontend(client, no_project, machine, tmp_path):
@@ -394,6 +438,27 @@ async def test_project_status_names_the_variables_of_env_only(client, monkeypatc
     assert status['env_keys'] is None
     assert status['env_reason'] == '.env links outside the project directory: it is not read.'
     assert 'BS_OTHER' not in text_of(call_result)
+
+
+async def test_project_status_names_the_database(client, monkeypatch, tmp_path):
+    """
+    The name of the database as the settings take it: from the environment of the server,
+    which the commands of the project get, else from `.env`, else from `project.env`.
+    """
+    (tmp_path / 'manage.py').write_text('')
+    monkeypatch.setattr(project, 'project_dir', tmp_path)
+    monkeypatch.delenv('BS_DATABASES__DEFAULT__NAME', raising=False)
+
+    async def name():
+        return result(await client.call_tool('project_status', {}))['database_name']
+
+    assert await name() is None
+    (tmp_path / 'project.env').write_text('BS_DATABASES__DEFAULT__NAME=shared\n')
+    assert await name() == 'shared'
+    (tmp_path / '.env').write_text('BS_SECRET_KEY=secret\nBS_DATABASES__DEFAULT__NAME=shop_2\n')
+    assert await name() == 'shop_2'
+    monkeypatch.setenv('BS_DATABASES__DEFAULT__NAME', 'from_environment')
+    assert await name() == 'from_environment'
 
 
 @pytest.mark.parametrize('content', ['{"backend": 8001', '[]', '{"backend": "x"}'])

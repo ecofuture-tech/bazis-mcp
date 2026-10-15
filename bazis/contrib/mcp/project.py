@@ -314,9 +314,9 @@ def facts(directory: Path, settings: str | None = None, interpreter: str | None 
     The facts of the project in `directory` (resolved) with the settings module and the
     Python given on the command line: its directory, settings module, Python, whether it
     has a frontend (made by `bazis_front init`), its ports (null until chosen or when
-    `.bazis/ports.json` cannot be read) and the names of the variables of its `.env`, never
-    their values nor a line without `=` (`ENV_NAME_RE`): `env_keys` is null without `.env`
-    or for a `.env` outside the project
+    `.bazis/ports.json` cannot be read), the name of its database (`database_name`) and the
+    names of the variables of its `.env`, never their values nor a line without `=`
+    (`ENV_NAME_RE`): `env_keys` is null without `.env` or for a `.env` outside the project
     directory (a symbolic link), and `env_reason` says why.
     """
     try:
@@ -327,6 +327,7 @@ def facts(directory: Path, settings: str | None = None, interpreter: str | None 
             'python': find_python(directory, interpreter),
             'frontend': prompts.has_frontend(directory),
             'ports': read_ports(directory),
+            'database_name': database_name(directory, values),
             'env_keys': None if values is None else list(values),
             'env_reason': reason,
         }
@@ -342,6 +343,21 @@ def read_ports(directory: Path) -> dict[str, int] | None:
     if _resolve(directory, Path(scaffold.LOCAL_DIR) / 'ports.json') is None:
         return None
     return scaffold.read_ports(directory)
+
+
+def database_name(directory: Path, env: dict[str, str] | None) -> str | None:
+    """
+    The name of the database of the project in `directory` (resolved), a name and no
+    secret, as its settings take it: `scaffold.DATABASE_NAME` of the environment of the
+    server (that of the commands of the project), else of its `.env` (the variables `env`),
+    else of its `project.env`; None when none of them sets it.
+    """
+    if name := os.environ.get(scaffold.DATABASE_NAME) or (env or {}).get(scaffold.DATABASE_NAME):
+        return name
+    path = _resolve(directory, 'project.env')
+    if path is None or not path.is_file():
+        return None
+    return dotenv_values(path, interpolate=False).get(scaffold.DATABASE_NAME)
 
 
 def env_values(directory: Path) -> tuple[dict[str, str] | None, str | None]:

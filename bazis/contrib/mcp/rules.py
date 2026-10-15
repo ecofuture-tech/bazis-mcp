@@ -117,7 +117,8 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   create it when it is missing (`CREATE DATABASE`, then `CREATE EXTENSION postgis` in it);
   report it. When the task says that the database already has data of another project or
   could not be inspected, it is not ready: never migrate it nor change its data, say that
-  the user checks the access to it or sets another `BS_DATABASES__DEFAULT__NAME` in `.env`.
+  the user checks the access to it or sets another `BS_DATABASES__DEFAULT__NAME` in `.env`
+  (`project_status` gives `database_name`, the name the project uses).
 - The final checks are `run_doctor`, the tests and, with a frontend, the checks of its
   rules. Run the final checks once, after the last change: fix what fails and run again only
   the checks that failed, not the whole round.

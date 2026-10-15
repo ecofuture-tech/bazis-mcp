@@ -62,15 +62,20 @@ The project of the conversation:
   package `name` (default: from the name of the directory) checked against the modules of
   the Python of the project, the `language` of the product (a code of Django such as `ru`,
   `pt-br`; default English, until the agent sets that of the description), the database
-  when PostgreSQL is reachable (`database` says what was done) and the `ports`. A failed
-  step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
+  when PostgreSQL is reachable (`database` says what was done) and the `ports`. A
+  database of the name with data (of another project) or that cannot be opened is left
+  as it is: the first missing or empty `<name>_2` ... `<name>_99` is created instead and
+  set in `.env` (an empty one of the name is kept; a name of the environment of the
+  server is not changed). A failed step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
   task of building the project.
 - `use_project(directory)` — serves the existing project in `directory` (the directory of
   its `manage.py`): its status and its `rules`. The project served changes only once its
   status is read; the project of the command line keeps its `--settings` and `--python`.
 - `project_status()` — `directory`, `settings`, `python`, `frontend` (made by
   `bazis_front init`; `use_project` adds the rules of the frontend then), `ports` (null
-  until chosen or when `.bazis/ports.json` cannot be read) and `env_keys`: the names of the
+  until chosen or when `.bazis/ports.json` cannot be read), `database_name` (the name of
+  the database: `BS_DATABASES__DEFAULT__NAME` of the environment of the server, else of
+  `.env`, else of `project.env`; null when none sets it) and `env_keys`: the names of the
   variables of `.env` (read as python-dotenv reads it; a line without `=` and a name that
   is not an identifier are not variables), never their values; null without
   `.env` or for a `.env` that links outside the project directory, `env_reason` says which.

@@ -17,12 +17,17 @@ The helpers of the tests of the tools.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 
 SAMPLE_DIR = Path(__file__).resolve().parent.parent / 'sample'
+
+#: a PostgreSQL server with PostGIS for the tests of the database of a project, `host:port`
+#: with the user `postgres` and the password `postgres`; without it they are skipped
+TEST_POSTGRES = os.environ.get('BAZIS_CLI_TEST_POSTGRES', '')
 
 #: a paragraph of a guide, about 16,000 characters
 PARAGRAPH = 'A line of the guide that says what to do and why it matters.\n' * 260
@@ -61,3 +66,23 @@ def make_venv(directory: Path, with_packages: bool = True) -> Path:
 
 def site_packages(venv: Path) -> Path:
     return next(venv.glob('lib/python*/site-packages'))
+
+
+def database_exists(server: dict, name: str) -> bool:
+    import psycopg
+
+    with psycopg.connect(dbname='postgres', **server) as database:
+        query = 'SELECT 1 FROM pg_database WHERE datname = %s'
+        return database.execute(query, [name]).fetchone() is not None
+
+
+def drop_databases(server: dict, name: str) -> None:
+    """
+    Drops the database `name` and those of its names `<name>_N` of a test.
+    """
+    import psycopg
+
+    with psycopg.connect(dbname='postgres', **server) as database:
+        query = "SELECT datname FROM pg_database WHERE datname = %s OR datname ~ ('^' || %s || '_[0-9]+$')"
+        for (found,) in database.execute(query, [name, name]).fetchall():
+            database.execute(f'DROP DATABASE IF EXISTS "{found}" WITH (FORCE)')
