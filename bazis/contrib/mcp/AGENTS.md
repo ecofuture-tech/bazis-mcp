@@ -121,9 +121,9 @@ The work on the project served (never a command or a path of the caller outside 
   command is refused) in `frontend/`. npm and npx are found on the `PATH` (`npm.cmd` on
   Windows). An argument with a character of a shell, with `..` or with a path outside the
   project (also through a symbolic link, in `--option=<path>` and `<path>::<test>` too) is
-  refused, and so are `--basetemp` of pytest and `--output` of `npm run test` and `e2e`
-  (that of Playwright), which remove the directory they name, as arguments: not in a
-  configuration, that of the project or one given with `-o`, `-c` or `@<file>`.
+  refused, and so are options of the commands that remove a directory they are given
+  (`--basetemp` of pytest; `--output`, `--fsModuleCachePath`, `--coverage.reportsDirectory`
+  of the scripts of npm), as arguments: not in a configuration, that of the project or one given with `-o`, `-c` or `@<file>`.
   The commands read no stdin (pass `--noinput` where Django asks), and get the settings
   module of the project, `E2E_PORT` of `.bazis/ports.json` and `E2E_PASSWORD` of `.env`
   (a new project has one), whose value is hidden in their output. Returns `command`,

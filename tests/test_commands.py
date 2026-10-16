@@ -193,6 +193,8 @@ async def test_run_command_table(client, shop, fake_popen, kind, args, expected)
     ('pytest', ['../other/tests'], 'has ".."'),
     ('pytest', ['--basetemp=.'], 'pytest never runs with --basetemp'),
     ('pytest', ['--basetemp', 'tests'], 'pytest never runs with --basetemp'),
+    ('npm', ['run', 'test', '--', '--fsModuleCachePath=src', '--clearCache'], 'npm never runs with --fsModuleCachePath'),
+    ('npm', ['run', 'test', '--', '--fs-module-cache-path', 'src', '--clear-cache'], 'npm never runs with --fs-module-cache-path'),
     ('pytest', ['/etc/passwd'], 'is outside the project directory'),
     ('pytest', ['--rootdir=/etc'], 'is outside the project directory'),
     ('manage', ['bazis_messages', 'apply', '/etc/hosts'], 'is outside the project directory'),

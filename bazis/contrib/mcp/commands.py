@@ -56,11 +56,21 @@ NPX = [['tsc', '--noEmit'], ['playwright', 'install', 'chromium']]
 #: the only command of `pip` in `.venv`, whole
 PIP = ['install', '-r', 'requirements-dev.txt']
 KINDS = ('manage', 'pytest', 'npm', 'npx', 'pip')
-#: the options that remove the directory they name, never run: `--basetemp` of pytest and
-#: `--output` of Playwright (`npm run e2e`), as `--option=<dir>` or `--option <dir>` (neither
-#: takes an abbreviation of a long option); only as arguments, not when a configuration sets
-#: them (that of the project, `-o`, `-c`, `@<file>`)
-REMOVING = {'pytest': '--basetemp', 'npm': '--output'}
+#: options of the commands that remove a directory they are given, never run (`--basetemp` of
+#: pytest; `--output`, `--fsModuleCachePath`, `--coverage.reportsDirectory` of the scripts of
+#: npm, also in the kebab-case of cac), as `--option=<dir>` or `--option <dir>`; the list is
+#: not exhaustive, and only arguments are checked, not a configuration (that of the project,
+#: `-o`, `-c`, `@<file>`)
+REMOVING = {
+    'pytest': {'--basetemp'},
+    'npm': {
+        '--output',
+        '--fsModuleCachePath',
+        '--fs-module-cache-path',
+        '--coverage.reportsDirectory',
+        '--coverage.reports-directory',
+    },
+}
 
 #: what a shell would read in an argument: never in one (there is no shell, the table is closed)
 SHELL_RE = re.compile(r'[;&|$`<>(){}*?!~\'"\\\x00-\x1f\x7f]')
@@ -148,7 +158,7 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
     else:
         cwd = project.inside('.')
     _check_args(args, cwd)
-    if (option := REMOVING.get(kind)) and any(arg.split('=', 1)[0] == option for arg in args):
+    if option := next((a.split('=', 1)[0] for a in args if a.split('=', 1)[0] in REMOVING.get(kind, ())), None):
         raise project.ProjectError(f'{kind} never runs with {option}: it removes the directory it names.')
     python = project.find_python(project.project_dir, project.python)
     first = args[0] if args else None

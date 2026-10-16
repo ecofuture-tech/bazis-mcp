@@ -40,7 +40,7 @@ text = "install_tools runs only the commands of its table (Homebrew); the comman
 text = "a server started outside a project serves none: the tools answer No project until create_project or use_project"
 
 [[pitfalls]]
-text = "run_command runs only the commands of its closed table, with plain arguments that stay in the project: a command of the caller, a character of a shell, .. or a path outside the project is refused, and so are --basetemp of pytest and --output of npm run test and e2e (Playwright), which remove the directory they name, as arguments (not in a configuration)"
+text = "run_command runs only the commands of its closed table, with plain arguments that stay in the project: a command of the caller, a character of a shell, .. or a path outside the project is refused, and so are options of the commands that remove a directory they are given (--basetemp of pytest; --output, --fsModuleCachePath, --coverage.reportsDirectory of the scripts of npm), as arguments (not in a configuration)"
 
 [[pitfalls]]
 text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env (these names in any case): they are written by the user, installed, committed or generated"
