@@ -43,7 +43,7 @@ text = "a server started outside a project serves none: the tools answer No proj
 text = "run_command runs only the commands of its closed table, with plain arguments that stay in the project: a command of the caller, a character of a shell, .. or a path outside the project is refused, and so is --basetemp of pytest, which removes the directory it names"
 
 [[pitfalls]]
-text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env (these names in any case, and a hard link to .env): they are written by the user, installed, committed or generated"
+text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env (these names in any case): they are written by the user, installed, committed or generated"
 
 [[pitfalls]]
-text = "delete_file deletes one file of the project, or a symbolic link itself: never a directory, what write_file never writes, nor manage.py and requirements*.txt of the project directory"
+text = "delete_file deletes one file of the project, or a symbolic link itself: never a directory nor what write_file never writes"

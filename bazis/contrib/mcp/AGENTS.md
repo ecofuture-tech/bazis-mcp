@@ -148,14 +148,13 @@ The work on the project served (never a command or a path of the caller outside 
   absolute in it, symbolic links resolved). `.env` is never read nor written
   (`project_status` gives the names of its variables); `.venv/`, `.git/`, `contract/` and
   the `generated/` directories are never written. These names count in any case (`.ENV`
-  is `.env`), and so does a file that is the same as one of them (a hard link to `.env`).
+  is `.env`).
   A file read is UTF-8 text: its lines from `offset` (the first is 0), at most `limit`,
   in a result of about 40,000 bytes at most; `next_offset` is the line to read next, null
   at the end, so a longer file is read in parts. A file written has at most 1,000,000
   bytes, its directories are created. `delete_file` deletes one file (`path`, `link`): a
   symbolic link is deleted itself, never what it links to (a file of the project); never
-  a directory, what is never written, nor `manage.py` and `requirements*.txt` of the
-  project directory (in any case). `list_files` lists one directory (`name`, `type`:
+  a directory nor what is never written. `list_files` lists one directory (`name`, `type`:
   `directory`, `file`, `link` never followed, `other`; `size`), at most 400 entries.
 
 These limits keep an agent from mistakes and misuse of the tools (a command, a path or a

@@ -49,9 +49,8 @@ project (`add_packages`, `run_command`, the servers, the files); the other tools
   (SIGTERM, SIGINT, the signals that come meanwhile ignored; installed by `main`);
 - `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `delete_file`, `list_files`
   within `project.inside`, `.env` never read nor written, `NOT_WRITTEN` and `generated/`
-  never written (the names compared in any case, and with `os.path.samefile`), what is
-  never written never deleted, nor `NOT_DELETED` of the project directory (a symbolic link
-  deleted itself), the sizes bounded by `catalog.RESULT_LIMIT` and `WRITE_LIMIT`;
+  never written (the names compared in any case), what is never written never deleted (a
+  symbolic link deleted itself), the sizes bounded by `catalog.RESULT_LIMIT` and `WRITE_LIMIT`;
 - `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
   `bazis_front status` (its issues grouped by their `command`) and the registry of the
   assets;

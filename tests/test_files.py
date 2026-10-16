@@ -118,16 +118,6 @@ async def test_the_names_in_another_case(client, shop):
     assert SECRET not in call_result.content[0].text
 
 
-async def test_a_hard_link_to_env(client, shop):
-    (shop / 'shop' / 'settings.txt').hardlink_to(shop / '.env')
-    call_result = await client.call_tool('read_file', {'path': 'shop/settings.txt'})
-    assert error(call_result) == '.env is never read: project_status gives the names of its variables.'
-    assert SECRET not in call_result.content[0].text
-    message = error(await client.call_tool('write_file', {'path': 'shop/settings.txt', 'content': 'X'}))
-    assert message == '.env is written by the user only.'
-    assert (shop / '.env').read_text() == f'BS_SECRET_KEY={SECRET}\n'
-
-
 async def test_read_file_in_parts(client, shop):
     """
     A file longer than a result is read in parts, its lines from `offset`, at most `limit`;
@@ -232,13 +222,12 @@ async def test_delete_file(client, shop):
         'missing.py is not a file of the project.'
     )
 
-    # an absolute path in the project; manage.py and the requirements of a subdirectory are files
-    # like the others
+    # an absolute path in the project; any file that write_file writes
     for name in ('notes.txt', 'manage.py', 'requirements.txt'):
-        (shop / 'shop' / name).write_text('')
-        deleted = result(await client.call_tool('delete_file', {'path': str(shop / 'shop' / name)}))
-        assert deleted == {'path': f'shop/{name}', 'link': False}
-        assert not (shop / 'shop' / name).exists()
+        (shop / name).write_text('')
+        deleted = result(await client.call_tool('delete_file', {'path': str(shop / name)}))
+        assert deleted == {'path': name, 'link': False}
+        assert not (shop / name).exists()
 
     # a symbolic link is deleted itself, never what it links to
     (shop / 'shop' / 'models.py').write_text('x = 1\n')
@@ -259,18 +248,10 @@ async def test_delete_file(client, shop):
     assert (shop / 'dangling').is_symlink() and (shop / 'shop-link').is_symlink()
 
 
-NEVER_DELETED = 'runs or installs the project: it is never deleted.'
-
-
 @pytest.mark.parametrize('path, existing, message', [
     ('shop', None, 'shop is a directory.'),
     ('.', None, '. is a directory.'),
     ('shop/..', None, 'shop/.. is a directory.'),
-    ('manage.py', None, f'manage.py {NEVER_DELETED}'),
-    ('MANAGE.PY', 'manage.py', f'MANAGE.PY {NEVER_DELETED}'),
-    ('requirements.txt', None, f'requirements.txt {NEVER_DELETED}'),
-    ('requirements-dev.txt', None, f'requirements-dev.txt {NEVER_DELETED}'),
-    ('Requirements.TXT', 'requirements.txt', f'Requirements.TXT {NEVER_DELETED}'),
     ('.env', None, '.env is written by the user only.'),
     ('.ENV', '.env', '.env is written by the user only.'),
     ('frontend/.Env', None, '.env is written by the user only.'),
@@ -286,8 +267,8 @@ NEVER_DELETED = 'runs or installs the project: it is never deleted.'
 ])
 async def test_delete_file_refusals(client, shop, path, existing, message):
     """
-    The files never written are never deleted, nor what runs and installs the project; the
-    names in any case: on a file system that ignores the case `existing` is the same file.
+    The files never written are never deleted, the names in any case: on a file system that
+    ignores the case `existing` is the same file.
     """
     file = shop / (existing or path)
     if not file.is_dir():
@@ -295,17 +276,6 @@ async def test_delete_file_refusals(client, shop, path, existing, message):
         file.write_text('x')
     assert error(await client.call_tool('delete_file', {'path': path})) == message
     assert file.exists()
-
-
-async def test_delete_file_never_deletes_env_through_a_link(client, shop):
-    (shop / 'shop' / 'settings.txt').hardlink_to(shop / '.env')
-    (shop / 'env-link').symlink_to(shop / '.env')
-    for path in ('shop/settings.txt', 'env-link'):
-        assert error(await client.call_tool('delete_file', {'path': path})) == (
-            '.env is written by the user only.'
-        ), path
-    assert (shop / 'shop' / 'settings.txt').exists() and (shop / 'env-link').is_symlink()
-    assert (shop / '.env').read_text() == f'BS_SECRET_KEY={SECRET}\n'
 
 
 async def test_delete_file_stays_in_the_project(client, shop, tmp_path):

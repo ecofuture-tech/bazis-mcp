@@ -392,9 +392,8 @@ def delete_file(path: str) -> dict:
     """
     Deletes a file of the project (`path` relative to the project directory), such as one
     no longer needed; a symbolic link is deleted itself, never what it links to (a file of
-    the project). Never a directory, `manage.py` and `requirements*.txt` of the project
-    directory, nor what `write_file` never writes (`.env`, `.venv/`, `.git/`, `contract/`,
-    a `generated/` directory) or a path outside the project. Returns `path` and `link`.
+    the project). Never a directory, what `write_file` never writes (`.env`, `.venv/`,
+    `.git/`, `contract/`, a `generated/` directory) nor a path outside the project. Returns `path` and `link`.
     """
     return _project_call(files.delete, path)
 
