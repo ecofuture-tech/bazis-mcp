@@ -25,6 +25,7 @@ import socket
 import subprocess
 import sys
 import time
+import types
 import urllib.request
 
 import pytest
@@ -281,8 +282,7 @@ time.sleep(60)
 
 def test_the_servers_end_together_and_a_repeated_signal_waits(shop):
     """
-    SIGTERM goes to all the servers before SIGKILL to any of them, so that two servers that
-    ignore it are killed after STOP_TIMEOUT once, not after their sum; a signal that comes
+    SIGTERM goes to all the servers before SIGKILL to any of them; a signal that comes
     meanwhile does not end bazis-mcp before all of them are stopped. The signals of
     `signal_group` are printed in their order.
     """
@@ -323,6 +323,33 @@ time.sleep(60)
     assert bazis_mcp.stdout.read().splitlines() == [f'kill {pid}' for pid in pids]
     assert bazis_mcp.wait(30) == -signal.SIGTERM
     assert all([gone(pid) for pid in [*pids, *children]])
+
+
+def test_the_groups_are_waited_for_until_one_deadline(monkeypatch):
+    """
+    `terminate` waits for the groups until one deadline, STOP_TIMEOUT after the SIGTERMs:
+    two that ignore it are killed after STOP_TIMEOUT once, not after their sum (on a clock
+    of the test, without the load of the machine).
+    """
+    now = [0.0]
+
+    class Stubborn:
+        def __init__(self):
+            self.waits = []
+
+        def wait(self, timeout=None):
+            self.waits.append(timeout)
+            if timeout is not None:
+                now[0] += timeout
+                raise subprocess.TimeoutExpired('server', timeout)
+
+    monkeypatch.setattr(processes, 'time', types.SimpleNamespace(monotonic=lambda: now[0]))
+    monkeypatch.setattr(processes, 'signal_group', lambda process, kill=False: None)
+    group = [Stubborn(), Stubborn()]
+
+    processes.terminate(*group)
+
+    assert [it.waits for it in group] == [[processes.STOP_TIMEOUT, None], [0, None]]
 
 
 #: a command: starts a child, writes its pid and that of the child to the file of its
