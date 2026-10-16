@@ -58,7 +58,8 @@ PIP = ['install', '-r', 'requirements-dev.txt']
 KINDS = ('manage', 'pytest', 'npm', 'npx', 'pip')
 #: the options that remove the directory they name, never run: `--basetemp` of pytest and
 #: `--output` of Playwright (`npm run e2e`), as `--option=<dir>` or `--option <dir>` (neither
-#: takes an abbreviation of a long option)
+#: takes an abbreviation of a long option); only as arguments, not when a configuration sets
+#: them (that of the project, `-o`, `-c`, `@<file>`)
 REMOVING = {'pytest': '--basetemp', 'npm': '--output'}
 
 #: what a shell would read in an argument: never in one (there is no shell, the table is closed)
