@@ -123,31 +123,29 @@ still work and the project tools return the error.
 
 ## Tools
 
-| Tool | Returns |
-|---|---|
-| `check_machine()` | The programs a project needs on this machine, found without changing anything: for each one what it is `required_for`, its `status` (`ok`, `missing`, `old`, `stopped` for a server), what was `found`, the `install_command` of the package `manager` (Homebrew on macOS, apt on Debian and Ubuntu; null without one, and for the Python of a project, whose `.venv` is created again) and `needs_sudo`; `missing` names those not `ok` |
-| `install_tools(names, confirmed_by_user)` | Runs the `install_command` of the programs `names` of `check_machine`, and nothing else, in the order of `check_machine`, once the user agrees: the client asks the user when it supports elicitation, else `confirmed_by_user` must be true; without that nothing runs and `to_confirm` lists the commands. A command with sudo, a Homebrew this user cannot run or no package manager: `run_yourself` gives the command (or null) for the user to run |
-| `create_project(directory, description, name, frontend, language)` | Creates a project in a new or empty directory (an absolute path, not a temporary one nor inside another project) and serves it: the skeleton (with bazis-front unless `frontend` is false), `.venv` installed from PyPI, the project package `name` and the `language` checked with the Python of the project, the database when PostgreSQL is reachable (one of the name with data or that cannot be opened is left as it is: the first free `<name>_N` is created instead and set in `.env`), the ports; a failed step leaves the directory as it was. Returns the facts, the `rules` and the task `next_steps` |
-| `use_project(directory)` | Serves an existing project (the directory of its `manage.py`): its status and its `rules`; the project served chosen again keeps its `--settings` and `--python` |
-| `add_packages(names)` | Adds the Bazis packages `names` (names of the catalog) and those they require to `requirements.txt`, with the version of the catalog as the minimum, installs `requirements-dev.txt` from PyPI into `.venv` and raises the minimums to the installed releases; when pip fails, `requirements.txt` stays as it was. pip runs only with the Python of the project (`.venv` or `--python`, never that of bazis-mcp) and only when every line of `requirements.txt` and `requirements-dev.txt` is a requirement of PyPI (a name, its extras and versions; `-r requirements.txt` in `requirements-dev.txt`): a URL, a path, the file of an archive (`demo-0.1-py3-none-any.whl`) or an option of pip is refused. The apps and settings are added by the agent as the guides say |
-| `run_command(kind, args)` | Runs a command of a closed table as argv without a shell, with a timeout of 600 seconds and its progress reported: `manage` (makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, `bazis_front <subcommand>`, `bazis_messages <subcommand>`), `pytest`, `pip` (`install -r requirements-dev.txt` only) in the project directory; `npm` (`install` and `ci` alone; the scripts build, lint, test, e2e, format, with arguments after `--` for test and e2e) and `npx` (`tsc --noEmit`, `playwright install chromium`, from `frontend/node_modules` only: `npx --no` never downloads) in `frontend/`. The arguments have no character of a shell, no `..` and no path outside the project, nor `--basetemp` of pytest (it removes the directory it names). `E2E_PORT` (`.bazis/ports.json`) and `E2E_PASSWORD` (`.env`) are set by the server, never shown. Returns `exit_code`, `ok`, `timed_out` and the ends of `stdout` and `stderr`; a command that runs is killed with its group when bazis-mcp ends, as the servers are |
-| `start_server(which)`, `stop_server(which)`, `server_logs(which, lines)` | The `backend` (`uvicorn <package>.main:app`) and the dev server of the `frontend` (`npm run dev`) on their ports of `.bazis/ports.json`, in the background, their output in `.bazis/logs/<which>.log`; refused when the port is taken by another process. Stopped with the processes they started (SIGTERM, then SIGKILL), and when bazis-mcp ends, also by SIGTERM or SIGINT: together with the commands that run, and a repeated signal waits for that |
-| `read_file(path, offset, limit)`, `write_file(path, content)`, `delete_file(path)`, `list_files(subdir)` | The files of the project directory (symbolic links resolved): `.env` is never read nor written, `.venv/`, `.git/`, `contract/` and the `generated/` directories are never written (these names in any case); a file read fits in a result (about 40,000 bytes), a longer one is read in parts (its lines from `offset`, at most `limit`, `next_offset` the line to read next), a file written has at most 1,000,000 bytes. `delete_file` deletes one file, or a symbolic link itself (never what it links to, which is in the project), never a directory nor what is never written |
-| `project_status()` | The project served: `directory`, `settings`, `python`, `frontend`, `ports`, `database_name` (of the environment of the server, else of its env file, `BS_ENV_FILE` of that environment or `.env`, else of `project.env`; null for an env file outside the project, which is not read), and `env_keys`, the names of the variables of `.env` (never their values; null without `.env` or for a `.env` that links outside the project, `env_reason` says which) |
-| `list_packages` | Every Bazis package: `summary`, `solves`, `requires`, `pairs_well`, `installed_version`, `catalog_version`, `guide_version` |
-| `package_guide(name, section)` | The `AGENTS.md` and the manifest of a package (`bazis` for the core), with the titles of its `sections`; a guide with sections whose result would be over 12,000 bytes of JSON comes as its introduction (`complete` false), and `section` returns one section |
-| `guide_search(query, package, limit)` | The parts of the guides (AGENTS.md between two headings, extension points and pitfalls of the manifests) that match the query best, of all packages or of one: `package`, `score` and the `section` (readable whole with `package_guide`), `heading` and `text` (an excerpt when `complete` is false), or the `extension_point` or `pitfall` |
-| `project_info(sections)` | `packages`, `settings`, `models`, `routes` of the project |
-| `run_doctor(deploy)` | The messages of the system checks, from bazis 2.13 with the database checks (or the info `bazis.database` when the database cannot be reached); `ok` is false if there is an error |
-| `front_check(layer)` | The issues of the frontend specs (`bazis_front check --json`); `ok` is false if there is an error |
-| `front_status()` | The parts of the frontend that are stale (`bazis_front status --json`), by the `bazis_front` command that updates them |
-| `front_catalog()` | The assets of bazis-front (components, hooks) with the capabilities and assets they require |
+Each tool in one line; what it returns and what it refuses is in the guide for agents,
+[bazis/contrib/mcp/AGENTS.md](bazis/contrib/mcp/AGENTS.md), which also says what its
+limits protect from.
 
-The limits of the tools that change the project (the files in the project directory, the
-commands of a closed table, pip only from PyPI into `.venv`) keep an agent from mistakes and
-misuse; they are not a boundary against the code of the project, which the commands run
-with the rights of the user (the settings, the tests and their plugins, the scripts of
-`package.json`, the packages installed with their install scripts).
+| Tool | What it does |
+|---|---|
+| `check_machine()` | Finds the programs a project needs on this machine, without changing anything |
+| `install_tools(names, confirmed_by_user)` | Installs them from a closed table of commands (Homebrew, apt), once the user agrees |
+| `create_project(directory, description, name, frontend, language)` | Creates a project in a new or empty directory (skeleton, `.venv`, database, ports) and serves it |
+| `use_project(directory)` | Serves an existing project; the project served chosen again keeps its `--settings` and `--python` |
+| `project_status()` | The facts of the project served, with the names of the variables of `.env`, never their values |
+| `add_packages(names)` | Adds Bazis packages and those they require to `requirements.txt` and installs them from PyPI into `.venv` |
+| `run_command(kind, args)` | Runs a command of a closed table (`manage`, `pytest`, `pip`, `npm`, `npx`) as argv without a shell |
+| `start_server(which)`, `stop_server(which)`, `server_logs(which, lines)` | The backend and the dev server of the frontend, in the background |
+| `read_file`, `write_file`, `delete_file`, `list_files` | The files of the project directory; `.env` is never read nor written |
+| `list_packages` | Every Bazis package: what it solves and requires, its installed and catalog versions |
+| `package_guide(name, section)` | The `AGENTS.md` and the manifest of a package, whole or by sections |
+| `guide_search(query, package, limit)` | The parts of the guides that match a query best |
+| `project_info(sections)` | The packages, settings (secrets hidden), models and routes of the project |
+| `run_doctor(deploy)` | The system checks of the project and of its Bazis packages |
+| `front_check(layer)` | The issues of the frontend specs (bazis-front) |
+| `front_status()` | The parts of the frontend that are stale |
+| `front_catalog()` | The assets of bazis-front with what they require |
 
 Resources: `bazis://packages/{name}/agents.md`, `bazis://rules` (the rules of Bazis for an
 agent) and `bazis://rules/frontend` (those of a product with a frontend). Prompts:

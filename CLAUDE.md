@@ -7,65 +7,28 @@ one, `use_project` chooses an existing one), the programs of the machine
 (`check_machine`, `install_tools`) and, for a client without a shell, the work on the
 project (`add_packages`, `run_command`, the servers, the files); the other tools only read.
 
+How the tools work and what they refuse is in the guide,
+`bazis/contrib/mcp/AGENTS.md`; the modules:
+
 - `bazis/contrib/mcp/server.py` — the tools, the resources, the prompts and `main()`;
-- `bazis/contrib/mcp/catalog.py` — the packages installed in the Python of the project
-  (`project.packages`, read at every call) and the snapshot `catalog.json`,
-  and the guides by sections (measured on the JSON of a result: a guide with sections
-  whose result would be over `WHOLE_LIMIT` comes as its introduction, so that an agent
-  reads only the sections it needs, and is read section by section, each part within
-  `GUIDE_LIMIT`, so that a result of `package_guide` stays under `RESULT_LIMIT`, below the
-  output limit of the MCP clients, 25,000 tokens in Claude Code);
-- `bazis/contrib/mcp/search.py` — `guide_search`: the AGENTS.md of the packages cut at
-  their headings within the sections of `package_guide` (`catalog.guide_parts`), and the
-  extension points and pitfalls of the manifests, ranked by BM25 without dependencies;
-  each text within `TEXT_LIMIT`, so that `LIMIT_MAX` results stay under `RESULT_LIMIT`;
-- `bazis/contrib/mcp/project.py` — the project served (none until `create_project` or
-  `use_project` when the server starts outside a project), its creation (all or nothing),
-  its status, `inside` (the boundary of the paths of the project), loading the project,
-  `bazis.core.introspect` and the system checks. The project served is global state of
-  the process (the tools run in worker threads): `create` and `use` change it under
-  `CHANGE_LOCK`, one at a time, and `use` reads the facts of a project before serving it;
-- `bazis/contrib/mcp/machine.py` — the programs a project needs on this machine (`check`,
-  without writing anything) and their installation (`plan`, `install`): only the commands
-  of the closed table `COMMANDS` (Homebrew; apt, whose sudo commands go to the user), as
-  argv without a shell, never a command of the caller. `install_tools` gets the consent of
-  the user through `Resolve` (`Elicit` when the client supports elicitation, on every
-  protocol of the SDK), else `confirmed_by_user`;
-- `bazis/contrib/mcp/commands.py` — `run_command`: the closed table `KINDS` (manage,
-  pytest, npm, npx, pip), its arguments checked (no character of a shell, no `..`, no path
-  outside the project, no `--basetemp` of pytest, arguments only for the `NPM_ARGUMENTS`
-  after `--`, npx with `--no` from `frontend/node_modules`), run as argv
-  without a shell in a new process group with `TIMEOUT` and progress (the group killed on
-  an exception too), `E2E_PORT` and `E2E_PASSWORD` set and the password hidden in the
-  output; `add_packages` (the closure of `requires` in the catalog, `requirements.txt`,
-  pip, `scaffold.raise_minimums`); pip only with `venv_python` (never `sys.executable`)
-  and `requirements()` of PyPI only. These limits keep an agent from mistakes and misuse,
-  not a boundary against the code of the project, which the commands run;
-- `bazis/contrib/mcp/processes.py` — the servers of the project (uvicorn, vite) started in
-  the background (`start_new_session`, the log in `.bazis/logs`), the registry under
-  `LOCK` of the servers (`RUNNING`) and of the commands that run (`COMMANDS`, of
-  `commands.execute`), their stop by process group (SIGTERM, then SIGKILL; `terminate`
-  stops several groups together), `stop_all` at `atexit` and by `stop_on_signals`
-  (SIGTERM, SIGINT, the signals that come meanwhile ignored; installed by `main`);
-- `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `delete_file`, `list_files`
-  within `project.inside`, `.env` never read nor written, `NOT_WRITTEN` and `generated/`
-  never written (the names compared in any case), what is never written never deleted (a
-  symbolic link deleted itself), the sizes bounded by `catalog.RESULT_LIMIT` and `WRITE_LIMIT`;
-- `bazis/contrib/mcp/front.py` — the frontend layer (bazis-front): `bazis_front check`,
-  `bazis_front status` (its issues grouped by their `command`) and the registry of the
-  assets;
-- `bazis/contrib/mcp/scaffold.py`, `rules.py`, `prompts.py` — the skeleton of a new project
-  and its `.venv`, `.bazis/ports.json`, the database, the language of the product and the
-  modules the project package must not hide (read by a Python with Django, that of the
-  project: nothing here imports Django), the rules of
-  Bazis for an agent (`RULES`, `FRONTEND_RULES`) and its tasks (`new_prompt`, `add_prompt`,
-  `change_prompt`); bazis-cli builds its commands on them;
-- `scripts/update_catalog.py` — rebuilds `catalog.json` from the wheels on PyPI;
-  `--from-clones DIR` reads the same files from the local clones `DIR/<package>` (the
-  version is the one the clone is built with: setuptools-scm, honouring
-  `SETUPTOOLS_SCM_PRETEND_VERSION_FOR_<PACKAGE>`, so that it can be written as a minimum).
-  The local mode is only for trials against unreleased code: never commit the
-  `catalog.json` it writes.
+- `bazis/contrib/mcp/catalog.py` — the installed packages, the snapshot `catalog.json` and
+  the guides by sections, within the result limits of the MCP clients;
+- `bazis/contrib/mcp/search.py` — `guide_search` (BM25 over the guides and manifests);
+- `bazis/contrib/mcp/project.py` — the project served (global state, changed under
+  `CHANGE_LOCK`), its creation, status and boundary (`inside`), introspection and checks;
+- `bazis/contrib/mcp/machine.py` — `check_machine` and `install_tools` (the closed table
+  `COMMANDS`, the consent of the user);
+- `bazis/contrib/mcp/commands.py` — `run_command` (the closed table `KINDS`) and
+  `add_packages`;
+- `bazis/contrib/mcp/processes.py` — the servers and the commands that run, stopped by
+  process group, also when bazis-mcp ends;
+- `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `delete_file`, `list_files`;
+- `bazis/contrib/mcp/front.py` — the frontend tools (bazis-front);
+- `bazis/contrib/mcp/scaffold.py`, `rules.py`, `prompts.py` — the skeleton of a new
+  project, the rules and the tasks of an agent, used by bazis-cli too (nothing here
+  imports Django);
+- `scripts/update_catalog.py` — rebuilds `catalog.json` from PyPI, or from local clones
+  with `--from-clones DIR` for trials only: never commit the `catalog.json` it writes.
 
 The project tools run `python -m django bazis_introspect/bazis_doctor/bazis_front` (and
 read the installed packages and the registry of bazis-front with `python -c`) in a new
