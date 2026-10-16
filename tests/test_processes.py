@@ -281,9 +281,10 @@ time.sleep(60)
 
 def test_the_servers_end_together_and_a_repeated_signal_waits(shop):
     """
-    SIGTERM goes to all the servers before the wait for any of them, so that two servers that
+    SIGTERM goes to all the servers before SIGKILL to any of them, so that two servers that
     ignore it are killed after STOP_TIMEOUT once, not after their sum; a signal that comes
-    meanwhile does not end bazis-mcp before all of them are stopped.
+    meanwhile does not end bazis-mcp before all of them are stopped. The signals of
+    `signal_group` are printed in their order.
     """
     ports = project.read_ports(shop)
     script = f"""\
@@ -298,6 +299,13 @@ processes.server_command = lambda which, directory: (
     [sys.executable, '-c', {SERVE!r}, str(ports[which]), 'stubborn'], directory,
     dict(os.environ), ports[which],
 )
+signal_group = processes.signal_group
+
+def printed(process, kill=False):
+    print('kill' if kill else 'term', process.pid, flush=True)
+    signal_group(process, kill)
+
+processes.signal_group = printed
 processes.stop_on_signals()
 print(*(processes.start(which)['pid'] for which in processes.SERVERS), flush=True)
 time.sleep(60)
@@ -307,14 +315,14 @@ time.sleep(60)
     children = [child_of((shop / '.bazis' / 'logs' / f'{which}.log').read_text())
                 for which in processes.SERVERS]
 
-    started = time.monotonic()
     bazis_mcp.send_signal(signal.SIGTERM)
-    time.sleep(1)
-    bazis_mcp.send_signal(signal.SIGINT)
+    terms = [bazis_mcp.stdout.readline() for _ in pids]
+    bazis_mcp.send_signal(signal.SIGINT)  # while it waits for the servers
 
+    assert len(pids) == 2 and terms == [f'term {pid}\n' for pid in pids]
+    assert bazis_mcp.stdout.read().splitlines() == [f'kill {pid}' for pid in pids]
     assert bazis_mcp.wait(30) == -signal.SIGTERM
-    assert time.monotonic() - started < 7
-    assert len(pids) == 2 and all([gone(pid) for pid in [*pids, *children]])
+    assert all([gone(pid) for pid in [*pids, *children]])
 
 
 #: a command: starts a child, writes its pid and that of the child to the file of its

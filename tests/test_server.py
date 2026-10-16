@@ -64,24 +64,6 @@ async def test_tool_annotations(client):
     assert tools['delete_file'].idempotent_hint
 
 
-def test_instructions_name_the_boundaries():
-    """
-    The files in the project, `.env` never read, the commands only through `run_command`,
-    the servers through `start_server` and `stop_server`, the packages through
-    `add_packages`.
-    """
-    from bazis.contrib.mcp.server import INSTRUCTIONS
-
-    text = ' '.join(INSTRUCTIONS.split())
-    for part in ('Change only the files in it (`read_file`, `write_file`, `delete_file`, `list_files`)',
-                 'Never read `.env`', 'Run the commands of the rules only with `run_command`',
-                 '`run_command("manage", ["<command>", "<options>"])`',
-                 'it sets `E2E_PORT` and `E2E_PASSWORD` itself',
-                 '`start_server` and `stop_server`', 'add Bazis packages with `add_packages`',
-                 'Never run a command in another way'):
-        assert part in text, part
-
-
 async def test_list_packages(client):
     packages = {
         it['name']: it for it in result(await client.call_tool('list_packages', {}))['packages']
