@@ -136,8 +136,8 @@ The work on the project served (never a command or a path of the caller outside 
   `exit_code`, or the `reason`. The servers started and the commands that run (of
   `run_command` and `add_packages`) stop when bazis-mcp ends, also by SIGTERM (as a client
   ends its server) or SIGINT: all together, SIGTERM to every group, then SIGKILL after 10
-  seconds; a signal that comes meanwhile waits for that, and a command or a server
-  started meanwhile is refused. On Windows a process group is not stopped: only the
+  seconds; a signal that comes meanwhile waits for that. A call that comes in that window
+  (up to 10 seconds after the signal) may leave its process running. On Windows a process group is not stopped: only the
   process itself is (the processes it started, such as the node of `npm run dev` or of a
   command over its timeout, may stay), so the servers and the long commands are not
   supported there.

@@ -212,10 +212,9 @@ def execute(
     `exit_code` (null after the timeout), `ok`, `timed_out` and the ends of `stdout` and
     `stderr` (`tail`). On an exception, such as one of `progress`, the group is killed too.
     While it runs, the command is in `processes.COMMANDS`, stopped with the servers when this
-    server ends; refused once that has begun (`processes.check_open`).
+    server ends.
     """
     with processes.LOCK:
-        processes.check_open()
         try:
             process = subprocess.Popen(
                 command, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,

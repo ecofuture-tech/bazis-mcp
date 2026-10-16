@@ -19,7 +19,7 @@ group with its output in `.bazis/logs/<server>.log`. The registry has the proces
 server started: the servers by name (`RUNNING`) and the commands that run (`COMMANDS`, of
 `commands.execute`). A server is stopped by `stop` (the whole group, SIGTERM then SIGKILL);
 all of them are stopped together when this server ends (`stop_all`: `atexit`, and
-`stop_on_signals` for SIGTERM and SIGINT), and none starts from then on (`CLOSED`).
+`stop_on_signals` for SIGTERM and SIGINT).
 """
 
 import atexit
@@ -57,8 +57,6 @@ RUNNING: dict[str, Server] = {}
 COMMANDS: set[subprocess.Popen] = set()
 #: one change of `RUNNING` and `COMMANDS` at a time (the tools run in worker threads)
 LOCK = threading.Lock()
-#: set by `stop_all` under LOCK: this server ends, no server nor command starts any more
-CLOSED = False
 #: the signals that end this server once `stop_all` is done (`stop_on_signals`)
 SIGNALS = (signal.SIGTERM, signal.SIGINT)
 
@@ -126,15 +124,6 @@ def server_command(which: str, directory: Path) -> tuple[list[str], Path, dict[s
     return [npm, 'run', 'dev', '--', '--port', str(port), '--strictPort'], frontend, env, port
 
 
-def check_open() -> None:
-    """
-    Under LOCK: ProjectError once `stop_all` has begun, so that a call that comes while this
-    server ends starts no process that nothing would stop.
-    """
-    if CLOSED:
-        raise project.ProjectError('bazis-mcp is ending: no server nor command starts any more.')
-
-
 def _running(which: str) -> Server | None:
     server = RUNNING.get(which)
     return server if server and server.process.poll() is None else None
@@ -148,7 +137,6 @@ def start(which: str) -> dict:
     """
     directory = project.inside('.')
     with LOCK:
-        check_open()
         if server := _running(which):
             raise project.ProjectError(
                 f'The {which} runs already (pid {server.process.pid}, port {server.port}, '
@@ -202,11 +190,9 @@ def stop(which: str) -> dict:
 def stop_all() -> None:
     """
     Stops every server started by `start` and every command that runs, together
-    (`terminate`), at the end of this server; none starts from then on (`CLOSED`).
+    (`terminate`), at the end of this server.
     """
-    global CLOSED
     with LOCK:
-        CLOSED = True
         group = [server.process for server in RUNNING.values()] + list(COMMANDS)
         RUNNING.clear()
         COMMANDS.clear()

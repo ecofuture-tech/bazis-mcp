@@ -46,8 +46,7 @@ project (`add_packages`, `run_command`, the servers, the files); the other tools
   `LOCK` of the servers (`RUNNING`) and of the commands that run (`COMMANDS`, of
   `commands.execute`), their stop by process group (SIGTERM, then SIGKILL; `terminate`
   stops several groups together), `stop_all` at `atexit` and by `stop_on_signals`
-  (SIGTERM, SIGINT, the signals that come meanwhile ignored; installed by `main`), after
-  which nothing starts (`CLOSED`, checked under `LOCK` by `start` and `commands.execute`);
+  (SIGTERM, SIGINT, the signals that come meanwhile ignored; installed by `main`);
 - `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `delete_file`, `list_files`
   within `project.inside`, `.env` never read nor written, `NOT_WRITTEN` and `generated/`
   never written (the names compared in any case, and with `os.path.samefile`), what is
