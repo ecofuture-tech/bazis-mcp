@@ -262,7 +262,7 @@ def use_project(directory: str) -> dict:
     """
     Serves the existing project in `directory` (an absolute path, the directory of its
     manage.py) from now on: the facts of `project_status` and the `rules` to follow when
-    changing it. The project of the command line keeps its settings module and Python.
+    changing it. The project served chosen again keeps its settings module and Python.
     """
     return _project_call(project.use, directory)
 
@@ -672,7 +672,7 @@ def main(argv: list[str] | None = None) -> None:
 
     directory = args.project_dir or (Path.cwd() if project.is_project(Path.cwd()) else None)
     if directory:
-        project.launch(directory, args.settings, args.python)
+        project.configure(directory, args.settings, args.python)
     processes.stop_on_signals()
     server.run()
 

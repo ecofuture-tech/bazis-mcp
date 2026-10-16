@@ -70,7 +70,8 @@ The project of the conversation:
   task of building the project.
 - `use_project(directory)` — serves the existing project in `directory` (the directory of
   its `manage.py`): its status and its `rules`. The project served changes only once its
-  status is read; the project of the command line keeps its `--settings` and `--python`.
+  status is read; the project served chosen again keeps its `--settings` and `--python`
+  (another project drops them).
 - `project_status()` — `directory`, `settings`, `python`, `frontend` (made by
   `bazis_front init`; `use_project` adds the rules of the frontend then), `ports` (null
   until chosen or when `.bazis/ports.json` cannot be read), `database_name` (the name of

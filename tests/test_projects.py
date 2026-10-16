@@ -417,15 +417,16 @@ async def test_project_status_names_the_variables_of_env_only(client, monkeypatc
         assert value not in text_of(call_result)
 
     # the lines without `=` (a pasted token, the lines of a PEM without quotes) and the names
-    # that are no identifiers are not variables; a value of base64 keeps its name
+    # that are no identifiers (the last line of that PEM) are not variables; a value of
+    # base64 keeps its name
     (directory / '.env').write_text(
         'BS_A=1\nghp_PastedToken0123456789\nBS_KEY=YWJjZA==\nmy-key=x\n'
         'BS_PEM=-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n'
-        '-----END PRIVATE KEY-----\nBS_B=2\n'
+        'h5Lk+9w0B/AQEFAASC==\n-----END PRIVATE KEY-----\nBS_B=2\n'
     )
     call_result = await client.call_tool('project_status', {})
     assert result(call_result)['env_keys'] == ['BS_A', 'BS_KEY', 'BS_PEM', 'BS_B']
-    for value in ('ghp_PastedToken', 'YWJjZA', 'MIIEvQIBADAN', 'my-key'):
+    for value in ('ghp_PastedToken', 'YWJjZA', 'MIIEvQIBADAN', 'h5Lk', 'my-key'):
         assert value not in text_of(call_result)
 
     # a .env of another directory is not read
@@ -521,17 +522,17 @@ async def test_use_project_keeps_the_options_of_the_command_line(client, monkeyp
     """
     other = tmp_path / 'other'
     shutil.copytree(SAMPLE_DIR, other, ignore=shutil.ignore_patterns('__pycache__'))
-    project.launch(SAMPLE_DIR, 'sample.settings_local', '/opt/python/bin/python3')
-
-    used = result(await client.call_tool('use_project', {'directory': str(other)}))
-    assert used['settings'] == 'sample.settings' and used['python'] == sys.executable
-    assert project.settings_module is None and project.python is None
+    project.configure(SAMPLE_DIR, 'sample.settings_local', '/opt/python/bin/python3')
 
     used = result(await client.call_tool('use_project', {'directory': str(SAMPLE_DIR)}))
     assert used['settings'] == 'sample.settings_local'
     assert used['python'] == '/opt/python/bin/python3'
     assert project.settings_module == 'sample.settings_local'
     assert project.python == '/opt/python/bin/python3'
+
+    used = result(await client.call_tool('use_project', {'directory': str(other)}))
+    assert used['settings'] == 'sample.settings' and used['python'] == sys.executable
+    assert project.settings_module is None and project.python is None
 
 
 def test_inside(monkeypatch, tmp_path):

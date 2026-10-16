@@ -36,8 +36,8 @@ from . import prompts, rules, scaffold
 
 
 SETTINGS_RE = re.compile(r"""DJANGO_SETTINGS_MODULE['"]\s*,\s*['"]([\w.]+)['"]""")
-#: the name of a variable of .env: python-dotenv also takes a line without `=`, such as a
-#: line of a value on several lines without quotes or a pasted token, for a name
+#: the name of a variable of .env: python-dotenv also takes a line for a name, such as the
+#: last line of a PEM without quotes (`h5Lk+9w0B/AQ==` is the name `h5Lk+9w0B/AQ` of `=`)
 ENV_NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 TIMEOUT = 300
 NO_PROJECT = 'No project: call create_project or use_project.'
@@ -48,9 +48,6 @@ project_dir: Path | None = None
 settings_module: str | None = None
 #: the Python of the project given on the command line, if any
 python: str | None = None
-#: the project directory of the command line (resolved), with its settings module and Python:
-#: kept when `use` chooses that directory again
-launched: tuple[Path, str | None, str | None] | None = None
 #: `create` and `use` one at a time: they change the project served, and a creation removes
 #: what it wrote when it fails
 CHANGE_LOCK = threading.Lock()
@@ -67,16 +64,6 @@ def configure(directory: Path, settings: str | None = None, interpreter: str | N
     project_dir = directory.resolve()
     settings_module = settings
     python = interpreter
-
-
-def launch(directory: Path, settings: str | None = None, interpreter: str | None = None):
-    """
-    Serves the project of the command line (`configure`), whose settings module and Python
-    `use` keeps when it chooses that directory again.
-    """
-    global launched
-    configure(directory, settings, interpreter)
-    launched = (project_dir, settings, interpreter)
 
 
 def is_project(directory: Path) -> bool:
@@ -386,8 +373,8 @@ def env_values(directory: Path) -> tuple[dict[str, str] | None, str | None]:
 def use(directory: str) -> dict:
     """
     Serves the project in `directory` (an absolute path) from now on: its `facts` and its
-    rules. The settings module and the Python of the command line are kept for its
-    directory. The project served changes only once its facts are read.
+    rules. The settings module and the Python of the project served are kept when it is
+    chosen again. The project served changes only once its facts are read.
     """
     path = Path(directory)
     if not path.is_absolute():
@@ -397,8 +384,8 @@ def use(directory: str) -> dict:
             f'{path} is not a project: it has no manage.py. Call create_project for a new one.'
         )
     path = path.resolve()
-    settings, interpreter = launched[1:] if launched and launched[0] == path else (None, None)
     with CHANGE_LOCK:
+        settings, interpreter = (settings_module, python) if path == project_dir else (None, None)
         found = facts(path, settings, interpreter)
         configure(path, settings, interpreter)
     return {**found, 'rules': project_rules(found['frontend'])}

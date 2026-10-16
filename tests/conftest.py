@@ -34,7 +34,6 @@ def sample_project(monkeypatch):
     monkeypatch.setattr(project, 'project_dir', SAMPLE_DIR)
     monkeypatch.setattr(project, 'settings_module', None)
     monkeypatch.setattr(project, 'python', sys.executable)
-    monkeypatch.setattr(project, 'launched', None)
 
 
 @pytest.fixture
