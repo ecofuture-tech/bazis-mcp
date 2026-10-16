@@ -362,16 +362,17 @@ else:
     else:
         with connection:
             result = first = prepare(connection, db['NAME'])
-            taken = []
-            for number in range(2, 100 if free else 2):
-                if result['outcome'] not in TAKEN:
-                    break
-                taken.append(result['name'])
-                result = prepare(connection, f"{db['NAME']}_{number}")
-            if result['outcome'] in TAKEN:
-                result = first
-            elif taken:
-                result['taken'] = taken
+            if free:
+                taken = []
+                for number in range(2, 100):
+                    if result['outcome'] not in TAKEN:
+                        break
+                    taken.append(result['name'])
+                    result = prepare(connection, f"{db['NAME']}_{number}")
+                if result['outcome'] in TAKEN:
+                    result = first
+                elif taken:
+                    result['taken'] = taken
 print(json.dumps(result))
 """
 
