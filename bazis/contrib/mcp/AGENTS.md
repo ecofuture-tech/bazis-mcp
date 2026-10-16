@@ -115,18 +115,12 @@ The work on the project served (never a command or a path of the caller outside 
   `pip` (only `install -r requirements-dev.txt`) in the project directory, `npm` (`npm
   install` and `npm ci` without arguments, the dependencies of the frontend after
   `bazis_front add` or `update`; `npm run` of build, lint, test, e2e, format, not dev, and
-  only test and e2e take arguments, after `--`: the names of tests and the options
-  `-t`/`--testNamePattern` of test, `-g`/`--grep`, `--grep-invert`, `--project`,
-  `--workers` of e2e) and `npx` (only `tsc --noEmit` and `playwright install chromium`,
+  only test and e2e take arguments, after `--`) and `npx` (only `tsc --noEmit` and `playwright install chromium`,
   as `npx --no`: a tool of `frontend/node_modules`, never downloaded; without it the
   command is refused) in `frontend/`. npm and npx are found on the `PATH` (`npm.cmd` on
   Windows). An argument with a character of a shell, with `..` or with a path outside the
-  project (also through a symbolic link) is refused, and so are the options of `manage`
-  that choose other settings (`--settings`, `--pythonpath`, also abbreviated) and those
-  of `pytest` that remove or write the paths they name or change its configuration,
-  plugins or settings (`--basetemp`, `--junitxml`/`--junit-xml`, `--log-file`, `--debug`,
-  `--rootdir`, `--confcutdir`, `-c`/`--config-file`, `-o`/`--override-ini`, `-p`,
-  `--pyargs`, `--ds`, `--dc`, also in a group such as `-vp`, and `@<file>`).
+  project (also through a symbolic link, in `--option=<path>` and `<path>::<test>` too) is
+  refused, and so is `--basetemp` of pytest, which removes the directory it names.
   The commands read no stdin (pass `--noinput` where Django asks), and get the settings
   module of the project, `E2E_PORT` of `.bazis/ports.json` and `E2E_PASSWORD` of `.env`
   (a new project has one), whose value is hidden in their output. Returns `command`,

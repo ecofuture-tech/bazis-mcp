@@ -313,24 +313,17 @@ def add_packages(names: list[str], ctx: Context) -> dict:
 def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dict:
     """
     Runs a command of the project from a closed table, as argv without a shell, with a
-    timeout of 600 seconds: `manage` (`.venv/bin/python manage.py` with `args`, whose first
-    is makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, or bazis_front
-    or bazis_messages with their subcommand), `pytest` (`.venv/bin/python -m pytest
-    <args>`), `pip` (`args` only `["install", "-r", "requirements-dev.txt"]`, into `.venv`,
-    with requirements of PyPI only, as `add_packages`) in the project directory; `npm` (`["install"]` or `["ci"]` alone, the dependencies of the frontend; else
-    `npm run <args>`, the scripts build, lint, test, e2e, format, and for test and e2e after
-    `--` the names of tests and `-t`, `--testNamePattern` (test) or `-g`, `--grep`,
-    `--grep-invert`, `--project`, `--workers` (e2e)) and `npx` (`args` only
-    `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`, installed in
-    `frontend/node_modules`: npx never downloads) in `frontend/`. The arguments are plain
-    words (no character of a shell, no `..`, no path outside the project), without the
-    options of manage `--settings` and `--pythonpath`, nor those of pytest that write the
-    paths they name or change its configuration (`--basetemp`, `--junitxml`, `--log-file`,
-    `--debug`, `--rootdir`, `--confcutdir`, `-c`, `-o`, `-p`, `--pyargs`, `--ds`, `--dc`,
-    `@<file>`); a command never reads stdin: pass `--noinput` where Django asks.
-    `E2E_PORT` (`.bazis/ports.json`) and `E2E_PASSWORD` (`.env`) are set by the server,
+    timeout of 600 seconds. In the project directory: `manage` (`manage.py <args>`:
+    makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, or bazis_front or
+    bazis_messages with their subcommand), `pytest` (`-m pytest <args>`, never `--basetemp`)
+    and `pip` (only `["install", "-r", "requirements-dev.txt"]`, from PyPI into `.venv`). In
+    `frontend/`: `npm` (`["install"]` or `["ci"]`, else `npm run <script>` of build, lint,
+    test, e2e, format; test and e2e take arguments after `--`) and `npx` (only
+    `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`, never downloaded). The
+    arguments are plain words in the project: no character of a shell, no `..`. No stdin:
+    pass `--noinput` where Django asks. `E2E_PORT` and `E2E_PASSWORD` are set, the password
     never shown. Returns `exit_code`, `ok`, `timed_out` and the ends of `stdout` and
-    `stderr`. The servers are started with `start_server`, not here.
+    `stderr`. The servers are started with `start_server`.
     """
     return _project_call(commands.run, kind, args or [], _progress(ctx))
 

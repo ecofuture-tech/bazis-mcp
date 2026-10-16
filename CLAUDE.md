@@ -33,8 +33,8 @@ project (`add_packages`, `run_command`, the servers, the files); the other tools
   protocol of the SDK), else `confirmed_by_user`;
 - `bazis/contrib/mcp/commands.py` — `run_command`: the closed table `KINDS` (manage,
   pytest, npm, npx, pip), its arguments checked (no character of a shell, no `..`, no path
-  outside the project, no option of `MANAGE_OPTIONS` and `PYTEST_OPTIONS`, only the
-  `NPM_FILTERS` after `--`, npx with `--no` from `frontend/node_modules`), run as argv
+  outside the project, no `--basetemp` of pytest, arguments only for the `NPM_ARGUMENTS`
+  after `--`, npx with `--no` from `frontend/node_modules`), run as argv
   without a shell in a new process group with `TIMEOUT` and progress (the group killed on
   an exception too), `E2E_PORT` and `E2E_PASSWORD` set and the password hidden in the
   output; `add_packages` (the closure of `requires` in the catalog, `requirements.txt`,
