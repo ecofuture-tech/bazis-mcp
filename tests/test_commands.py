@@ -177,6 +177,8 @@ async def test_run_command_table(client, shop, fake_popen, kind, args, expected)
     ('npm', ['build', '--', '--outDir', 'src'], 'only e2e and test take arguments, after --.'),
     ('npm', ['build', '--prefix', 'src'], 'only e2e and test take arguments, after --.'),
     ('npm', ['e2e', '--grep', 'login'], 'only e2e and test take arguments, after --.'),
+    ('npm', ['e2e', '--', '--output=src'], 'npm never runs with --output'),
+    ('npm', ['e2e', '--', '--output', 'e2e'], 'npm never runs with --output'),
     ('npx', ['tsc'], 'npx runs only:'),
     ('npx', ['prettier', '--write', '.'], 'npx runs only:'),
     ('pip', ['install', 'requests'], 'pip runs only:'),

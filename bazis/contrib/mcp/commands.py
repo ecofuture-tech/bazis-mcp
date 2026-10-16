@@ -56,6 +56,10 @@ NPX = [['tsc', '--noEmit'], ['playwright', 'install', 'chromium']]
 #: the only command of `pip` in `.venv`, whole
 PIP = ['install', '-r', 'requirements-dev.txt']
 KINDS = ('manage', 'pytest', 'npm', 'npx', 'pip')
+#: the options that remove the directory they name, never run: `--basetemp` of pytest and
+#: `--output` of Playwright (`npm run e2e`), as `--option=<dir>` or `--option <dir>` (neither
+#: takes an abbreviation of a long option)
+REMOVING = {'pytest': '--basetemp', 'npm': '--output'}
 
 #: what a shell would read in an argument: never in one (there is no shell, the table is closed)
 SHELL_RE = re.compile(r'[;&|$`<>(){}*?!~\'"\\\x00-\x1f\x7f]')
@@ -143,6 +147,8 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
     else:
         cwd = project.inside('.')
     _check_args(args, cwd)
+    if (option := REMOVING.get(kind)) and any(arg.split('=', 1)[0] == option for arg in args):
+        raise project.ProjectError(f'{kind} never runs with {option}: it removes the directory it names.')
     python = project.find_python(project.project_dir, project.python)
     first = args[0] if args else None
     if kind == 'manage':
@@ -155,11 +161,6 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
             raise project.ProjectError(f'manage runs only: {", ".join(known)}.')
         return [python, 'manage.py', *args], cwd
     if kind == 'pytest':
-        # pytest takes no abbreviation of a long option
-        if any(arg.split('=', 1)[0] == '--basetemp' for arg in args):
-            raise project.ProjectError(
-                'pytest never runs with --basetemp: it removes the directory it names.'
-            )
         return [python, '-m', 'pytest', *args], cwd
     if kind == 'npm':
         return _npm(args), cwd

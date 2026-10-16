@@ -318,7 +318,7 @@ def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dic
     bazis_messages with their subcommand), `pytest` (`-m pytest <args>`, never `--basetemp`)
     and `pip` (only `["install", "-r", "requirements-dev.txt"]`, from PyPI into `.venv`). In
     `frontend/`: `npm` (`["install"]` or `["ci"]`, else `npm run <script>` of build, lint,
-    test, e2e, format; test and e2e take arguments after `--`) and `npx` (only
+    test, e2e, format; test and e2e take arguments after `--`, never `--output`) and `npx` (only
     `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`, never downloaded). The
     arguments are plain words in the project: no character of a shell, no `..`. No stdin:
     pass `--noinput` where Django asks. `E2E_PORT` and `E2E_PASSWORD` are set, the password
