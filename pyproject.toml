@@ -52,7 +52,7 @@ test = [
     # the sample project and the skeleton (scaffold.py) of the tests: the server runs a
     # project with its own Python
     "bazis>=2.16.0",
-    "bazis-test-utils>=2.3.0",
+    "bazis-test-utils>=2.5.2",
     "setuptools-scm>=8",  # the versions of the clones in scripts/update_catalog.py
 ]
 dev = [
