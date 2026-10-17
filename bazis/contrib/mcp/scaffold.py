@@ -39,7 +39,7 @@ REQUIREMENTS = ['bazis>=2.16.0']
 REQUIREMENTS_DEV = ['bazis-mcp>=2.4.5', 'bazis-test-utils>=2.5.2']
 
 #: the frontend layer of a product (`bazis new` without `--no-frontend`)
-FRONTEND_REQUIREMENT = 'bazis-front>=0.1.0'
+FRONTEND_REQUIREMENT = 'bazis-front>=0.2.0'
 FRONTEND_APP = 'bazis.contrib.front'
 #: replaces FRONTEND_REQUIREMENT in requirements.txt: a pip requirement such as a path to a
 #: wheel or a checkout, or `bazis-front @ <url>`, to try a bazis-front that is not on PyPI
@@ -271,7 +271,7 @@ with npm is needed for the frontend.
   roles, statuses or transits: migrate, `python manage.py bazis_front contract`, then
   `python manage.py bazis_front check` (the MCP tool `front_check`) until it has no errors.
 - `contract/`, `frontend/src/bazis/generated/` and `frontend/e2e/generated/` are only
-  generated (`bazis_front contract`, `design`, `e2e`), never edited; the MCP tool
+  generated (`bazis_front contract`, `design`, `e2e`, `shots`), never edited; the MCP tool
   `front_status` says what is stale.
 - The permit roles are declared in `<app>/roles.py` and the statuses and transits in
   `<app>/workflow.py`: `migrate` applies them. The test data of the end-to-end tests is `python manage.py e2e_data` (the e2e data command recommended by
@@ -280,6 +280,10 @@ with npm is needed for the frontend.
 - In `frontend/`: `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run build`, and
   `npm run e2e` against the running backend with that test data, on the ports of
   `.bazis/ports.json` (`BAZIS_API_URL` of `frontend/.env.local`, `E2E_PORT`).
+- `python manage.py bazis_front shots`, with the backend running as for `npm run e2e`,
+  takes the screenshots of the screens into `frontend/.scratch/shots/` (not committed)
+  with their `report.json`: the screens are done when it has no error and the screenshots
+  pass the checklist of "The visual check" of the guide.
 '''
 
 

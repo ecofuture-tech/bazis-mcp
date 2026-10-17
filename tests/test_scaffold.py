@@ -319,11 +319,13 @@ def test_scaffold_with_a_frontend(tmp_path):
     assert '## Frontend' not in (backend / 'AGENTS.md').read_text()
 
     assert (product / 'requirements.txt').read_text().splitlines() == [
-        *scaffold.REQUIREMENTS, 'bazis-front>=0.1.0',
+        *scaffold.REQUIREMENTS, 'bazis-front>=0.2.0',
     ]
     assert """BS_INSTALLED_APPS='["bazis.contrib.front"]'""" in (product / 'project.env').read_text()
     agents_md = (product / 'AGENTS.md').read_text()
     assert '## Frontend' in agents_md and 'frontend/AGENTS.md' in agents_md
+    # the screenshots of the screens, never committed
+    assert 'bazis_front shots' in agents_md and '`frontend/.scratch/shots/` (not committed)' in agents_md
     # the agent creates the frontend with `bazis_front init`, after choosing the packages
     assert not (product / 'frontend').exists() and not (product / 'spec').exists()
 

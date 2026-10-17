@@ -53,7 +53,10 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   is; never lower a minimum. List its app in `BS_INSTALLED_APPS` of `project.env` when its
   guide says so.
 - After changing models run `.venv/bin/python manage.py makemigrations`. After a change run
-  `run_doctor` and fix the errors and the warnings of the packages you used. With the
+  `run_doctor` and fix the errors and the warnings of the packages you used, but
+  `front.W009` (the screenshots of the frontend not taken, or their errors) in a task that
+  changes no screen, spec or design of the frontend: they need the backend and a browser,
+  and the rules of the frontend say when to take them. With the
   database of `.env` it also checks the data against the declarations (`permit.W005`,
   `statusy.W003`: migrate); the info `bazis.database` says the database could not be
   reached and those checks did not run. The tests run with `.venv/bin/python -m pytest`
@@ -176,8 +179,8 @@ step when you reach it, and follow it exactly. All the frontend logic is in bazi
 do not write generators or frontends of your own.
 
 - The frontend is changed with the subcommands of `.venv/bin/python manage.py bazis_front`
-  (`init`, `contract`, `check`, `add`, `design`, `e2e`, `update`; `status` only shows its
-  state). The MCP tools read it: `front_check` (the issues of the specs
+  (`init`, `contract`, `check`, `add`, `design`, `e2e`, `shots`, `update`; `status` only
+  shows its state). The MCP tools read it: `front_check` (the issues of the specs
   against the contract, with a `hint` each), `front_status` (what is stale and the command
   that updates it) and `front_catalog` (the components, the capabilities and the assets
   they require).
@@ -185,6 +188,13 @@ do not write generators or frontends of your own.
   change of the models, routes, roles, statuses or transits: migrate, export the contract
   (`bazis_front contract`), then fix the spec or the backend until `front_check` reports
   no errors.
+- The screens are done when `bazis_front shots` (the backend running as for `npm run e2e`)
+  reports no error in `frontend/.scratch/shots/report.json` and its screenshots pass the
+  checklist of "The visual check" of the guide: fix the specs, the screens, the design or
+  the backend and take them again, at most three rounds. The errors left after the third
+  are `shot_errors` of `front_status` (not stale): the work is not done while it has one
+  that Left for you does not list with its screen, its code and why it is left. Never
+  commit `frontend/.scratch/`.
 - Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/e2e/generated/`, the
   copies of `frontend/src/bazis/client/`, `frontend/src/bazis/react/`,
   `frontend/src/bazis/i18n/`, `frontend/e2e/bazis/`, `frontend/bazis-front.lock.json` or
@@ -214,11 +224,13 @@ do not write generators or frontends of your own.
   reports; format only with `npm run format` (the prettier pinned in its `package.json`,
   which leaves the copies alone), never `npx prettier`.
 - The final checks of the frontend: `front_check` without errors, `front_status` with
-  nothing stale, and in `frontend/` `npx tsc --noEmit`, `npm run lint`, `npm test` and
-  `npm run build`; after a change of the specs or the screens also `bazis_front e2e` and
-  `npm run e2e` against the running backend: migrate, run `e2e_data`, start
-  `.venv/bin/uvicorn <project package>.main:app --port <backend>` in the background, run
-  `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm run e2e`, then stop the backend.
+  nothing stale and no `shot_errors` (or each of them in Left for you, after the three
+  rounds of the screenshots), and in `frontend/` `npx tsc --noEmit`, `npm run lint`,
+  `npm test`, `npm run build` and `bazis_front shots --check`; after a change of the specs
+  or the screens also `bazis_front e2e` and `npm run e2e` against the running backend:
+  migrate, run `e2e_data`, start `.venv/bin/uvicorn <project package>.main:app --port
+  <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm
+  run e2e` and `bazis_front shots`, then stop the backend.
   A test that fails only sometimes gets one attempt at a fix, then goes to Left for you.
 - Node.js with npm is needed by `npm install`, the TypeScript of the contract
   (`schema.d.ts`), the build and the tests of the frontend, and the contract by a migrated

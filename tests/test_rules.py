@@ -36,7 +36,20 @@ def test_frontend_rules():
                  # what is never edited, also the copy of the dictionaries of the components
                  '`frontend/src/bazis/i18n/`', '`status` only shows its state',
                  # a formatter of another version and style rewrites the files (round 3, 8)
-                 'format only with `npm run format`', 'never `npx prettier`'):
+                 'format only with `npm run format`', 'never `npx prettier`',
+                 # the screenshots: their rounds until the report is clean, and their check
+                 '`init`, `contract`, `check`, `add`, `design`, `e2e`, `shots`, `update`',
+                 'The screens are done when `bazis_front shots`',
+                 'no error in `frontend/.scratch/shots/report.json`', '"The visual check"',
+                 'at most three rounds', 'Never commit `frontend/.scratch/`',
+                 # the errors left in the report are not stale, yet no work is done with one
+                 # that Left for you does not list
+                 'The errors left after the third are `shot_errors` of `front_status` (not stale)',
+                 'the work is not done while it has one that Left for you does not list',
+                 '`front_status` with nothing stale and no `shot_errors` (or each of them in '
+                 'Left for you, after the three rounds of the screenshots)',
+                 '`npm run build` and `bazis_front shots --check`',
+                 'npm run e2e` and `bazis_front shots`, then stop the backend'):
         assert text in rules, text
     assert '--port 8000' not in rules
 
@@ -73,7 +86,10 @@ def test_the_rules_follow_the_released_stack():
                  # with bazis-notify a notification is its own, never a second message
                  'Notify a user with `notify` of bazis-notify when the project has it',
                  'never a second message of bazis-ws', 'without bazis-notify, with `notify(users',
-                 '`permit.W005`', '`statusy.W003`', '`bazis.database`'):
+                 '`permit.W005`', '`statusy.W003`', '`bazis.database`',
+                 # a task of the backend never takes the screenshots for run_doctor
+                 '`front.W009` (the screenshots of the frontend not taken, or their errors) in a '
+                 'task that changes no screen, spec or design of the frontend'):
         assert text in rules, text
     assert 'clear_cache' not in rules and 'data migrations set' not in rules
 

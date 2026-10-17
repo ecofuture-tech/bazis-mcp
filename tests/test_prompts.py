@@ -21,7 +21,7 @@ def test_new_prompt_of_a_product():
     """
     The prompt of a product with a frontend follows the steps of the guide of bazis-front
     (never a copy of them), with what bazis-cli adds: the packages, `.venv`, the
-    description, one look at the screens, the final checks of the rules and the ports.
+    description, the rounds of the screenshots, the final checks of the rules and the ports.
     """
     ports = {'backend': 8123, 'frontend': 5199, 'e2e': 5201}
     prompt = ' '.join(prompts.new_prompt('A help desk', 'helpdesk', frontend=True, ports=ports).split())
@@ -33,12 +33,17 @@ def test_new_prompt_of_a_product():
         'Step 2', 'the specs describe the description', 'what a role may not do', 'front_check',
         'Step 3', 'the tests and the translations that the rules require', 'run_doctor',
         'front_catalog', 't()', 'Step 7', 'npx playwright install chromium',
-        'look at the screens once', 'One pass', 'the final checks of the rules',
-        'uvicorn helpdesk.main:app --port <backend>', 'npm run dev -- --port <frontend>',
+        'Step 9', 'uvicorn helpdesk.main:app --port <backend>', 'bazis_front shots', '`run_command`',
+        'frontend/.scratch/shots/report.json', '"The visual check"', 'at most three rounds',
+        '`shot_errors` of `front_status`', 'Left for you', 'Exit 2 means nothing was shot',
+        'Step 10', 'the final checks of the rules',
+        'npm run dev -- --port <frontend>',
     ]
     positions = [prompt.index(text) for text in order]
     assert positions == sorted(positions)
     assert 'A help desk' in prompt and '8000' not in prompt
+    # the rounds of the screenshots replace the one look of before
+    assert 'One pass' not in prompt
     # the steps of the guide and the rules are not repeated
     for text in ('bazis_front init', 'e2e_data', 'npm run build', 'At least 10'):
         assert text not in prompt, text
@@ -58,9 +63,10 @@ FRONTEND_GUIDE_STEPS = {
     3: ('Build the backend', 'roles.py'),
     5: ('Run `python manage.py bazis_front check`', 'bazis_front check'),
     6: ('Copy the components', 'frontend/src/screens/'),
-    7: ('Brand the design', 'bazis_front design'),
+    7: ('Design the product', 'bazis_front design'),
     8: ('Generate the end-to-end tests', 'bazis_front e2e'),
-    9: ('Check the frontend', 'npx tsc'),
+    9: ('Take the screenshots', 'bazis_front shots'),
+    10: ('Check the frontend', 'npx tsc'),
 }
 
 

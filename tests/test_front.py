@@ -47,7 +47,9 @@ REGISTRY = {
          'target': 'src/bazis/ui/transit-bar', 'files': ['index.ts'],
          'requires': {'capabilities': ['statusy'], 'assets': ['client']}},
         {'name': 'state-panel', 'kind': 'ui', 'source': 'ui/state-panel',
-         'target': 'src/bazis/ui/state-panel', 'files': ['index.ts'], 'init': True},
+         'target': 'src/bazis/ui/state-panel', 'files': ['index.ts']},
+        {'name': 'template', 'kind': 'template', 'source': 'template', 'target': '.',
+         'files': ['package.json'], 'requires': {'assets': ['state-panel']}},
     ],
 }
 SPEC_ISSUE = {
@@ -208,16 +210,31 @@ async def test_front_status(client, fake_run):
         'up_to_date': False,
         'stale': {'contract': [issues[0]], 'design': [issues[1]]},
         'spec_issues': 2,
+        'shot_errors': [],
         'messages': [issues[4], issues[5]],
     }
 
 
 async def test_front_status_up_to_date(client, fake_run):
-    fake_run.outputs = [probe_output(), status_output()]
+    # the errors of the report of the screenshots are not stale (no command updates them),
+    # and apart: the final checks want none that the summary does not list
+    report = issue('front.W009', 'The report of the last screenshots has 2 errors.',
+                   'Fix them and take the screenshots again with `manage.py bazis_front shots`.')
+    fake_run.outputs = [probe_output(), status_output(report)]
 
     status = result(await client.call_tool('front_status', {}))
 
     assert status['up_to_date'] is True and status['stale'] == {}
+    assert status['shot_errors'] == [report] and status['messages'] == []
+
+    # the screenshots never taken: no report, the same check
+    missing = issue('front.W009', 'The screenshots were not taken: run `manage.py bazis_front shots`.',
+                    'Run it with the backend and the frontend of the end-to-end tests.')
+    fake_run.outputs = [probe_output(), status_output(missing)]
+
+    status = result(await client.call_tool('front_status', {}))
+
+    assert status['up_to_date'] is True and status['shot_errors'] == [missing] and status['messages'] == []
 
 
 async def test_front_status_of_an_application_that_cannot_load(client, fake_run):
@@ -240,11 +257,14 @@ async def test_front_catalog_of_the_installed_bazis_front(client, fake_run, monk
     assert assets['version'] == assets['installed_version'] == '1.0.0'
     assert assets['assets'] == [
         {'name': 'client', 'kind': 'vendored', 'target': 'src/bazis/client',
-         'capabilities': [], 'requires': [], 'init': False},
+         'capabilities': [], 'requires': []},
         {'name': 'transit-bar', 'kind': 'ui', 'target': 'src/bazis/ui/transit-bar',
-         'capabilities': ['statusy'], 'requires': ['client'], 'init': False},
+         'capabilities': ['statusy'], 'requires': ['client']},
         {'name': 'state-panel', 'kind': 'ui', 'target': 'src/bazis/ui/state-panel',
-         'capabilities': [], 'requires': [], 'init': True},
+         'capabilities': [], 'requires': []},
+        # the components that `init` copies are those the template requires
+        {'name': 'template', 'kind': 'template', 'target': '.',
+         'capabilities': [], 'requires': ['state-panel']},
     ]
 
 
@@ -259,7 +279,7 @@ async def test_front_catalog_from_the_catalog(client, fake_run, monkeypatch):
     assert assets['source'] == 'catalog'
     assert assets['version'] == '1.1.0'
     assert assets['installed_version'] is None
-    assert [it['name'] for it in assets['assets']] == ['client', 'transit-bar', 'state-panel']
+    assert [it['name'] for it in assets['assets']] == ['client', 'transit-bar', 'state-panel', 'template']
 
 
 async def test_front_catalog_without_bazis_front(client, fake_run, monkeypatch):
@@ -355,19 +375,26 @@ async def test_front_tools_on_a_project(client, front_project):
             'entities: []', 'entities:\n  - id: product\n    resource: shop.missing\n    fields: []'
         )
     )
-    tokens_file = front_project / 'spec' / 'design' / 'tokens.json'
-    tokens = json.loads(tokens_file.read_text())
-    tokens['color']['background']['$value'] = 'oklch(0.97 0.003 264)'
-    tokens_file.write_text(json.dumps(tokens))
+    # the starter design is its layers in theme.yaml; tokens.json defines no token of its own
+    import yaml  # a dependency of bazis-front
+
+    design_dir = front_project / 'spec' / 'design'
+    theme = yaml.safe_load((design_dir / 'theme.yaml').read_text())
+    assert {'preset', 'palette', 'fonts', 'shape', 'surface'} <= theme.keys()
+    assert set(json.loads((design_dir / 'tokens.json').read_text())) <= {'$schema', '$description'}
+    theme['palette'] = 'forest' if theme['palette'] != 'forest' else 'ember'
+    (design_dir / 'theme.yaml').write_text(yaml.safe_dump(theme))
 
     checked = result(await client.call_tool('front_check', {}))
     assert checked['ok'] is False and checked['contract'] is True
-    assert [it['code'] for it in checked['issues']] == ['P011']
+    # the starter home, a dashboard without tiles, is the overview of the template once the
+    # product declares an entity (the warning S026)
+    assert [it['code'] for it in checked['issues']] == ['P011', 'S026']
     design = result(await client.call_tool('front_check', {'layer': 'design'}))
     assert design['ok'] is True and design['issues'] == []
 
     status = result(await client.call_tool('front_status', {}))
-    assert status['spec_issues'] == 1
+    assert status['spec_issues'] == 2
     assert set(status['stale']) == {'contract', 'design'}
     assert 'bazis_front design' in status['stale']['design'][0]['hint']
     # without Node schema.d.ts is not generated: the contract stays stale

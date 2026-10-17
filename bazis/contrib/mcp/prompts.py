@@ -24,7 +24,7 @@ from . import scaffold
 
 #: the order of the work on a product with a frontend made by bazis-front: the steps of the
 #: guide of bazis-front, with what the tasks add to them (the packages, `.venv`, the
-#: description, the ports, one look at the screens, the final checks of the rules)
+#: description, the ports, the rounds of the screenshots, the final checks of the rules)
 FRONTEND_STEPS = """\
 Follow the steps of "Building the frontend of a product" in the introduction of the guide
 of bazis-front (`package_guide("bazis-front")`), with the section of each step read when
@@ -42,13 +42,18 @@ you reach it, and with what this product adds to them:
   `makemigrations` and `run_doctor` without errors.
 - Step 5 is `front_check`; step 6 chooses the components with `front_catalog`, and the texts
   of the screens go through `t()`.
-- Step 7: the brand, the colors and the fonts of the design fit {source}.
+- Step 7: the palette, the fonts, the shape and the surface of the design fit {source}.
 - Step 8: install the browser once (`npx playwright install chromium` in `frontend/`), and
-  fix the screens, the specs or the backend until the tests pass. Then look at the screens
-  once: with the backend and `npm run dev` running, take a screenshot of each screen as a
-  role that uses it (into `.scratch/`) and fix what is visibly broken. One pass, no second
-  round of screenshots.
-- Step 9 is a part of the final checks of the rules: run them once, at the end. Say how to
+  fix the screens, the specs or the backend until the tests pass.
+- Step 9: with the backend running as for `npm run e2e` (its test data,
+  `.venv/bin/uvicorn {name}.main:app --port <backend>`), run `bazis_front shots` with
+  `run_command`, read `frontend/.scratch/shots/report.json` and open the screenshots
+  against the checklist of "The visual check"; fix every error in the specs, the screens,
+  the design or the backend and run `shots` again until the report has no error, at most
+  three rounds; after the third, list each error left (`shot_errors` of `front_status`) in
+  Left for you, with its screen and code. Exit 2 means nothing was shot: start the backend,
+  or install the browser.
+- Step 10 is a part of the final checks of the rules: run them once, at the end. Say how to
   run the backend (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend
   (`npm run dev -- --port <frontend>` in `frontend/`) with the ports of the project.
 """

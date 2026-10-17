@@ -516,6 +516,7 @@ async def test_prompts(client):
     text = ' '.join(prompt.messages[0].content.text.split())
     assert '"Building the frontend of a product"' in text and 'package_guide("bazis-front")' in text
     assert '`start_server("backend")`, then `run_command("npm", ["e2e"])`' in text
+    assert '`run_command("manage", ["bazis_front", "shots"])`' in text and 'at most three rounds' in text
 
 
 def test_find_settings(tmp_path, monkeypatch):

@@ -69,6 +69,9 @@ COMMAND_ERROR = 'CommandError: '
 
 #: the check of bazis-front that repeats the issues of the specs (`front_check`)
 SPEC_CHECK = 'front.W002'
+#: the check of bazis-front whose issue is the errors of the report of the last screenshots
+#: (`bazis_front shots`): not stale, the screens are fixed instead
+SHOTS_CHECK = 'front.W009'
 
 
 def package() -> dict | None:
@@ -117,7 +120,8 @@ def status() -> dict:
     """
     The parts of the frontend that are stale, from the issues of
     `manage.py bazis_front status --json` (the checks of the state of the frontend, without
-    Node), by the `command` of bazis-front that brings them up to date.
+    Node), by the `command` of bazis-front that brings them up to date, and the errors of the
+    report of the last screenshots (`shot_errors`), which no command updates.
     """
     installed = package()
     if unavailable := _unavailable(installed):
@@ -125,12 +129,15 @@ def status() -> dict:
     issues = project.manage('bazis_front', 'status', '--json')['issues']
     stale: dict[str, list[dict]] = {}
     other = []
+    shot_errors = []
     spec_issues = 0
     for issue in issues:
         if issue['command']:
             stale.setdefault(issue['command'], []).append(issue)
         elif issue['id'] == SPEC_CHECK:
             spec_issues += 1
+        elif issue['id'] == SHOTS_CHECK:
+            shot_errors.append(issue)
         else:
             other.append(issue)
     return {
@@ -139,6 +146,7 @@ def status() -> dict:
         'up_to_date': not stale,
         'stale': stale,
         'spec_issues': spec_issues,
+        'shot_errors': shot_errors,
         'messages': other,
     }
 
@@ -176,5 +184,4 @@ def _asset(entry: dict) -> dict:
         'target': entry['target'],
         'capabilities': requires.get('capabilities', []),
         'requires': requires.get('assets', []),
-        'init': entry.get('init', False),
     }

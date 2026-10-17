@@ -507,9 +507,12 @@ def front_status() -> dict:
     """
     What of the frontend is stale, without Node (the issues of
     `manage.py bazis_front status --json`): `stale` by the `manage.py bazis_front` command
-    that updates it (`contract`, `design`, `e2e`, `update`), each with the issues and their
-    hints;
-    `spec_issues` counts the issues of the specs (see `front_check`). Without bazis-front
+    that updates it (`contract`, `design`, `e2e`, `shots`, `update`), each with the issues and
+    their hints; `spec_issues` counts the issues of the specs (see `front_check`),
+    `shot_errors` has `front.W009` when the report of the last screenshots has errors or there
+    is no report, the screenshots not taken (not stale: the screens are fixed instead,
+    `bazis_front shots` again), and `messages` the
+    other issues. Without bazis-front
     (installed, in INSTALLED_APPS), `checked` is false and `reason` says what to do.
     """
     return _project_call(front.status)
@@ -520,8 +523,9 @@ def front_catalog() -> dict:
     """
     The assets that `manage.py bazis_front init` and `add` copy into the frontend (the
     components, the hooks, the shadcn/ui components): `kind`, `target` directory,
-    `capabilities` the contract must have (packages such as statusy), the assets it
-    `requires` (copied with it) and `init` (copied by `init`). Read from the bazis-front
+    `capabilities` the contract must have (packages such as statusy) and the assets it
+    `requires` (copied with it). `init` copies the vendored assets, the `template` and the
+    assets that the template `requires`; `add` the others. Read from the bazis-front
     installed in the project (`source` "installed"), else from the catalog of its latest
     release ("catalog").
     """
@@ -632,7 +636,7 @@ Audit this Bazis project.
 def build_frontend() -> str:
     """
     Builds the frontend of the project with bazis-front, from its specs to the end-to-end
-    tests.
+    tests and the screenshots of its screens.
     """
     return """\
 Build the frontend of this Bazis project with bazis-front.
@@ -645,7 +649,10 @@ commands that only read: `front_check` is `bazis_front check`, `front_status` sa
 stale and the command that updates it, `front_catalog` lists the components. Run
 `run_doctor` after a change of the backend, and finish with the checks of the last step of
 the guide and the end-to-end tests against the running backend (`start_server("backend")`,
-then `run_command("npm", ["e2e"])`); fix every failure.
+then `run_command("npm", ["e2e"])`); fix every failure. With the backend still running,
+take the screenshots, `run_command("manage", ["bazis_front", "shots"])`, and fix every
+error of `frontend/.scratch/shots/report.json` and what the screenshots show against the
+checklist of "The visual check" of the guide, then take them again, at most three rounds.
 """
 
 

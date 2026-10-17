@@ -209,11 +209,15 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
   `layer` (`product`, `screens`, `design`) reports one layer.
 - `front_status()` — what is stale, without Node: the issues of `bazis_front status --json`
   in `stale` by the `bazis_front` command that updates the part (`contract`, `design`,
-  `e2e`, `update`), `spec_issues` (the number of issues, see `front_check`), the other
+  `e2e`, `shots`, `update`), `spec_issues` (the number of issues, see `front_check`),
+  `shot_errors` (`front.W009` when the report of the last screenshots has errors or there is
+  none, the screenshots not taken: not stale, `up_to_date` does not count it; the screens are
+  fixed and taken again), the other
   issues in `messages` (such as a contract not checked before `migrate`).
 - `front_catalog()` — the assets that `bazis_front init` and `add` copy: `kind`, `target`,
-  the `capabilities` they need in the contract, the assets they `requires`, `init`; from the
-  bazis-front of the project, else from the catalog (`source`).
+  the `capabilities` they need in the contract, the assets they `requires` (`init` copies the
+  vendored assets, the `template` and the assets that the template `requires`; `add` the
+  others); from the bazis-front of the project, else from the catalog (`source`).
 
 Without bazis-front, installed and with `"bazis.contrib.front"` in `INSTALLED_APPS` (or
 without `spec/` for `front_check`), they return `checked: false` (`source: null` for

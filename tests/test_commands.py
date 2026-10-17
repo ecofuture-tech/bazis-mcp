@@ -114,6 +114,8 @@ async def test_run_command_manage(client):
     ('manage', ['check'], ['{python}', 'manage.py', 'check']),
     ('manage', ['migrate', '--noinput'], ['{python}', 'manage.py', 'migrate', '--noinput']),
     ('manage', ['bazis_front', 'contract'], ['{python}', 'manage.py', 'bazis_front', 'contract']),
+    ('manage', ['bazis_front', 'shots'], ['{python}', 'manage.py', 'bazis_front', 'shots']),
+    ('manage', ['bazis_front', 'shots', '--check'], ['{python}', 'manage.py', 'bazis_front', 'shots', '--check']),
     ('manage', ['bazis_messages', 'apply', 'locale/translations.json', '--check'],
      ['{python}', 'manage.py', 'bazis_messages', 'apply', 'locale/translations.json', '--check']),
     ('pytest', [], ['{python}', '-m', 'pytest']),

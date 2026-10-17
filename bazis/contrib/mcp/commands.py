@@ -40,7 +40,9 @@ OUTPUT_LIMIT = 10_000
 #: of their subcommands
 MANAGE = {'makemigrations', 'migrate', 'check', 'bazis_doctor', 'collectstatic', 'e2e_data'}
 MANAGE_SUBCOMMANDS = {
-    'bazis_front': {'init', 'contract', 'check', 'add', 'design', 'e2e', 'update', 'status'},
+    'bazis_front': {
+        'init', 'contract', 'check', 'add', 'design', 'e2e', 'shots', 'update', 'status',
+    },
     'bazis_messages': {'make', 'status', 'apply', 'compile'},
 }
 #: the scripts of `npm run` in `frontend/` (not `dev`: the dev server is `processes.start`), and
