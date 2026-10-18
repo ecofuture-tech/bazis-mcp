@@ -178,6 +178,10 @@ async def test_run_command_table(client, shop, fake_popen, kind, args, expected)
     # the edits of the generated screens are dropped only by the user
     ('manage', ['bazis_front', 'screens', '--force'], 'manage bazis_front screens never runs with --force'),
     ('manage', ['bazis_front', 'screens', '--check', '--force'], 'never runs with --force'),
+    # also as the abbreviations that argparse expands
+    ('manage', ['bazis_front', 'screens', '--forc'], 'never runs with --forc'),
+    ('manage', ['bazis_front', 'screens', '--check', '--f'], 'never runs with --f'),
+    ('manage', ['bazis_front', 'screens', '--fo=1'], 'never runs with --fo=1'),
     ('manage', ['bazis_messages', 'makemessages'], 'manage bazis_messages needs one of:'),
     ('npm', ['dev'], 'npm runs only the scripts:'),
     ('npm', ['run', 'dev'], 'args are the script and its arguments after --, such as ["e2e"]'),

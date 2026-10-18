@@ -47,7 +47,9 @@ MANAGE_SUBCOMMANDS = {
     'bazis_messages': {'make', 'status', 'apply', 'compile'},
 }
 #: the options of a subcommand that only the user runs: `screens --force` drops the edits of
-#: the generated screens, which the agent moves to their extensions instead
+#: the generated screens, which the agent moves to their extensions instead; also as an
+#: abbreviation (`--forc`), which the argparse of Django expands (those of pytest and of the
+#: scripts of npm do not)
 MANAGE_REFUSED = {('bazis_front', 'screens'): {'--force'}}
 #: the scripts of `npm run` in `frontend/` (not `dev`: the dev server is `processes.start`), and
 #: those that take arguments, after `--`
@@ -149,6 +151,13 @@ def _npx(args: list[str], cwd: Path) -> list[str]:
     return [machine.node_program('npx'), '--no', '--', *args]
 
 
+def _abbreviates(name: str, options: set[str]) -> bool:
+    """
+    Whether the option `name` is one of `options` or, for argparse, an abbreviation of one.
+    """
+    return name.startswith('--') and len(name) > 2 and any(option.startswith(name) for option in options)
+
+
 def frontend_dir() -> Path:
     """
     `frontend/` of the project served, made by `bazis_front init`.
@@ -179,7 +188,7 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
             if len(args) < 2 or args[1] not in choices:
                 raise project.ProjectError(f'manage {first} needs one of: {", ".join(sorted(choices))}.')
             refused = MANAGE_REFUSED.get((first, args[1]), set())
-            if option := next((a for a in args[2:] if a.split('=', 1)[0] in refused), None):
+            if option := next((a for a in args[2:] if _abbreviates(a.split('=', 1)[0], refused)), None):
                 raise project.ProjectError(
                     f'manage {first} {args[1]} never runs with {option}: only the user does.'
                 )
