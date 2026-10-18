@@ -118,6 +118,25 @@ async def test_tools_without_a_project(client, no_project, monkeypatch, tmp_path
     )
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason='root reads any directory')
+async def test_no_project_skips_a_directory_that_cannot_be_read(client, no_project, monkeypatch, tmp_path):
+    """
+    A directory without access hides only itself from the projects listed in the error.
+    """
+    monkeypatch.chdir(tmp_path)
+    for path in ('locked', 'shop'):
+        (tmp_path / path).mkdir()
+    (tmp_path / 'shop' / 'manage.py').write_text('')
+    (tmp_path / 'locked').chmod(0)
+    try:
+        assert error(await client.call_tool('project_status', {})) == (
+            f'{project.NO_PROJECT} The projects in the current directory: '
+            f'use_project("{tmp_path.resolve() / "shop"}").'
+        )
+    finally:
+        (tmp_path / 'locked').chmod(0o755)
+
+
 async def test_catalog_without_a_project(client, no_project):
     """
     The catalog describes the released packages without a project, none installed: the

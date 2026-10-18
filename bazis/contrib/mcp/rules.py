@@ -214,10 +214,13 @@ do not write generators or frontends of your own.
   fixed as well, or listed in Left for you with its screen, its code and why it stays. The
   errors left after the third are `shot_errors` of `front_status` (not stale): the work is
   not done while it has one that Left for you does not list with its screen, its code and
-  why it is left. Every screen of the last report is looked at, one of its screenshots at
-  least: without a shell, `reviewed` of `front_status` counts those looked at whole with
+  why it is left. The screenshots are looked at, one of each screen at least, the screens
+  with errors or warnings and the main ones first, then the others, up to the limit of the
+  client (`front_screenshot` gives 40 images of a run): the screens not looked at go to
+  Left for you in one line, their number and their ids, not one by one with a reason.
+  Without a shell, `reviewed` of `front_status` counts those looked at whole with
   `front_screenshot` and names the others (`not_looked`), and the work is not done while it
-  names one that Left for you does not list. Never commit `frontend/.scratch/`.
+  names one that that line does not list. Never commit `frontend/.scratch/`.
 - Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/src/screens/generated/`,
   `frontend/e2e/generated/`, the
   copies of `frontend/src/bazis/client/`, `frontend/src/bazis/react/`,

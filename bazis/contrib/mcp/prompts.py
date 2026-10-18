@@ -54,14 +54,16 @@ you reach it, and with what this product adds to them:
 - Step 9: with the backend running as for `npm run e2e` (its test data,
   `.venv/bin/uvicorn {name}.main:app --port <backend>`), run `bazis_front shots` with
   `run_command`, read `frontend/.scratch/shots/report.json` and look at the screenshots
-  (`front_screenshot`, the `file` of each shot: those with errors first, then one of each
-  screen, each `part` of a tall one) against the
+  (`front_screenshot`, the `file` of each shot: the screens with errors or warnings and the
+  main ones first, then one of each other screen up to the limit of 40 images of a run,
+  each `part` of a tall one) against the
   checklist of "The visual check"; fix every error in the specs, the screens,
   the design or the backend and run `shots` again until the report has no error, at most
   three rounds; after the third, list each error left (`shot_errors` of `front_status`) in
   Left for you, with its screen and code. Fix each warning of the report too, or list it
-  there with why it stays; `reviewed` of `front_status` names the screens `not_looked`. Exit
-  2 means nothing was shot: start the backend, or install the browser.
+  there with why it stays. The screens not looked at go to Left for you in one line, their
+  number and their ids; without a shell, `reviewed` of `front_status` names them
+  (`not_looked`). Exit 2 means nothing was shot: start the backend, or install the browser.
 - Step 10 is a part of the final checks of the rules: run them once, at the end. Say how to
   run the backend (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend
   (`npm run dev -- --port <frontend>` in `frontend/`) with the ports of the project.

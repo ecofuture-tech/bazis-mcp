@@ -37,11 +37,13 @@ def test_new_prompt_of_a_product():
         'frontend/src/screens/<id>/extend.tsx', '(`custom`)', 't()', 'front_catalog', 'Step 7',
         'npx playwright install chromium',
         'Step 9', 'uvicorn helpdesk.main:app --port <backend>', 'bazis_front shots',
-        'frontend/.scratch/shots/report.json', '`front_screenshot`', '"The visual check"',
+        'frontend/.scratch/shots/report.json', '`front_screenshot`',
+        'the screens with errors or warnings and the main ones first', '"The visual check"',
         'at most three rounds',
         '`shot_errors` of `front_status`', 'Left for you',
         'Fix each warning of the report too, or list it there with why it stays',
-        '`reviewed` of `front_status` names the screens `not_looked`', 'Exit 2 means nothing was shot',
+        'The screens not looked at go to Left for you in one line, their number and their ids; '
+        'without a shell, `reviewed` of `front_status` names them (`not_looked`)', 'Exit 2 means nothing was shot',
         'Step 10', 'the final checks of the rules',
         'npm run dev -- --port <frontend>',
     ]

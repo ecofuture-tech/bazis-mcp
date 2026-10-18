@@ -69,9 +69,13 @@ def test_frontend_rules():
                  # screens looked at, 9 warnings left unread)
                  'Each warning of the report is fixed as well, or listed in Left for you with '
                  'its screen, its code and why it stays',
-                 'Every screen of the last report is looked at, one of its screenshots at least',
-                 '`reviewed` of `front_status` counts those looked at whole with `front_screenshot` '
-                 'and names the others (`not_looked`)',
+                 'The screenshots are looked at, one of each screen at least, the screens '
+                 'with errors or warnings and the main ones first',
+                 'up to the limit of the client (`front_screenshot` gives 40 images of a run)',
+                 'the screens not looked at go to Left for you in one line, their number and '
+                 'their ids, not one by one with a reason',
+                 'Without a shell, `reviewed` of `front_status` counts those looked at whole with '
+                 '`front_screenshot` and names the others (`not_looked`)',
                  '`front_status` with nothing stale and no `shot_errors` (or each of them in '
                  'Left for you, after the three rounds of the screenshots)',
                  '`npm run build`, `bazis_front screens --check` and `bazis_front shots --check`',

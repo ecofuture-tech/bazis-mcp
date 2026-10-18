@@ -138,10 +138,16 @@ def no_project() -> str:
     the server again for the next change of a conversation finds there the project it
     created.
     """
+    found = []
     try:
-        found = sorted(it for it in Path.cwd().iterdir() if it.is_dir() and is_project(it))
+        for it in sorted(Path.cwd().iterdir()):
+            try:
+                if it.is_dir() and is_project(it):
+                    found.append(it)
+            except OSError:  # a directory that cannot be read hides only itself
+                continue
     except OSError:
-        found = []
+        pass
     if not found:
         return NO_PROJECT
     calls = ', '.join(f'use_project("{it}")' for it in found)

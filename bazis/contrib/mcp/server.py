@@ -676,10 +676,12 @@ the guide and the end-to-end tests against the running backend (`start_server("b
 then `run_command("npm", ["e2e"])`); fix every failure. With the backend still running,
 take the screenshots, `run_command("manage", ["bazis_front", "shots"])`, and fix every
 error of `frontend/.scratch/shots/report.json` and what the screenshots show
-(`front_screenshot`, a tall one part by part, one of each screen at least: `reviewed` of
-`front_status` names those `not_looked`) against the checklist of "The visual check" of the
-guide, then take them again, at most three rounds; fix each warning of the report too, or
-list it in Left for you with why it stays.
+(`front_screenshot`, a tall one part by part, one of each screen at least, those with
+errors or warnings and the main ones first, up to the limit of 40 images of a run;
+those not looked at go to Left for you in one line, their number and their ids, and
+without a shell `reviewed` of `front_status` names them `not_looked`) against the checklist of "The visual check" of the guide,
+then take them again, at most three rounds; fix each warning of the report too, or list it
+in Left for you with why it stays.
 """
 
 
