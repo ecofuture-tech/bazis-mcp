@@ -70,6 +70,14 @@ you reach it, and with what this product adds to them:
 """
 
 
+#: the last line of every task: the long session forgets the one line of the rules about the
+#: summary, and then the client invents its own sections
+SUMMARY = (
+    'Your last message is the summary of the rules, with exactly their section headings: '
+    'Built, Packages, Run, Outside the files, Left for you, Guide gaps.'
+)
+
+
 def language_step(language: tuple[str, str] | None) -> str:
     """
     What the task of a new product says about its language: the `language` chosen for it
@@ -135,6 +143,8 @@ Bazis packages the project needs with `list_packages`, read the introductions of
 guides and the sections you need, then create the apps with their models, routes,
 translations and tests, and register the routers in `{name}/router.py`. Finish with one
 run of the final checks.
+
+{SUMMARY}
 """
     return skeleton + f"""
 bazis-front is in `requirements.txt` and `BS_INSTALLED_APPS`.
@@ -142,7 +152,9 @@ bazis-front is in `requirements.txt` and `BS_INSTALLED_APPS`.
 Build the whole product, the backend and its frontend, in this order; register the
 routers of the apps in `{name}/router.py`.
 
-{FRONTEND_STEPS.format(source='the description', name=name)}"""
+{FRONTEND_STEPS.format(source='the description', name=name)}
+{SUMMARY}
+"""
 
 
 def has_frontend(project_dir: Path) -> bool:
@@ -166,9 +178,9 @@ or the backend until `front_check` reports no errors. Generate the screens again
 (`extend`) or a custom screen only for what the specs cannot say, generate the end-to-end
 tests again (`bazis_front e2e`), extend `e2e_data`, and finish with the whole round of the
 final checks of the rules, also the checks of what {change} does not touch: `run_doctor`, the
-tests, `front_check`, `front_status`, in `frontend/` `npx tsc --noEmit`, `npm run lint`,
-`npm test`, `npm run build`, `bazis_front screens --check` and `bazis_front shots --check`,
-then `npm run e2e` and `bazis_front shots` against the running backend.
+tests, `front_check`, `front_status`, in `frontend/` `npm run format`, `npx tsc --noEmit`,
+`npm run lint`, `npm test`, `npm run build`, `bazis_front screens --check` and
+`bazis_front shots --check`, then `npm run e2e` and `bazis_front shots` against the running backend.
 """
 
 
@@ -206,7 +218,7 @@ make `run_doctor` pass without the warnings of the new packages.
         prompt += f'\nThen build the frontend of the product in this order:\n\n{steps}'
     if ports:
         prompt += f'\n{ports_text(ports)}\n'
-    return prompt
+    return prompt + f'\n{SUMMARY}\n'
 
 
 def change_prompt(
@@ -219,7 +231,7 @@ def change_prompt(
     (`scaffold.project_ports`).
     """
     if resumed:
-        return f'{request}\n\nAfter the change, run the final checks of the rules once.\n'
+        return f'{request}\n\nAfter the change, run the final checks of the rules once.\n\n{SUMMARY}\n'
     prompt = f"""\
 Change this Bazis project: {request}
 
@@ -233,4 +245,4 @@ rules it adds.
         prompt += f'\n{ports_text(ports)}\n'
     else:
         prompt += '\nFinish with the final checks of the rules.\n'
-    return prompt
+    return prompt + f'\n{SUMMARY}\n'

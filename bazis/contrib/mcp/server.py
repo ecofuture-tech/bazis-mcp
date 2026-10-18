@@ -94,7 +94,8 @@ projects of the current directory to choose with `use_project`, and the catalog
   Start and stop the backend and the dev server of the frontend with `start_server` and
   `stop_server` (`server_logs` shows their output), add Bazis packages with
   `add_packages`. Never run a command in another way.
-- End every task with the summary in the sections the rules name.
+- End every task with the summary in the sections the rules name, with exactly their headings
+  (Built, Packages, Run, Outside the files, Left for you, Guide gaps).
 
 - Choose packages with `list_packages` (what each one solves and requires), then read the
   guide of each chosen package with `package_guide` before using it, also for the core

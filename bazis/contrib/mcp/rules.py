@@ -133,11 +133,13 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   rules. Run the final checks once, after the last change: fix what fails and run again only
   the checks that failed, not the whole round. A next change asked in the conversation ends
   with the whole round again, also the checks of the parts it did not change.
-- End with a short summary in these sections: Built (what you built or changed), Packages
+- Your last message is a short summary with exactly these section headings, in this order,
+  none left out and none of your own instead: Built (what you built or changed), Packages
   (the Bazis packages used), Run (how to run it), Outside the files (what you created
   outside them, such as the database), Left for you (what is left for the user, each with
   its reason) and Guide gaps (each fact a guide lacked: the package, the fact, the source
-  you read instead; "none" when there was none).
+  you read instead; "none" when there was none). A section with nothing to say says
+  "none".
 
 # Languages
 
@@ -242,7 +244,10 @@ do not write generators or frontends of your own.
   `.venv/bin/python manage.py e2e_data`: on top of the migrations it creates only a user
   per `test_user` of the roles, with its role and the password of the environment
   variable `E2E_PASSWORD`, and the records the scenarios need (the items they open). It
-  can run again (it sets the passwords again). Its dates are relative to the day of the
+  can run again (it sets the passwords again). It only adds: never remove the test users
+  or the records it made, with an option of your own (`--clean`) or a delete, also at the
+  end of a phase: they stay for the user to log in and for the next `npm run e2e`.
+  Its dates are relative to the day of the
   run (`timezone.now() + timedelta(days=3)`, its date in UTC, the day that `expectDay`
   counts, never `timezone.localdate()`; some of them in the current month and the next
   days), never fixed (`2030-03-04`): the calendars, the boards and the dashboards of the
@@ -254,11 +259,13 @@ do not write generators or frontends of your own.
   dev server is `npm run dev -- --port <frontend>`.
 - After a change of the frontend run `npx tsc --noEmit` in `frontend/` and fix what it
   reports; format only with `npm run format` (the prettier pinned in its `package.json`,
-  which leaves the copies alone), never `npx prettier`.
+  which leaves the copies alone), never `npx prettier`. After the last edit of any file of
+  `frontend/` (also of an extension or a custom screen, also one made to fix a later check)
+  run `npm run format` and `npm run lint` again: a file edited after them is unformatted.
 - The final checks of the frontend: `front_check` without errors, `front_status` with
   nothing stale and no `shot_errors` (or each of them in Left for you, after the three
-  rounds of the screenshots), and in `frontend/` `npx tsc --noEmit`, `npm run lint`,
-  `npm test`, `npm run build`, `bazis_front screens --check` and `bazis_front shots
+  rounds of the screenshots), and in `frontend/` `npm run format`, `npx tsc --noEmit`,
+  `npm run lint`, `npm test`, `npm run build`, `bazis_front screens --check` and `bazis_front shots
   --check`; after a change of the specs
   or the screens also `bazis_front e2e` and `npm run e2e` against the running backend:
   migrate, run `e2e_data`, start `.venv/bin/uvicorn <project package>.main:app --port

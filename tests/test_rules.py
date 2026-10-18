@@ -79,9 +79,17 @@ def test_frontend_rules():
                  '`front_status` with nothing stale and no `shot_errors` (or each of them in '
                  'Left for you, after the three rounds of the screenshots)',
                  '`npm run build`, `bazis_front screens --check` and `bazis_front shots --check`',
-                 'npm run e2e` and `bazis_front shots`, then stop the backend'):
+                 'npm run e2e` and `bazis_front shots`, then stop the backend',
+                 # the formatter in the final checks, and again after the last edit of a file
+                 'and in `frontend/` `npm run format`, `npx tsc --noEmit`, `npm run lint`',
+                 'After the last edit of any file of `frontend/`',
+                 'run `npm run format` and `npm run lint` again',
+                 # the test data stays: no clean-up of the agent (round 7)
+                 'It only adds: never remove the test users or the records it made',
+                 '(`--clean`)', 'they stay for the user to log in'):
         assert text in rules, text
     assert '--port 8000' not in rules
+    assert rules.index('`npm run format`, `npx tsc --noEmit`') < rules.index('`npm run lint`, `npm test`')
 
 
 def test_the_declarations_and_the_test_data_are_said_once():
@@ -153,6 +161,8 @@ def test_rules_of_the_packages_and_of_what_the_agent_leaves():
                  'When it says that databases were taken and left as they are and that `.env` '
                  'sets another one, only the taken ones are not ready (never change them): '
                  'the one `.env` sets is the database of the project, migrate it.',
+                 'Your last message is a short summary with exactly these section headings',
+                 'none left out and none of your own instead',
                  'Built (', 'Packages (', 'Run (', 'Outside the files (', 'such as the database',
                  'Left for you (', 'Guide gaps (',
                  'Run the final checks once, after the last change',
@@ -270,8 +280,8 @@ def test_a_next_change_ends_with_all_the_final_checks():
     checks = change.split('also the checks of what the change does not touch: ', 1)[1]
     frontend = ' '.join(FRONTEND_RULES.split()).split('The final checks of the frontend: ', 1)[1]
     named = re.findall(r'`([^`]+)`', checks)
-    assert named == ['run_doctor', 'front_check', 'front_status', 'frontend/', 'npx tsc --noEmit',
-                     'npm run lint', 'npm test', 'npm run build', 'bazis_front screens --check',
+    assert named == ['run_doctor', 'front_check', 'front_status', 'frontend/', 'npm run format',
+                     'npx tsc --noEmit', 'npm run lint', 'npm test', 'npm run build', 'bazis_front screens --check',
                      'bazis_front shots --check', 'npm run e2e', 'bazis_front shots']
     for name in named:
         assert f'`{name}`' in frontend or f'`{name}`' in rules, name

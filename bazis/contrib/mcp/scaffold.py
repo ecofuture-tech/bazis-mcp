@@ -280,7 +280,7 @@ with npm is needed for the frontend.
   `<app>/workflow.py`: `migrate` applies them. The test data of the end-to-end tests is `python manage.py e2e_data` (the e2e data command recommended by
   bazis-front): the test users of the roles of the specs, with the password of
   `E2E_PASSWORD`, and the records the scenarios need.
-- In `frontend/`: `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run build`, and
+- In `frontend/`: `npm run format`, `npx tsc --noEmit`, `npm run lint`, `npm test`, `npm run build`, and
   `npm run e2e` against the running backend with that test data, on the ports of
   `.bazis/ports.json` (`BAZIS_API_URL` of `frontend/.env.local`, `E2E_PORT`).
 - `python manage.py bazis_front shots`, with the backend running as for `npm run e2e`,

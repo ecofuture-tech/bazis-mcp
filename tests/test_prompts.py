@@ -112,3 +112,26 @@ def test_frontend_steps_are_those_of_the_guide_of_bazis_front():
         assert steps.get(number, '').startswith(start), (number, steps.get(number))
         assert action in steps[number], (number, steps[number])
 
+
+
+def test_every_task_ends_with_the_summary_and_a_change_with_the_formatter():
+    """
+    The long session forgets the one line of the rules about the summary: every task repeats
+    its headings as its last line; a change of a product runs the formatter first.
+    """
+    ports = {'backend': 8123, 'frontend': 5199, 'e2e': 5201}
+    tasks = [
+        prompts.new_prompt('A help desk', 'helpdesk'),
+        prompts.new_prompt('A help desk', 'helpdesk', frontend=True, ports=ports),
+        prompts.add_prompt('bazis-ws'),
+        prompts.add_prompt('bazis-ws', frontend=True, ports=ports),
+        prompts.change_prompt('Add coupons'),
+        prompts.change_prompt('Add coupons', ports=ports),
+        prompts.change_prompt('Add coupons', resumed=True),
+    ]
+    for task in tasks:
+        assert task.strip().endswith(prompts.SUMMARY), task
+    for heading in ('Built', 'Packages', 'Run', 'Outside the files', 'Left for you', 'Guide gaps'):
+        assert heading in prompts.SUMMARY
+    change = ' '.join(prompts.change_prompt('Add coupons', ports=ports).split())
+    assert 'in `frontend/` `npm run format`, `npx tsc --noEmit`, `npm run lint`' in change
