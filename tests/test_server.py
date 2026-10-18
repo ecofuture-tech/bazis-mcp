@@ -43,7 +43,8 @@ async def test_tool_annotations(client):
     tools = {it.name: it.annotations for it in (await client.list_tools()).tools}
     assert {name for name, it in tools.items() if it.read_only_hint} == {
         'list_packages', 'package_guide', 'guide_search', 'project_info', 'run_doctor',
-        'front_check', 'front_status', 'front_catalog', 'project_status', 'check_machine',
+        'front_check', 'front_status', 'front_catalog', 'front_screenshot', 'project_status',
+        'check_machine',
         'server_logs', 'read_file', 'list_files',
     }
     assert {name for name, it in tools.items() if not it.read_only_hint} == {

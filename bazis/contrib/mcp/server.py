@@ -34,6 +34,7 @@ from mcp.server.mcpserver import (
     Context,
     Elicit,
     ElicitationResult,
+    Image,
     MCPServer,
     Resolve,
 )
@@ -107,8 +108,9 @@ conversation (`project_status` says which); without one they answer "No project"
 - After a change run `run_doctor` and fix what it reports; run the tests of the project
   once the change is done, and fix what they report.
 - The frontend layer (bazis-front, guide `package_guide("bazis-front")`): check the specs
-  with `front_check`, find what is stale with `front_status`, and choose the components
-  with `front_catalog`.
+  with `front_check`, find what is stale with `front_status`, choose the components with
+  `front_catalog`, and look at the screenshots of `bazis_front shots` with
+  `front_screenshot`.
 """
 
 SECTIONS = Literal['packages', 'settings', 'models', 'routes']
@@ -315,9 +317,10 @@ def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dic
     Runs a command of the project from a closed table, as argv without a shell, with a
     timeout of 600 seconds. In the project directory: `manage` (`manage.py <args>`:
     makemigrations, migrate, check, bazis_doctor, collectstatic, e2e_data, or bazis_front or
-    bazis_messages with their subcommand), `pytest` (`-m pytest <args>`, never `--basetemp`)
+    bazis_messages with their subcommand, never `bazis_front screens --force`), `pytest` (`-m pytest <args>`, never `--basetemp`)
     and `pip` (only `["install", "-r", "requirements-dev.txt"]`, from PyPI into `.venv`). In
-    `frontend/`: `npm` (`["install"]` or `["ci"]`, else `npm run <script>` of build, lint,
+    `frontend/`: `npm` (`["install"]` or `["ci"]`, else `npm run <script>` with args
+    `["<script>", "--", ...]` such as `["e2e"]` (`["run", "e2e"]` too) of build, lint,
     test, e2e, format; test and e2e take arguments after `--`, never `--output`, `--fsModuleCachePath`, `--coverage.reportsDirectory`) and `npx` (only
     `["tsc", "--noEmit"]` or `["playwright", "install", "chromium"]`, never downloaded). The
     arguments are plain words in the project: no character of a shell, no `..`. No stdin:
@@ -507,8 +510,8 @@ def front_status() -> dict:
     """
     What of the frontend is stale, without Node (the issues of
     `manage.py bazis_front status --json`): `stale` by the `manage.py bazis_front` command
-    that updates it (`contract`, `design`, `e2e`, `shots`, `update`), each with the issues and
-    their hints; `spec_issues` counts the issues of the specs (see `front_check`),
+    that updates it (`contract`, `design`, `screens`, `e2e`, `shots`, `update`), each with the
+    issues and their hints; `spec_issues` counts the issues of the specs (see `front_check`),
     `shot_errors` has `front.W009` when the report of the last screenshots has errors or there
     is no report, the screenshots not taken (not stale: the screens are fixed instead,
     `bazis_front shots` again), and `messages` the
@@ -516,6 +519,22 @@ def front_status() -> dict:
     (installed, in INSTALLED_APPS), `checked` is false and `reason` says what to do.
     """
     return _project_call(front.status)
+
+
+@server.tool(annotations=READ_ONLY)
+def front_screenshot(file: str, part: int = 1) -> list[str | Image]:
+    """
+    A screenshot of the last run of `bazis_front shots`, as an image: `file` is the name of a
+    PNG of `frontend/.scratch/shots/`, the `file` of a shot of its `report.json` (such as
+    `task-list-manager-dark-390.png`), never another file. A screenshot taller than 1568 px
+    comes in parts of that height, from the top: the text "part 1 of 4 (390x1568 px each)"
+    before the image says it, and `part` (from 1) gives each of them; a PNG it cannot cut
+    comes whole, with a text that says so. Up to 3,000,000 bytes, and 40 screenshots or
+    parts of a run: look first at those whose shots have errors, then at one of each screen,
+    against the checklist of "The visual check" of the guide of bazis-front.
+    """
+    note, data = _project_call(front.screenshot, file, part)
+    return [*([note] if note else []), Image(data=data, format='png')]
 
 
 @server.tool(annotations=READ_ONLY)
@@ -651,8 +670,9 @@ stale and the command that updates it, `front_catalog` lists the components. Run
 the guide and the end-to-end tests against the running backend (`start_server("backend")`,
 then `run_command("npm", ["e2e"])`); fix every failure. With the backend still running,
 take the screenshots, `run_command("manage", ["bazis_front", "shots"])`, and fix every
-error of `frontend/.scratch/shots/report.json` and what the screenshots show against the
-checklist of "The visual check" of the guide, then take them again, at most three rounds.
+error of `frontend/.scratch/shots/report.json` and what the screenshots show
+(`front_screenshot`, a tall one part by part) against the checklist of "The visual check"
+of the guide, then take them again, at most three rounds.
 """
 
 

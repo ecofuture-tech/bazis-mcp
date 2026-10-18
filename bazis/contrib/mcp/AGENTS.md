@@ -112,10 +112,12 @@ The work on the project served (never a command or a path of the caller outside 
   servers do) and its progress reported every 5
   seconds: `manage` (`.venv/bin/python manage.py`: makemigrations,
   migrate, check, bazis_doctor, collectstatic, e2e_data, `bazis_front` with one of its
-  subcommands, `bazis_messages` with one of its actions), `pytest` (`python -m pytest`) and
+  subcommands, never `screens --force`, which drops the edits of the generated screens and
+  is the user's, `bazis_messages` with one of its actions), `pytest` (`python -m pytest`) and
   `pip` (only `install -r requirements-dev.txt`) in the project directory, `npm` (`npm
   install` and `npm ci` without arguments, the dependencies of the frontend after
-  `bazis_front add` or `update`; `npm run` of build, lint, test, e2e, format, not dev, and
+  `bazis_front add` or `update`; `npm run` of build, lint, test, e2e, format, args such as
+  `["e2e"]` or `["run", "e2e"]`, not dev, and
   only test and e2e take arguments, after `--`) and `npx` (only `tsc --noEmit` and `playwright install chromium`,
   as `npx --no`: a tool of `frontend/node_modules`, never downloaded; without it the
   command is refused) in `frontend/`. npm and npx are found on the `PATH` (`npm.cmd` on
@@ -209,7 +211,7 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
   `layer` (`product`, `screens`, `design`) reports one layer.
 - `front_status()` — what is stale, without Node: the issues of `bazis_front status --json`
   in `stale` by the `bazis_front` command that updates the part (`contract`, `design`,
-  `e2e`, `shots`, `update`), `spec_issues` (the number of issues, see `front_check`),
+  `screens`, `e2e`, `shots`, `update`), `spec_issues` (the number of issues, see `front_check`),
   `shot_errors` (`front.W009` when the report of the last screenshots has errors or there is
   none, the screenshots not taken: not stale, `up_to_date` does not count it; the screens are
   fixed and taken again), the other
@@ -218,6 +220,15 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
   the `capabilities` they need in the contract, the assets they `requires` (`init` copies the
   vendored assets, the `template` and the assets that the template `requires`; `add` the
   others); from the bazis-front of the project, else from the catalog (`source`).
+- `front_screenshot(file, part=1)` — a screenshot of the last run of `bazis_front shots` as
+  an image (PNG image content), for a client without a shell: `file` is the name of a
+  `.png` of `frontend/.scratch/shots/` (`file` of a shot of its `report.json`), never
+  another file nor one that links outside it. A screenshot taller than 1568 px (a client
+  scales a longer side down) comes in parts of that height, from the top, after the text
+  `part <i> of <n> (<W>x1568 px each)`; it cuts a PNG of 8-bit RGB or RGBA without
+  interlace with `zlib` and `struct`, and gives another whole with a text that says so. Up
+  to 3,000,000 bytes (a third more in base64), and 40 screenshots or parts of a run (a new
+  `report.json` starts a run).
 
 Without bazis-front, installed and with `"bazis.contrib.front"` in `INSTALLED_APPS` (or
 without `spec/` for `front_check`), they return `checked: false` (`source: null` for

@@ -42,8 +42,9 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
 - Without a shell, with the tools of the MCP server `bazis` only, run the commands of these
   rules with `run_command` (`.venv/bin/python manage.py <command>` is
   `run_command("manage", ["<command>"])`; `"pytest"`, `"pip"`, and `"npm"` and `"npx"` in
-  `frontend/`), start and stop the servers with `start_server` and `stop_server`, and add
-  packages with `add_packages`.
+  `frontend/`), start and stop the servers with `start_server` and `stop_server`, add
+  packages with `add_packages`, and look at the screenshots of the frontend with
+  `front_screenshot`.
 - The Python environment is `.venv` (`.venv/bin/python`, on Windows
   `.venv\\Scripts\\python.exe`); `installed_version` of `list_packages` is the version in it.
   Add a package to `requirements.txt`, install it with `.venv/bin/python -m pip install -r
@@ -51,7 +52,10 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   the numbers of `installed_version` without a suffix such as `.post1.dev3` (its guide
   and your code follow that version). A requirement that the task gives is written as it
   is; never lower a minimum. List its app in `BS_INSTALLED_APPS` of `project.env` when its
-  guide says so.
+  guide says so. A package the project no longer uses leaves `requirements.txt`, its app
+  and its imports, but stays installed in `.venv` (nothing here uninstalls): say so in
+  Left for you, with `.venv/bin/python -m pip uninstall <name>` for the user, never as a
+  step of yours.
 - After changing models run `.venv/bin/python manage.py makemigrations`. After a change run
   `run_doctor` and fix the errors and the warnings of the packages you used, but
   `front.W009` (the screenshots of the frontend not taken, or their errors) in a task that
@@ -179,8 +183,8 @@ step when you reach it, and follow it exactly. All the frontend logic is in bazi
 do not write generators or frontends of your own.
 
 - The frontend is changed with the subcommands of `.venv/bin/python manage.py bazis_front`
-  (`init`, `contract`, `check`, `add`, `design`, `e2e`, `shots`, `update`; `status` only
-  shows its state). The MCP tools read it: `front_check` (the issues of the specs
+  (`init`, `contract`, `check`, `add`, `design`, `screens`, `e2e`, `shots`, `update`;
+  `status` only shows its state). The MCP tools read it: `front_check` (the issues of the specs
   against the contract, with a `hint` each), `front_status` (what is stale and the command
   that updates it) and `front_catalog` (the components, the capabilities and the assets
   they require).
@@ -188,14 +192,29 @@ do not write generators or frontends of your own.
   change of the models, routes, roles, statuses or transits: migrate, export the contract
   (`bazis_front contract`), then fix the spec or the backend until `front_check` reports
   no errors.
+- With more than five links, the navigation is `navigation` of `spec/product.yaml` with
+  groups of related screens (`{group, title, items}`), a `label` shorter than the title of
+  a screen where it is long, and an `icon` (a name of lucide, D013) where that of its
+  entity does not fit: "The specs" of the guide of bazis-front.
+- The screens are generated from their specs, never written as TSX: describe each in
+  `spec/screens/<id>.yaml` and run `bazis_front screens` after every change of `spec/`. What
+  a spec cannot say goes to the extension of its screen (`extend: true`,
+  `frontend/src/screens/<id>/extend.tsx`), a screen that the generated one does not fit is
+  written by hand (`custom: true`, `frontend/src/screens/<id>/index.tsx`); never into
+  `frontend/src/screens/generated/`. `screens` refuses to overwrite an edited generated file
+  (`front.W010`): move the edit to the extension and leave `--force`, which drops it, to the
+  user.
 - The screens are done when `bazis_front shots` (the backend running as for `npm run e2e`)
   reports no error in `frontend/.scratch/shots/report.json` and its screenshots pass the
-  checklist of "The visual check" of the guide: fix the specs, the screens, the design or
+  checklist of "The visual check" of the guide (without a shell, `front_screenshot` shows
+  the `file` of a shot of the report, a tall one in parts, each `part` of which is looked
+  at): fix the specs, the screens, the design or
   the backend and take them again, at most three rounds. The errors left after the third
   are `shot_errors` of `front_status` (not stale): the work is not done while it has one
   that Left for you does not list with its screen, its code and why it is left. Never
   commit `frontend/.scratch/`.
-- Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/e2e/generated/`, the
+- Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/src/screens/generated/`,
+  `frontend/e2e/generated/`, the
   copies of `frontend/src/bazis/client/`, `frontend/src/bazis/react/`,
   `frontend/src/bazis/i18n/`, `frontend/e2e/bazis/`, `frontend/bazis-front.lock.json` or
   `frontend/.bazis/`: generate them again with the commands, and wrap the copies in the
@@ -203,8 +222,9 @@ do not write generators or frontends of your own.
 - The backend decides the permissions (bazis-permit): never encode roles or permission
   rules in the frontend. The screens use the tokens of the design, never literal colors.
 - The frontend is in the languages of the backend (`languages` and `language` of
-  `spec/product.yaml` as `BS_LANGUAGES` and `BS_LANGUAGE_CODE`): every text of a screen
-  goes through `t()` with a key in the dictionaries of the product,
+  `spec/product.yaml` as `BS_LANGUAGES` and `BS_LANGUAGE_CODE`): a text of a spec is a map
+  of those languages or a key of the dictionaries, and every text of an extension or a
+  custom screen goes through `t()` with a key in the dictionaries of the product,
   `frontend/src/i18n/<language>.ts`, one for each language (listed in
   `frontend/src/i18n/index.ts`); never a text in the JSX.
 - The contract is exported from the migrated database, with the permit roles and the
@@ -214,7 +234,11 @@ do not write generators or frontends of your own.
   `.venv/bin/python manage.py e2e_data`: on top of the migrations it creates only a user
   per `test_user` of the roles, with its role and the password of the environment
   variable `E2E_PASSWORD`, and the records the scenarios need (the items they open). It
-  can run again (it sets the passwords again).
+  can run again (it sets the passwords again). Its dates are relative to the day of the
+  run (`timezone.now() + timedelta(days=3)`, its date in UTC, the day that `expectDay`
+  counts, never `timezone.localdate()`; some of them in the current month and the next
+  days), never fixed (`2030-03-04`): the calendars, the boards and the dashboards of the
+  screenshots show its records.
 - The servers use the ports of the project on this machine, `.bazis/ports.json`
   (`backend`, `frontend`, `e2e`), never the defaults 8000 and 5173 that other projects
   use. After `bazis_front init` write `BAZIS_API_URL=http://localhost:<backend>` in
@@ -226,7 +250,8 @@ do not write generators or frontends of your own.
 - The final checks of the frontend: `front_check` without errors, `front_status` with
   nothing stale and no `shot_errors` (or each of them in Left for you, after the three
   rounds of the screenshots), and in `frontend/` `npx tsc --noEmit`, `npm run lint`,
-  `npm test`, `npm run build` and `bazis_front shots --check`; after a change of the specs
+  `npm test`, `npm run build`, `bazis_front screens --check` and `bazis_front shots
+  --check`; after a change of the specs
   or the screens also `bazis_front e2e` and `npm run e2e` against the running backend:
   migrate, run `e2e_data`, start `.venv/bin/uvicorn <project package>.main:app --port
   <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm

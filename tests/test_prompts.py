@@ -30,11 +30,15 @@ def test_new_prompt_of_a_product():
         'backend 8123, the dev server of the frontend 5199, the dev server of the end-to-end tests 5201',
         '"Building the frontend of a product"', 'package_guide("bazis-front")',
         'package_guide("bazis")', 'list_packages', '.venv/bin/python manage.py',
-        'Step 2', 'the specs describe the description', 'what a role may not do', 'front_check',
+        'Step 2', 'the specs describe the description', 'what a role may not do',
+        'the `navigation` in groups once it has more than five links', 'front_check',
         'Step 3', 'the tests and the translations that the rules require', 'run_doctor',
-        'front_catalog', 't()', 'Step 7', 'npx playwright install chromium',
-        'Step 9', 'uvicorn helpdesk.main:app --port <backend>', 'bazis_front shots', '`run_command`',
-        'frontend/.scratch/shots/report.json', '"The visual check"', 'at most three rounds',
+        'Step 6', 'spec/screens/<id>.yaml', 'bazis_front screens', '`run_command`', '`npm install`',
+        'frontend/src/screens/<id>/extend.tsx', '(`custom`)', 't()', 'front_catalog', 'Step 7',
+        'npx playwright install chromium',
+        'Step 9', 'uvicorn helpdesk.main:app --port <backend>', 'bazis_front shots',
+        'frontend/.scratch/shots/report.json', '`front_screenshot`', '"The visual check"',
+        'at most three rounds',
         '`shot_errors` of `front_status`', 'Left for you', 'Exit 2 means nothing was shot',
         'Step 10', 'the final checks of the rules',
         'npm run dev -- --port <frontend>',
@@ -47,6 +51,14 @@ def test_new_prompt_of_a_product():
     # the steps of the guide and the rules are not repeated
     for text in ('bazis_front init', 'e2e_data', 'npm run build', 'At least 10'):
         assert text not in prompt, text
+
+
+def test_a_change_of_a_product_generates_its_screens_again():
+    ports = {'backend': 8123, 'frontend': 5199, 'e2e': 5201}
+    prompt = ' '.join(prompts.change_prompt('Add coupons', ports=ports).split())
+    assert 'Generate the screens again (`bazis_front screens`' in prompt
+    assert 'an extension (`extend`) or a custom screen only for what the specs cannot say' in prompt
+    assert 'bazis_front add' not in prompt
 
 
 def test_new_prompt_of_a_backend():
@@ -62,7 +74,7 @@ FRONTEND_GUIDE_STEPS = {
     2: ('Describe the product', 'spec/product.yaml'),
     3: ('Build the backend', 'roles.py'),
     5: ('Run `python manage.py bazis_front check`', 'bazis_front check'),
-    6: ('Copy the components', 'frontend/src/screens/'),
+    6: ('Generate the screens', 'bazis_front screens'),
     7: ('Design the product', 'bazis_front design'),
     8: ('Generate the end-to-end tests', 'bazis_front e2e'),
     9: ('Take the screenshots', 'bazis_front shots'),

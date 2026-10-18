@@ -146,6 +146,7 @@ limits protect from.
 | `front_check(layer)` | The issues of the frontend specs (bazis-front) |
 | `front_status()` | The parts of the frontend that are stale |
 | `front_catalog()` | The assets of bazis-front with what they require |
+| `front_screenshot(file, part=1)` | A screenshot of the last run of `bazis_front shots`, as an image; a tall one in parts |
 
 Resources: `bazis://packages/{name}/agents.md`, `bazis://rules` (the rules of Bazis for an
 agent) and `bazis://rules/frontend` (those of a product with a frontend). Prompts:

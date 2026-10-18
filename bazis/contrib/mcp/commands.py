@@ -41,10 +41,14 @@ OUTPUT_LIMIT = 10_000
 MANAGE = {'makemigrations', 'migrate', 'check', 'bazis_doctor', 'collectstatic', 'e2e_data'}
 MANAGE_SUBCOMMANDS = {
     'bazis_front': {
-        'init', 'contract', 'check', 'add', 'design', 'e2e', 'shots', 'update', 'status',
+        'init', 'contract', 'check', 'add', 'design', 'screens', 'e2e', 'shots', 'update',
+        'status',
     },
     'bazis_messages': {'make', 'status', 'apply', 'compile'},
 }
+#: the options of a subcommand that only the user runs: `screens --force` drops the edits of
+#: the generated screens, which the agent moves to their extensions instead
+MANAGE_REFUSED = {('bazis_front', 'screens'): {'--force'}}
 #: the scripts of `npm run` in `frontend/` (not `dev`: the dev server is `processes.start`), and
 #: those that take arguments, after `--`
 NPM_SCRIPTS = {'build', 'lint', 'test', 'e2e', 'format'}
@@ -112,15 +116,20 @@ def _check_args(args: list[str], cwd: Path) -> None:
 
 
 def _npm(args: list[str]) -> list[str]:
+    # `npm run e2e` written whole: the script is the argument after `run`
+    whole = args[:1] == ['run']
+    if whole:
+        args = args[1:]
     first = args[0] if args else None
-    if first in NPM_COMMANDS:
+    if first in NPM_COMMANDS and not whole:
         if len(args) > 1:
             raise project.ProjectError(f'npm {first} takes no arguments.')
         return [machine.node_program('npm'), first]
     if first not in NPM_SCRIPTS:
         raise project.ProjectError(
             f'npm runs only the scripts: {", ".join(sorted(NPM_SCRIPTS))}, and '
-            f'{" and ".join(sorted(NPM_COMMANDS))} without arguments.'
+            f'{" and ".join(sorted(NPM_COMMANDS))} without arguments; args are the script and '
+            'its arguments after --, such as ["e2e"] or ["test", "--", "src/app.test.ts"].'
         )
     if args[1:] and (first not in NPM_ARGUMENTS or args[1] != '--'):
         raise project.ProjectError(
@@ -169,6 +178,11 @@ def argv(kind: str, args: list[str]) -> tuple[list[str], Path]:
             choices = MANAGE_SUBCOMMANDS[first]
             if len(args) < 2 or args[1] not in choices:
                 raise project.ProjectError(f'manage {first} needs one of: {", ".join(sorted(choices))}.')
+            refused = MANAGE_REFUSED.get((first, args[1]), set())
+            if option := next((a for a in args[2:] if a.split('=', 1)[0] in refused), None):
+                raise project.ProjectError(
+                    f'manage {first} {args[1]} never runs with {option}: only the user does.'
+                )
         elif first not in MANAGE:
             known = sorted(MANAGE | set(MANAGE_SUBCOMMANDS))
             raise project.ProjectError(f'manage runs only: {", ".join(known)}.')

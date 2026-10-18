@@ -22,6 +22,9 @@ A project without bazis-front gets a result that says so (`checked` false, `reas
 an error: the frontend layer is optional.
 """
 
+import struct
+import zlib
+
 from . import catalog, project
 
 
@@ -185,3 +188,135 @@ def _asset(entry: dict) -> dict:
         'capabilities': requires.get('capabilities', []),
         'requires': requires.get('assets', []),
     }
+
+
+#: the screenshots of `bazis_front shots` and their report, in the project
+SHOTS_DIR = 'frontend/.scratch/shots'
+SHOTS_REPORT = 'report.json'
+#: the largest screenshot given, in bytes: a client sends it to its model in base64, a third
+#: larger, under a limit of about 4 MB
+SHOT_LIMIT = 3_000_000
+#: the screenshots given for one run of `shots` (one report), each part of one counted
+SHOTS_PER_RUN = 40
+#: the longest side of an image that a client gives its model whole (it scales a longer one
+#: down, unreadable): a taller screenshot is given in parts of this height
+PART_HEIGHT = 1568
+PNG = b'\x89PNG\r\n\x1a\n'
+_given: dict[int | None, int] = {}
+
+
+def screenshot(name: str, part: int = 1) -> tuple[str | None, bytes]:
+    """
+    The PNG of a screenshot of the last run of `bazis_front shots`, `name` a file of
+    `frontend/.scratch/shots/` (`file` of a shot of its `report.json`), at most SHOTS_PER_RUN
+    of a run, and a note: a screenshot taller than PART_HEIGHT is given in parts, `part`
+    of them. ProjectError for another file, a larger one, a part it has not or one more.
+    """
+    directory = project.inside(SHOTS_DIR)
+    if '/' in name or '\\' in name or not name.endswith('.png'):
+        raise project.ProjectError(
+            f'{name!r} is not a screenshot: the name of a .png file of {SHOTS_DIR}/ (the `file` of '
+            f'a shot of its {SHOTS_REPORT}).'
+        )
+    label = f'{SHOTS_DIR}/{name}'
+    path = project.inside(directory / name)
+    if path.parent != directory or not path.is_file():
+        raise project.ProjectError(f'{label} is not a screenshot of the last run of `bazis_front shots`.')
+    size = path.stat().st_size
+    if size > SHOT_LIMIT:
+        raise project.ProjectError(f'{label} has {size} bytes, over the limit of {SHOT_LIMIT}.')
+    report = directory / SHOTS_REPORT
+    run = report.stat().st_mtime_ns if report.is_file() else None
+    if _given.get(run, 0) >= SHOTS_PER_RUN:
+        raise project.ProjectError(
+            f'{SHOTS_PER_RUN} screenshots of this run were read already: read the errors of '
+            f'{SHOTS_REPORT}, fix them and take the screenshots again (`bazis_front shots`).'
+        )
+    data = path.read_bytes()
+    if not data.startswith(PNG):
+        raise project.ProjectError(f'{label} is not a PNG image.')
+    try:
+        note, data = _part(data, part, label)
+    except (struct.error, zlib.error, IndexError, ValueError) as exc:
+        raise project.ProjectError(f'{label} is not a PNG image it can read: {exc}.') from exc
+    _given[run] = _given.get(run, 0) + 1
+    return note, data
+
+
+def _part(data: bytes, part: int, label: str) -> tuple[str | None, bytes]:
+    """
+    The note and the PNG of `part` of the image `data`: the whole image when it is not taller
+    than PART_HEIGHT or not of 8-bit RGB or RGBA without interlace (said by the note).
+    """
+    chunks = list(_chunks(data))
+    width, height, depth, colour, _, _, interlace = struct.unpack('>IIBBBBB', chunks[0][1])
+    parts = -(-height // PART_HEIGHT)
+    if not 1 <= part <= parts:
+        raise project.ProjectError(f'{label} has {parts} part(s): `part` is 1 to {parts}.')
+    if parts == 1:
+        return None, data
+    if depth != 8 or colour not in (2, 6) or interlace:
+        return (
+            f'{label} is given whole, {width}x{height} px, and the client may scale it down: only a '
+            'PNG of 8-bit RGB or RGBA without interlace is cut into parts.'
+        ), data
+    bpp = 3 if colour == 2 else 4
+    line = width * bpp + 1
+    raw = zlib.decompress(b''.join(body for kind, body in chunks if kind == b'IDAT'))
+    first, last = (part - 1) * PART_HEIGHT, min(part * PART_HEIGHT, height)
+    rows = [raw[row * line:(row + 1) * line] for row in range(last)]
+    # the rows of the part keep their filters but the first, which depends on the rows above:
+    # unfiltered from the last row above it that depends on none (filter None or Sub)
+    top = first
+    while top and rows[top][0] > 1:
+        top -= 1
+    pixels = bytes(line - 1)
+    for row in rows[top:first + 1]:
+        pixels = _unfilter(row, pixels, bpp)
+    body = b'\0' + pixels + b''.join(rows[first + 1:last])
+    header = struct.pack('>IIBBBBB', width, last - first, 8, colour, 0, 0, 0)
+    image = PNG + _chunk(b'IHDR', header) + _chunk(b'IDAT', zlib.compress(body)) + _chunk(b'IEND', b'')
+    return f'part {part} of {parts} ({width}x{PART_HEIGHT} px each)', image
+
+
+def _chunks(data: bytes):
+    """
+    The type and the data of each chunk of the PNG `data`, IHDR first.
+    """
+    offset = len(PNG)
+    while offset < len(data):
+        (size,) = struct.unpack('>I', data[offset:offset + 4])
+        kind = data[offset + 4:offset + 8]
+        if offset == len(PNG) and kind != b'IHDR':
+            raise ValueError('no IHDR first')
+        yield kind, data[offset + 8:offset + 8 + size]
+        offset += size + 12
+
+
+def _chunk(kind: bytes, body: bytes) -> bytes:
+    return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+
+
+def _unfilter(row: bytes, above: bytes, bpp: int) -> bytes:
+    """
+    The pixels of the filtered `row` of a PNG (its filter byte first), `above` those of the
+    row above it.
+    """
+    kind, pixels = row[0], bytearray(row[1:])
+    if kind > 4:
+        raise ValueError(f'filter {kind}')
+    for i in range(len(pixels)) if kind else ():
+        left = pixels[i - bpp] if i >= bpp else 0
+        up = above[i]
+        if kind == 1:
+            pixels[i] = (pixels[i] + left) & 255
+        elif kind == 2:
+            pixels[i] = (pixels[i] + up) & 255
+        elif kind == 3:
+            pixels[i] = (pixels[i] + (left + up) // 2) & 255
+        else:
+            corner = above[i - bpp] if i >= bpp else 0
+            estimate = left + up - corner
+            near = min((abs(estimate - left), 0, left), (abs(estimate - up), 1, up), (abs(estimate - corner), 2, corner))
+            pixels[i] = (pixels[i] + near[2]) & 255
+    return bytes(pixels)

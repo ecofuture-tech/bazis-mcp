@@ -38,7 +38,24 @@ def test_frontend_rules():
                  # a formatter of another version and style rewrites the files (round 3, 8)
                  'format only with `npm run format`', 'never `npx prettier`',
                  # the screenshots: their rounds until the report is clean, and their check
-                 '`init`, `contract`, `check`, `add`, `design`, `e2e`, `shots`, `update`',
+                 '`init`, `contract`, `check`, `add`, `design`, `screens`, `e2e`, `shots`, `update`',
+                 # the screens are generated: the specs, the extensions and the custom screens
+                 'The screens are generated from their specs, never written as TSX',
+                 'run `bazis_front screens` after every change of `spec/`',
+                 '(`extend: true`, `frontend/src/screens/<id>/extend.tsx`)',
+                 '(`custom: true`, `frontend/src/screens/<id>/index.tsx`)',
+                 'never into `frontend/src/screens/generated/`', '(`front.W010`)',
+                 'leave `--force`, which drops it, to the user',
+                 'Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/src/screens/generated/`',
+                 'a text of a spec is a map of those languages or a key of the dictionaries',
+                 # the menu of a larger product, the screenshots without a shell, the dates of
+                 # the test data that the calendars and the boards show
+                 'With more than five links, the navigation is `navigation` of `spec/product.yaml` with '
+                 'groups of related screens (`{group, title, items}`)', 'an `icon` (a name of lucide, D013)',
+                 'without a shell, `front_screenshot` shows the `file` of a shot of the report',
+                 'a tall one in parts, each `part` of which is looked at',
+                 'Its dates are relative to the day of the run (`timezone.now() + timedelta(days=3)`',
+                 'the day that `expectDay` counts, never `timezone.localdate()`', 'never fixed (`2030-03-04`)',
                  'The screens are done when `bazis_front shots`',
                  'no error in `frontend/.scratch/shots/report.json`', '"The visual check"',
                  'at most three rounds', 'Never commit `frontend/.scratch/`',
@@ -48,7 +65,7 @@ def test_frontend_rules():
                  'the work is not done while it has one that Left for you does not list',
                  '`front_status` with nothing stale and no `shot_errors` (or each of them in '
                  'Left for you, after the three rounds of the screenshots)',
-                 '`npm run build` and `bazis_front shots --check`',
+                 '`npm run build`, `bazis_front screens --check` and `bazis_front shots --check`',
                  'npm run e2e` and `bazis_front shots`, then stop the backend'):
         assert text in rules, text
     assert '--port 8000' not in rules
@@ -110,6 +127,9 @@ def test_rules_of_the_packages_and_of_what_the_agent_leaves():
     for text in ('then give it its installed release as the minimum: `<name>>=X.Y.Z`',
                  'without a suffix such as `.post1.dev3`',
                  'A requirement that the task gives is written as it is', 'never lower a minimum',
+                 # nothing uninstalls: a package no longer used is left to the user
+                 'stays installed in `.venv` (nothing here uninstalls)',
+                 '`.venv/bin/python -m pip uninstall <name>` for the user, never as a step of yours',
                  '`.scratch/`', '`/tmp`',
                  'also of the test users', '`E2E_PASSWORD`',
                  'The database of `.env` is created by `bazis new`', 'Never drop or recreate it',
@@ -217,5 +237,6 @@ def test_rules_of_an_agent_without_a_shell():
     for text in ('Without a shell, with the tools of the MCP server `bazis` only',
                  'run the commands of these rules with `run_command`',
                  '`.venv/bin/python manage.py <command>` is `run_command("manage", ["<command>"])`',
-                 '`start_server` and `stop_server`', '`add_packages`'):
+                 '`start_server` and `stop_server`', '`add_packages`',
+                 'look at the screenshots of the frontend with `front_screenshot`'):
         assert text in rules, text

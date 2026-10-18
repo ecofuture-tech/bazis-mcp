@@ -36,19 +36,27 @@ you reach it, and with what this product adds to them:
   bazis-statusy, files bazis-uploadable). The commands of `manage.py` run with
   `.venv/bin/python manage.py`.
 - Step 2: the specs describe {source}, with scenarios for the main tasks of every role,
-  including what a role may not do, and the `languages` and `language` of the backend; run
-  `front_check` and fix the errors of the shape and of the references before the backend.
+  including what a role may not do, the `languages` and `language` of the backend, and
+  the `navigation` in groups once it has more than five links; run `front_check` and fix
+  the errors of the shape and of the references before the backend.
 - Step 3: the backend also has the tests and the translations that the rules require,
   `makemigrations` and `run_doctor` without errors.
-- Step 5 is `front_check`; step 6 chooses the components with `front_catalog`, and the texts
-  of the screens go through `t()`.
+- Step 5 is `front_check`. Step 6: the screens are generated, never written as TSX: a
+  screen is its spec, `spec/screens/<id>.yaml` (its texts in the languages of the product),
+  then `front_check`, then `bazis_front screens` with `run_command`, and `npm install` when it
+  set npm dependencies of the components it copied. Only what a spec cannot say goes to the
+  extension of its screen (`extend`, `frontend/src/screens/<id>/extend.tsx`), and only a
+  screen that the generated one does not fit is written by hand (`custom`), their texts
+  through `t()`; `front_catalog` lists the components they compose.
 - Step 7: the palette, the fonts, the shape and the surface of the design fit {source}.
 - Step 8: install the browser once (`npx playwright install chromium` in `frontend/`), and
   fix the screens, the specs or the backend until the tests pass.
 - Step 9: with the backend running as for `npm run e2e` (its test data,
   `.venv/bin/uvicorn {name}.main:app --port <backend>`), run `bazis_front shots` with
-  `run_command`, read `frontend/.scratch/shots/report.json` and open the screenshots
-  against the checklist of "The visual check"; fix every error in the specs, the screens,
+  `run_command`, read `frontend/.scratch/shots/report.json` and look at the screenshots
+  (`front_screenshot`, the `file` of each shot: those with errors first, each `part` of a
+  tall one) against the
+  checklist of "The visual check"; fix every error in the specs, the screens,
   the design or the backend and run `shots` again until the report has no error, at most
   three rounds; after the third, list each error left (`shot_errors` of `front_status`) in
   Left for you, with its screen and code. Exit 2 means nothing was shot: start the backend,
@@ -150,10 +158,11 @@ def frontend_change(change: str) -> str:
 The product has a frontend (bazis-front). Describe in `spec/` what {change} changes in the
 product (fields, workflows, access, scenarios, screens). After the backend: migrate,
 export the contract (`.venv/bin/python manage.py bazis_front contract`) and fix the spec
-or the backend until `front_check` reports no errors. With `front_catalog` find the
-components of what {change} adds and copy those the screens need (`bazis_front add`), use
-them in the screens, generate the end-to-end tests again (`bazis_front e2e`), extend
-`e2e_data`, and finish with the final checks of the rules.
+or the backend until `front_check` reports no errors. Generate the screens again
+(`bazis_front screens`, which copies the components they import), with an extension
+(`extend`) or a custom screen only for what the specs cannot say, generate the end-to-end
+tests again (`bazis_front e2e`), extend `e2e_data`, and finish with the final checks of
+the rules.
 """
 
 

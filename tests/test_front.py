@@ -19,11 +19,14 @@ at the end run them for real on a copy of the sample with bazis-front, when it i
 installed.
 """
 
+import base64
 import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
+import zlib
 from importlib import metadata
 from importlib.util import find_spec
 from pathlib import Path
@@ -33,6 +36,7 @@ import pytest
 from bazis.contrib.mcp import catalog, front, project
 
 from .support import SAMPLE_DIR, result
+from .test_projects import error
 
 
 pytestmark = pytest.mark.anyio
@@ -441,3 +445,155 @@ def test_layers_are_those_of_bazis_front():
     from bazis.contrib.mcp import server
 
     assert get_args(server.LAYERS) == validate.LAYERS
+
+
+def _paeth(left, up, corner):
+    estimate = left + up - corner
+    to_left, to_up, to_corner = abs(estimate - left), abs(estimate - up), abs(estimate - corner)
+    if to_left <= to_up and to_left <= to_corner:
+        return left
+    return up if to_up <= to_corner else corner
+
+
+def _pixels(width, height, bpp):
+    """
+    The rows of the pixels of a test image.
+    """
+    return [bytes((row * 31 + i * 7 + i * i) % 256 for i in range(width * bpp)) for row in range(height)]
+
+
+def _png(rows, width, colour=2, depth=8, interlace=0):
+    """
+    A PNG of `rows`, each with the filter of its number modulo 5 (None, Sub, Up, Average,
+    Paeth), the encoder of the PNG specification.
+    """
+    bpp = {2: 3, 6: 4}.get(colour, 1)
+    above = bytes(len(rows[0]))
+    lines = []
+    for number, pixels in enumerate(rows):
+        kind = number % 5
+        line = bytearray([kind])
+        for i, value in enumerate(pixels):
+            left = pixels[i - bpp] if i >= bpp else 0
+            corner = above[i - bpp] if i >= bpp else 0
+            predicted = [0, left, above[i], (left + above[i]) // 2, _paeth(left, above[i], corner)][kind]
+            line.append((value - predicted) % 256)
+        lines.append(bytes(line))
+        above = pixels
+    header = struct.pack('>IIBBBBB', width, len(rows), depth, colour, 0, 0, interlace)
+
+    def chunk(kind, body):
+        return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+
+    return front.PNG + chunk(b'IHDR', header) + chunk(b'IDAT', zlib.compress(b''.join(lines))) + chunk(b'IEND', b'')
+
+
+def _decoded(data):
+    """
+    The size, the colour and the rows of the pixels of the PNG `data`, its CRCs checked.
+    """
+    chunks, offset = {}, len(front.PNG)
+    while offset < len(data):
+        (size,) = struct.unpack('>I', data[offset:offset + 4])
+        kind, body = data[offset + 4:offset + 8], data[offset + 8:offset + 8 + size]
+        assert struct.unpack('>I', data[offset + 8 + size:offset + 12 + size])[0] == zlib.crc32(kind + body)
+        chunks[kind] = chunks.get(kind, b'') + body
+        offset += size + 12
+    width, height, _, colour, _, _, _ = struct.unpack('>IIBBBBB', chunks[b'IHDR'])
+    bpp = {2: 3, 6: 4}[colour]
+    raw, line, rows = zlib.decompress(chunks[b'IDAT']), width * bpp + 1, []
+    for row in range(height):
+        rows.append(front._unfilter(raw[row * line:(row + 1) * line], rows[-1] if rows else bytes(line - 1), bpp))
+    return width, height, colour, rows
+
+
+@pytest.fixture
+def shots(monkeypatch, tmp_path):
+    """
+    A project with the screenshots of a run of `bazis_front shots`, and a secret beside it.
+    """
+    directory = tmp_path / 'shop'
+    output = directory / front.SHOTS_DIR
+    output.mkdir(parents=True)
+    (directory / 'manage.py').write_text('')
+    (directory / '.env').write_text('BS_SECRET_KEY=secret\n')
+    (output / 'report.json').write_text('{"errors": 0, "warnings": 0, "shots": []}')
+    (output / 'task-list-manager-dark-390.png').write_bytes(_png(_pixels(4, 3, 3), 4))
+    monkeypatch.setattr(project, 'project_dir', directory)
+    monkeypatch.setattr(front, '_given', {})
+    return output
+
+
+async def test_front_screenshot(client, shots):
+    call_result = await client.call_tool('front_screenshot', {'file': 'task-list-manager-dark-390.png'})
+
+    assert not call_result.is_error, call_result.content
+    [image] = call_result.content
+    assert image.type == 'image' and image.mime_type == 'image/png'
+    assert base64.b64decode(image.data) == (shots / 'task-list-manager-dark-390.png').read_bytes()
+
+
+@pytest.mark.parametrize('colour, bpp', [(2, 3), (6, 4)])
+async def test_front_screenshot_in_parts(client, shots, monkeypatch, colour, bpp):
+    # a tall screenshot comes in parts that a client does not scale down, each of the rows
+    # of the image, whatever the filters of the rows above it
+    monkeypatch.setattr(front, 'PART_HEIGHT', 4)
+    rows = _pixels(5, 11, bpp)
+    (shots / 'home-manager-light-390.png').write_bytes(_png(rows, 5, colour))
+
+    for part, expected in enumerate([rows[0:4], rows[4:8], rows[8:11]], start=1):
+        arguments = {'file': 'home-manager-light-390.png', 'part': part}
+        text, image = (await client.call_tool('front_screenshot', arguments)).content
+        assert text.text == f'part {part} of 3 (5x4 px each)'
+        assert _decoded(base64.b64decode(image.data)) == (5, len(expected), colour, expected)
+
+    for part in (0, 4):
+        message = error(await client.call_tool('front_screenshot', {'file': 'home-manager-light-390.png', 'part': part}))
+        assert 'home-manager-light-390.png has 3 part(s): `part` is 1 to 3.' in message
+
+
+@pytest.mark.parametrize('kind', ['interlaced', '16 bits', 'palette'])
+async def test_front_screenshot_whole(client, shots, monkeypatch, kind):
+    # a PNG that it does not cut comes whole, with a text that says so
+    monkeypatch.setattr(front, 'PART_HEIGHT', 4)
+    options = {'interlaced': {'interlace': 1}, '16 bits': {'depth': 16}, 'palette': {'colour': 3}}[kind]
+    data = _png(_pixels(5, 9, 3), 5, **options)
+    (shots / 'tall.png').write_bytes(data)
+
+    text, image = (await client.call_tool('front_screenshot', {'file': 'tall.png'})).content
+    assert 'tall.png is given whole, 5x9 px, and the client may scale it down' in text.text
+    assert base64.b64decode(image.data) == data
+
+
+@pytest.mark.parametrize('file, message', [
+    ('report.json', 'is not a screenshot: the name of a .png file of frontend/.scratch/shots/'),
+    ('../../../.env', 'is not a screenshot'),
+    ('missing.png', 'frontend/.scratch/shots/missing.png is not a screenshot of the last run'),
+    ('text.png', 'frontend/.scratch/shots/text.png is not a PNG image.'),
+    ('broken.png', 'frontend/.scratch/shots/broken.png is not a PNG image it can read'),
+    ('link.png', 'frontend/.scratch/shots/link.png is not a screenshot of the last run'),
+    ('large.png', 'frontend/.scratch/shots/large.png has 21 bytes, over the limit of 20.'),
+])
+async def test_front_screenshot_refuses(client, shots, monkeypatch, file, message):
+    (shots / 'text.png').write_text('not an image')
+    (shots / 'broken.png').write_bytes(front.PNG + b'pixels')
+    (shots / 'link.png').symlink_to(shots.parent.parent.parent / '.env')
+    (shots / 'large.png').write_bytes(front.PNG + b'x' * 13)
+    monkeypatch.setattr(front, 'SHOT_LIMIT', 20)
+
+    assert message in error(await client.call_tool('front_screenshot', {'file': file}))
+
+
+async def test_front_screenshot_of_a_run(client, shots, monkeypatch):
+    # each image counts, a part of a tall screenshot too
+    monkeypatch.setattr(front, 'SHOTS_PER_RUN', 2)
+    monkeypatch.setattr(front, 'PART_HEIGHT', 2)
+    arguments = {'file': 'task-list-manager-dark-390.png'}
+    for part in (1, 2):
+        assert not (await client.call_tool('front_screenshot', {**arguments, 'part': part})).is_error
+    assert '2 screenshots of this run were read already' in error(await client.call_tool('front_screenshot', arguments))
+
+    # a new run of `shots` writes its report again
+    report = shots / 'report.json'
+    os.utime(report, ns=(report.stat().st_atime_ns, report.stat().st_mtime_ns + 1))
+    assert not (await client.call_tool('front_screenshot', arguments)).is_error
