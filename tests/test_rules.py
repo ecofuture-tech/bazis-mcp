@@ -69,9 +69,9 @@ def test_frontend_rules():
                  # screens looked at, 9 warnings left unread)
                  'Each warning of the report is fixed as well, or listed in Left for you with '
                  'its screen, its code and why it stays',
-                 'The screenshots are looked at, one of each screen at least, the screens '
+                 'The screenshots are looked at, one of each screen while the limit of the '
+                 'client lasts (`front_screenshot` gives 40 images of a run), the screens '
                  'with errors or warnings and the main ones first',
-                 'up to the limit of the client (`front_screenshot` gives 40 images of a run)',
                  'the screens not looked at go to Left for you in one line, their number and '
                  'their ids, not one by one with a reason',
                  'Without a shell, `reviewed` of `front_status` counts those looked at whole with '

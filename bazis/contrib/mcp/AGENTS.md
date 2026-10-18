@@ -215,7 +215,7 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
   `layer` (`product`, `screens`, `design`) reports one layer.
 - `front_status()` — what is stale, without Node: the issues of `bazis_front status --json`
   in `stale` by the `bazis_front` command that updates the part (`contract`, `design`,
-  `screens`, `e2e`, `shots`, `update`), `spec_issues` (the number of issues, see `front_check`),
+  `screens`, `e2e`, `shots`, `update`), `spec_issues` (the number of messages of the check of the specs, `front.W002`: one for each error and one for all the warnings, folded; the issues are in `front_check`),
   `shot_errors` (`front.W009` when the report of the last screenshots has errors or there is
   none, the screenshots not taken: not stale, `up_to_date` does not count it; the screens are
   fixed and taken again), `reviewed` (the number of the `screens` of the report of the last

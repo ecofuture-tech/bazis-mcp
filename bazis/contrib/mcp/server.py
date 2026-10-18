@@ -514,8 +514,9 @@ def front_status() -> dict:
     What of the frontend is stale, without Node (the issues of
     `manage.py bazis_front status --json`): `stale` by the `manage.py bazis_front` command
     that updates it (`contract`, `design`, `screens`, `e2e`, `shots`, `update`), each with the
-    issues and their hints; `spec_issues` counts the issues of the specs (see `front_check`),
-    `shot_errors` has `front.W009` when the report of the last screenshots has errors or there
+    issues and their hints; `spec_issues` counts the messages of the check of the specs
+    (`front.W002`: one for each error and one for all the warnings, which `status` folds; the
+    issues themselves are in `front_check`), `shot_errors` has `front.W009` when the report of the last screenshots has errors or there
     is no report, the screenshots not taken (not stale: the screens are fixed instead,
     `bazis_front shots` again), `reviewed` the number of the `screens` of that report and of
     those `looked` at, a screenshot of each given whole (every part) by `front_screenshot`
@@ -676,10 +677,11 @@ the guide and the end-to-end tests against the running backend (`start_server("b
 then `run_command("npm", ["e2e"])`); fix every failure. With the backend still running,
 take the screenshots, `run_command("manage", ["bazis_front", "shots"])`, and fix every
 error of `frontend/.scratch/shots/report.json` and what the screenshots show
-(`front_screenshot`, a tall one part by part, one of each screen at least, those with
-errors or warnings and the main ones first, up to the limit of 40 images of a run;
-those not looked at go to Left for you in one line, their number and their ids, and
-without a shell `reviewed` of `front_status` names them `not_looked`) against the checklist of "The visual check" of the guide,
+(`front_screenshot`, a tall one part by part, one of each screen while the limit of
+40 images of a run lasts, those with errors or warnings and the main ones first; those
+not looked at go to Left for you in one line, their number and their ids, and without a
+shell `reviewed` of `front_status` names them `not_looked`) against the checklist of
+"The visual check" of the guide,
 then take them again, at most three rounds; fix each warning of the report too, or list it
 in Left for you with why it stays.
 """

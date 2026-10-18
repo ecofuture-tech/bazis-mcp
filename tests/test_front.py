@@ -198,7 +198,9 @@ async def test_front_status(client, fake_run):
         issue('front.W005', 'The theme is stale.', 'Generate it with `manage.py bazis_front design`.',
               command='design'),
         issue('front.W002', 'P011 (error) spec/product.yaml#/entities/0/resource: ...'),
-        issue('front.W002', 'P020 (warning) spec/product.yaml#/entities/0/access: ...'),
+        # the warnings of the specs are folded into one message, as the check of bazis-front does
+        issue('front.W002', '3 warnings of the specs (P020 x1, S027 x2).',
+              'List them with their places and fixes: `manage.py bazis_front check`.'),
         issue('front.I001', 'The contract is not checked: the database is not migrated.',
               level='info'),
         issue('front.W007', 'Copies of bazis-front were changed in the frontend.'),
