@@ -20,8 +20,11 @@ claude mcp add bazis -- .venv/bin/bazis-mcp --project-dir <directory of manage.p
 ```
 
 Without a project (`uvx bazis-mcp`, started anywhere) it serves none until the agent calls
-`create_project` or `use_project`: the other tools answer "No project: call create_project
-or use_project".
+`create_project` or `use_project`: the project tools answer "No project: call create_project
+or use_project", followed by the projects one level below the current directory of the
+server as calls of `use_project` (such as `use_project("/home/me/apps/shop")`), and the
+catalog tools (`list_packages`, `package_guide`, `guide_search`) describe the released
+packages of the catalog, none installed.
 
 `bazis-mcp [--project-dir DIR] [--settings MODULE]` serves the project in `DIR` (default:
 the current directory when it has `manage.py`) with `project.env` and the settings module of `manage.py` (or
@@ -175,7 +178,8 @@ The catalog and the project served:
 - `list_packages` — every Bazis package: `summary`, `solves`, `requires`, `pairs_well`,
   `installed_version` (null if not installed in the Python of the project),
   `catalog_version` and `guide_version`. The installed packages are read from the Python of
-  the project at every call, so a package installed or upgraded meanwhile is seen.
+  the project at every call, so a package installed or upgraded meanwhile is seen; without a
+  project, the catalog only (`installed_version` null).
 - `package_guide(name, section=None)` — AGENTS.md and manifest of a package (`bazis` for
   the core). An installed package is described by its installed files (read at every
   call), the others (and installed versions without a guide, before 2.4) by the catalog;
@@ -214,7 +218,10 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
   `screens`, `e2e`, `shots`, `update`), `spec_issues` (the number of issues, see `front_check`),
   `shot_errors` (`front.W009` when the report of the last screenshots has errors or there is
   none, the screenshots not taken: not stale, `up_to_date` does not count it; the screens are
-  fixed and taken again), the other
+  fixed and taken again), `reviewed` (the number of the `screens` of the report of the last
+  screenshots that have a screenshot, of those `looked` at with `front_screenshot`, a
+  screenshot of each given whole, every part, since the report was written, and the screens
+  `not_looked`; null without a report that can be read), the other
   issues in `messages` (such as a contract not checked before `migrate`).
 - `front_catalog()` — the assets that `bazis_front init` and `add` copy: `kind`, `target`,
   the `capabilities` they need in the contract, the assets they `requires` (`init` copies the

@@ -39,7 +39,9 @@ def test_new_prompt_of_a_product():
         'Step 9', 'uvicorn helpdesk.main:app --port <backend>', 'bazis_front shots',
         'frontend/.scratch/shots/report.json', '`front_screenshot`', '"The visual check"',
         'at most three rounds',
-        '`shot_errors` of `front_status`', 'Left for you', 'Exit 2 means nothing was shot',
+        '`shot_errors` of `front_status`', 'Left for you',
+        'Fix each warning of the report too, or list it there with why it stays',
+        '`reviewed` of `front_status` names the screens `not_looked`', 'Exit 2 means nothing was shot',
         'Step 10', 'the final checks of the rules',
         'npm run dev -- --port <frontend>',
     ]

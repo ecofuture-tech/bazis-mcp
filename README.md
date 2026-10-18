@@ -107,7 +107,8 @@ the same conversation.
 
 - `--project-dir` — the directory of `manage.py` and `project.env` (default: the current
   directory when it has `manage.py`, else no project until `create_project` or
-  `use_project`; the other tools answer "No project" until then);
+  `use_project`; the project tools answer "No project", with the projects of the current
+  directory to choose, and the catalog tools describe the released packages until then);
 - `--settings` — the settings module (default: `DJANGO_SETTINGS_MODULE`, or the module
   that `manage.py` sets).
 
@@ -144,7 +145,7 @@ limits protect from.
 | `project_info(sections)` | The packages, settings (secrets hidden), models and routes of the project |
 | `run_doctor(deploy)` | The system checks of the project and of its Bazis packages |
 | `front_check(layer)` | The issues of the frontend specs (bazis-front) |
-| `front_status()` | The parts of the frontend that are stale |
+| `front_status()` | The parts of the frontend that are stale, the errors of the screenshots and the screens looked at |
 | `front_catalog()` | The assets of bazis-front with what they require |
 | `front_screenshot(file, part=1)` | A screenshot of the last run of `bazis_front shots`, as an image; a tall one in parts |
 

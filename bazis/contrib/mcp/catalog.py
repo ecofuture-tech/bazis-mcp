@@ -48,8 +48,9 @@ def packages() -> dict[str, dict]:
     Python of the project at the time of the call (`project.packages`): the guide (manifest
     and AGENTS.md) of an installed package comes from its files; a package that is not installed, or installed in a version
     without a guide (before 2.4), is described by the catalog. `guide_version` is the
-    version the guide describes. `project.ProjectError` if the Python of the project cannot
-    list its packages.
+    version the guide describes. Without a project, the released packages of the catalog
+    only, none installed. `project.ProjectError` if the Python of the project cannot list
+    its packages.
     """
     result = {
         name: {
@@ -62,7 +63,7 @@ def packages() -> dict[str, dict]:
         }
         for name, entry in catalog().items()
     }
-    for installed in project.packages():
+    for installed in project.packages() if project.project_dir else []:
         name = installed['name']
         package = result.setdefault(
             name,

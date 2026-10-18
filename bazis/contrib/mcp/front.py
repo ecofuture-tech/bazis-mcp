@@ -22,6 +22,7 @@ A project without bazis-front gets a result that says so (`checked` false, `reas
 an error: the frontend layer is optional.
 """
 
+import json
 import struct
 import zlib
 
@@ -123,8 +124,9 @@ def status() -> dict:
     """
     The parts of the frontend that are stale, from the issues of
     `manage.py bazis_front status --json` (the checks of the state of the frontend, without
-    Node), by the `command` of bazis-front that brings them up to date, and the errors of the
-    report of the last screenshots (`shot_errors`), which no command updates.
+    Node), by the `command` of bazis-front that brings them up to date, the errors of the
+    report of the last screenshots (`shot_errors`), which no command updates, and its screens
+    looked at (`reviewed`).
     """
     installed = package()
     if unavailable := _unavailable(installed):
@@ -150,6 +152,7 @@ def status() -> dict:
         'stale': stale,
         'spec_issues': spec_issues,
         'shot_errors': shot_errors,
+        'reviewed': reviewed(),
         'messages': other,
     }
 
@@ -202,7 +205,10 @@ SHOTS_PER_RUN = 40
 #: down, unreadable): a taller screenshot is given in parts of this height
 PART_HEIGHT = 1568
 PNG = b'\x89PNG\r\n\x1a\n'
+#: by run (the time of its report, None without one): the screenshots and parts given
 _given: dict[int | None, int] = {}
+#: by run: the parts of each screenshot given, with the number of its parts
+_looked: dict[int | None, dict[str, tuple[int, set[int]]]] = {}
 
 
 def screenshot(name: str, part: int = 1) -> tuple[str | None, bytes]:
@@ -236,17 +242,41 @@ def screenshot(name: str, part: int = 1) -> tuple[str | None, bytes]:
     if not data.startswith(PNG):
         raise project.ProjectError(f'{label} is not a PNG image.')
     try:
-        note, data = _part(data, part, label)
+        note, data, parts = _part(data, part, label)
     except (struct.error, zlib.error, IndexError, ValueError) as exc:
         raise project.ProjectError(f'{label} is not a PNG image it can read: {exc}.') from exc
     _given[run] = _given.get(run, 0) + 1
+    _looked.setdefault(run, {}).setdefault(name, (parts, set()))[1].add(part)
     return note, data
 
 
-def _part(data: bytes, part: int, label: str) -> tuple[str | None, bytes]:
+def reviewed() -> dict | None:
     """
-    The note and the PNG of `part` of the image `data`: the whole image when it is not taller
-    than PART_HEIGHT or not of 8-bit RGB or RGBA without interlace (said by the note).
+    The screens of the report of the last screenshots that were looked at with `screenshot`
+    in its run: those with a screenshot given whole (each of its parts); None without a
+    report that can be read.
+    """
+    report = project.inside(SHOTS_DIR) / SHOTS_REPORT
+    try:
+        shots = json.loads(report.read_text(encoding='utf-8'))['shots']
+        run = report.stat().st_mtime_ns
+    except (OSError, ValueError):
+        return None
+    files = {name for name, (parts, given) in _looked.get(run, {}).items() if len(given) == parts}
+    screens = sorted({it['screen'] for it in shots if it['file']})
+    looked = {it['screen'] for it in shots if it['file'] in files}
+    return {
+        'screens': len(screens),
+        'looked': len(looked),
+        'not_looked': [it for it in screens if it not in looked],
+    }
+
+
+def _part(data: bytes, part: int, label: str) -> tuple[str | None, bytes, int]:
+    """
+    The note and the PNG of `part` of the image `data`, and the number of the parts it is given
+    in: the whole image (one part) when it is not taller than PART_HEIGHT or not of 8-bit RGB
+    or RGBA without interlace (said by the note).
     """
     chunks = list(_chunks(data))
     width, height, depth, colour, _, _, interlace = struct.unpack('>IIBBBBB', chunks[0][1])
@@ -254,12 +284,12 @@ def _part(data: bytes, part: int, label: str) -> tuple[str | None, bytes]:
     if not 1 <= part <= parts:
         raise project.ProjectError(f'{label} has {parts} part(s): `part` is 1 to {parts}.')
     if parts == 1:
-        return None, data
+        return None, data, 1
     if depth != 8 or colour not in (2, 6) or interlace:
         return (
             f'{label} is given whole, {width}x{height} px, and the client may scale it down: only a '
             'PNG of 8-bit RGB or RGBA without interlace is cut into parts.'
-        ), data
+        ), data, 1
     bpp = 3 if colour == 2 else 4
     line = width * bpp + 1
     raw = zlib.decompress(b''.join(body for kind, body in chunks if kind == b'IDAT'))
@@ -276,7 +306,7 @@ def _part(data: bytes, part: int, label: str) -> tuple[str | None, bytes]:
     body = b'\0' + pixels + b''.join(rows[first + 1:last])
     header = struct.pack('>IIBBBBB', width, last - first, 8, colour, 0, 0, 0)
     image = PNG + _chunk(b'IHDR', header) + _chunk(b'IDAT', zlib.compress(body)) + _chunk(b'IEND', b'')
-    return f'part {part} of {parts} ({width}x{PART_HEIGHT} px each)', image
+    return f'part {part} of {parts} ({width}x{PART_HEIGHT} px each)', image, parts
 
 
 def _chunks(data: bytes):

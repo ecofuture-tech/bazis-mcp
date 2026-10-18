@@ -54,13 +54,14 @@ you reach it, and with what this product adds to them:
 - Step 9: with the backend running as for `npm run e2e` (its test data,
   `.venv/bin/uvicorn {name}.main:app --port <backend>`), run `bazis_front shots` with
   `run_command`, read `frontend/.scratch/shots/report.json` and look at the screenshots
-  (`front_screenshot`, the `file` of each shot: those with errors first, each `part` of a
-  tall one) against the
+  (`front_screenshot`, the `file` of each shot: those with errors first, then one of each
+  screen, each `part` of a tall one) against the
   checklist of "The visual check"; fix every error in the specs, the screens,
   the design or the backend and run `shots` again until the report has no error, at most
   three rounds; after the third, list each error left (`shot_errors` of `front_status`) in
-  Left for you, with its screen and code. Exit 2 means nothing was shot: start the backend,
-  or install the browser.
+  Left for you, with its screen and code. Fix each warning of the report too, or list it
+  there with why it stays; `reviewed` of `front_status` names the screens `not_looked`. Exit
+  2 means nothing was shot: start the backend, or install the browser.
 - Step 10 is a part of the final checks of the rules: run them once, at the end. Say how to
   run the backend (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend
   (`npm run dev -- --port <frontend>` in `frontend/`) with the ports of the project.
@@ -161,8 +162,11 @@ export the contract (`.venv/bin/python manage.py bazis_front contract`) and fix 
 or the backend until `front_check` reports no errors. Generate the screens again
 (`bazis_front screens`, which copies the components they import), with an extension
 (`extend`) or a custom screen only for what the specs cannot say, generate the end-to-end
-tests again (`bazis_front e2e`), extend `e2e_data`, and finish with the final checks of
-the rules.
+tests again (`bazis_front e2e`), extend `e2e_data`, and finish with the whole round of the
+final checks of the rules, also the checks of what {change} does not touch: `run_doctor`, the
+tests, `front_check`, `front_status`, in `frontend/` `npx tsc --noEmit`, `npm run lint`,
+`npm test`, `npm run build`, `bazis_front screens --check` and `bazis_front shots --check`,
+then `npm run e2e` and `bazis_front shots` against the running backend.
 """
 
 

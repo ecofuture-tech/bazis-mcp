@@ -63,7 +63,9 @@ Bazis builds JSON:API services on Django, FastAPI and Pydantic. The core is the 
 packages the project needs.
 
 The tools work on one project, the one the server was started in or the one chosen in the
-conversation (`project_status` says which); without one they answer "No project".
+conversation (`project_status` says which); without one they answer "No project" with the
+projects of the current directory to choose with `use_project`, and the catalog
+(`list_packages`, `package_guide`, `guide_search`) describes the released packages.
 
 - A new application: call `check_machine` first. If programs are `missing`, list them to
   the user with what each one is for and its `install_command`, and ask whether to install
@@ -416,7 +418,8 @@ def list_packages() -> dict:
     """
     The Bazis packages (`packages`): what each one is for (`summary`, `solves`), the Bazis packages it
     requires and pairs well with, and the installed and the latest known version
-    (`installed_version` is null if the package is not installed in the Python of the project).
+    (`installed_version` is null if the package is not installed in the Python of the project;
+    without a project, for every package: the catalog of the released packages).
     """
     return {'packages': [catalog.summary(it) for it in _project_call(catalog.packages).values()]}
 
@@ -514,8 +517,10 @@ def front_status() -> dict:
     issues and their hints; `spec_issues` counts the issues of the specs (see `front_check`),
     `shot_errors` has `front.W009` when the report of the last screenshots has errors or there
     is no report, the screenshots not taken (not stale: the screens are fixed instead,
-    `bazis_front shots` again), and `messages` the
-    other issues. Without bazis-front
+    `bazis_front shots` again), `reviewed` the number of the `screens` of that report and of
+    those `looked` at, a screenshot of each given whole (every part) by `front_screenshot`
+    since the report was written, with the screens `not_looked` (null without a report), and
+    `messages` the other issues. Without bazis-front
     (installed, in INSTALLED_APPS), `checked` is false and `reason` says what to do.
     """
     return _project_call(front.status)
@@ -671,8 +676,10 @@ the guide and the end-to-end tests against the running backend (`start_server("b
 then `run_command("npm", ["e2e"])`); fix every failure. With the backend still running,
 take the screenshots, `run_command("manage", ["bazis_front", "shots"])`, and fix every
 error of `frontend/.scratch/shots/report.json` and what the screenshots show
-(`front_screenshot`, a tall one part by part) against the checklist of "The visual check"
-of the guide, then take them again, at most three rounds.
+(`front_screenshot`, a tall one part by part, one of each screen at least: `reviewed` of
+`front_status` names those `not_looked`) against the checklist of "The visual check" of the
+guide, then take them again, at most three rounds; fix each warning of the report too, or
+list it in Left for you with why it stays.
 """
 
 

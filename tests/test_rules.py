@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 from bazis.contrib.mcp import prompts, scaffold
 from bazis.contrib.mcp.rules import FRONTEND_RULES, RULES
 
@@ -63,6 +65,13 @@ def test_frontend_rules():
                  # that Left for you does not list
                  'The errors left after the third are `shot_errors` of `front_status` (not stale)',
                  'the work is not done while it has one that Left for you does not list',
+                 # the warnings are looked into and every screen is looked at (mcp6: 5 of 16
+                 # screens looked at, 9 warnings left unread)
+                 'Each warning of the report is fixed as well, or listed in Left for you with '
+                 'its screen, its code and why it stays',
+                 'Every screen of the last report is looked at, one of its screenshots at least',
+                 '`reviewed` of `front_status` counts those looked at whole with `front_screenshot` '
+                 'and names the others (`not_looked`)',
                  '`front_status` with nothing stale and no `shot_errors` (or each of them in '
                  'Left for you, after the three rounds of the screenshots)',
                  '`npm run build`, `bazis_front screens --check` and `bazis_front shots --check`',
@@ -240,3 +249,25 @@ def test_rules_of_an_agent_without_a_shell():
                  '`start_server` and `stop_server`', '`add_packages`',
                  'look at the screenshots of the frontend with `front_screenshot`'):
         assert text in rules, text
+
+
+def test_a_next_change_ends_with_all_the_final_checks():
+    """
+    A change asked after the first in the conversation (a resumed session, without a task)
+    runs the whole round of the final checks, not only those of what it changed (mcp6:
+    neither vitest nor the build nor the lint after the second change); a task of a change of
+    a product names them, each one a final check of the rules of the frontend.
+    """
+    rules = ' '.join(RULES.split())
+    assert ('A next change asked in the conversation ends with the whole round again, also the '
+            'checks of the parts it did not change') in rules
+
+    change = ' '.join(prompts.frontend_change('the change').split())
+    checks = change.split('also the checks of what the change does not touch: ', 1)[1]
+    frontend = ' '.join(FRONTEND_RULES.split()).split('The final checks of the frontend: ', 1)[1]
+    named = re.findall(r'`([^`]+)`', checks)
+    assert named == ['run_doctor', 'front_check', 'front_status', 'frontend/', 'npx tsc --noEmit',
+                     'npm run lint', 'npm test', 'npm run build', 'bazis_front screens --check',
+                     'bazis_front shots --check', 'npm run e2e', 'bazis_front shots']
+    for name in named:
+        assert f'`{name}`' in frontend or f'`{name}`' in rules, name

@@ -43,9 +43,6 @@ pytestmark = pytest.mark.anyio
 
 #: the existing tools, which need a project
 PROJECT_TOOLS = {
-    'list_packages': {},
-    'package_guide': {'name': 'bazis'},
-    'guide_search': {'query': 'routes'},
     'project_info': {},
     'run_doctor': {},
     'front_check': {},
@@ -104,9 +101,37 @@ def text_of(call_result) -> str:
     return call_result.content[0].text
 
 
-async def test_tools_without_a_project(client, no_project):
+async def test_tools_without_a_project(client, no_project, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
     for name, args in PROJECT_TOOLS.items():
         assert error(await client.call_tool(name, args)) == project.NO_PROJECT, name
+
+    # the projects one level below the current directory, which a client that starts the
+    # server again (a new conversation) chooses: not a file, nor a deeper project
+    for path in ('shop/manage.py', 'blog/manage.py', 'apps/deep/manage.py', 'notes/readme.md'):
+        (tmp_path / path).parent.mkdir(parents=True)
+        (tmp_path / path).write_text('')
+    (tmp_path / 'file').write_text('')
+    assert error(await client.call_tool('project_status', {})) == (
+        f'{project.NO_PROJECT} The projects in the current directory: '
+        f'use_project("{tmp_path.resolve() / "blog"}"), use_project("{tmp_path.resolve() / "shop"}").'
+    )
+
+
+async def test_catalog_without_a_project(client, no_project):
+    """
+    The catalog describes the released packages without a project, none installed: the
+    packages are chosen before the project is created.
+    """
+    packages = result(await client.call_tool('list_packages', {}))['packages']
+    assert {it['name'] for it in packages} == set(catalog.catalog())
+    assert all(it['installed_version'] is None for it in packages)
+
+    guide = result(await client.call_tool('package_guide', {'name': 'bazis'}))
+    assert guide['installed_version'] is None
+    assert guide['guide_version'] == catalog.catalog()['bazis']['version']
+    found = result(await client.call_tool('guide_search', {'query': 'routes'}))
+    assert found['results']
 
 
 async def test_create_project(client, no_project, machine, tmp_path):
@@ -612,8 +637,11 @@ def test_main_without_a_project_directory(monkeypatch, tmp_path, in_project):
 async def test_stdio_server_without_a_project(tmp_path):
     """
     `bazis-mcp` started outside a project, as a client starts `uvx bazis-mcp`: the project
-    tools say that there is none, the rules are there.
+    tools say that there is none and name the project of its directory, the catalog and the
+    rules are there.
     """
+    (tmp_path / 'shop').mkdir()
+    (tmp_path / 'shop' / 'manage.py').write_text('')
     params = StdioServerParameters(
         command=sys.executable,
         args=['-m', 'bazis.contrib.mcp.server'],
@@ -622,8 +650,14 @@ async def test_stdio_server_without_a_project(tmp_path):
     )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
+        status = await session.call_tool('project_status', {})
         packages = await session.call_tool('list_packages', {})
         resource = await session.read_resource('bazis://rules')
 
-    assert packages.is_error and packages.content[0].text.endswith(project.NO_PROJECT)
+    assert status.is_error and status.content[0].text.endswith(
+        f'{project.NO_PROJECT} The projects in the current directory: '
+        f'use_project("{tmp_path.resolve() / "shop"}").'
+    )
+    assert not packages.is_error
+    assert all(it['installed_version'] is None for it in result(packages)['packages'])
     assert resource.contents[0].text == rules.RULES

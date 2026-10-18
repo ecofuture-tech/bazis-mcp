@@ -131,9 +131,26 @@ def run(name: str, *args: str, **env: str) -> subprocess.CompletedProcess:
         raise ProjectError(f'{name} cannot run the Python of the project {interpreter}: {err}') from err
 
 
+def no_project() -> str:
+    """
+    The error of a tool without a project, with the projects one level below the current
+    directory of the server (`is_project`) as calls of `use_project`: a client that starts
+    the server again for the next change of a conversation finds there the project it
+    created.
+    """
+    try:
+        found = sorted(it for it in Path.cwd().iterdir() if it.is_dir() and is_project(it))
+    except OSError:
+        found = []
+    if not found:
+        return NO_PROJECT
+    calls = ', '.join(f'use_project("{it}")' for it in found)
+    return f'{NO_PROJECT} The projects in the current directory: {calls}.'
+
+
 def _check_dir():
     if project_dir is None:
-        raise ProjectError(NO_PROJECT)
+        raise ProjectError(no_project())
     if not project_dir.is_dir():
         raise ProjectError(f'The project directory {project_dir} does not exist.')
 

@@ -37,7 +37,7 @@ text = "the guides of packages that are not installed come from a snapshot taken
 text = "install_tools runs only the commands of its table (Homebrew); the commands with sudo (apt) and a machine without a package manager are left to the user (run_yourself)"
 
 [[pitfalls]]
-text = "a server started outside a project serves none: the tools answer No project until create_project or use_project"
+text = "a server started outside a project serves none: the project tools answer No project, with the projects one level below its current directory, until create_project or use_project; the catalog tools describe the released packages only"
 
 [[pitfalls]]
 text = "run_command runs only the commands of its closed table, with plain arguments that stay in the project: a command of the caller, a character of a shell, .. or a path outside the project is refused, and so are options of the commands that remove a directory they are given (--basetemp of pytest; --output, --fsModuleCachePath, --coverage.reportsDirectory of the scripts of npm), as arguments (not in a configuration)"

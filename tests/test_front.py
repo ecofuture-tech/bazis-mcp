@@ -215,6 +215,8 @@ async def test_front_status(client, fake_run):
         'stale': {'contract': [issues[0]], 'design': [issues[1]]},
         'spec_issues': 2,
         'shot_errors': [],
+        # no report of the screenshots in the sample
+        'reviewed': None,
         'messages': [issues[4], issues[5]],
     }
 
@@ -521,6 +523,7 @@ def shots(monkeypatch, tmp_path):
     (output / 'task-list-manager-dark-390.png').write_bytes(_png(_pixels(4, 3, 3), 4))
     monkeypatch.setattr(project, 'project_dir', directory)
     monkeypatch.setattr(front, '_given', {})
+    monkeypatch.setattr(front, '_looked', {})
     return output
 
 
@@ -597,3 +600,43 @@ async def test_front_screenshot_of_a_run(client, shots, monkeypatch):
     report = shots / 'report.json'
     os.utime(report, ns=(report.stat().st_atime_ns, report.stat().st_mtime_ns + 1))
     assert not (await client.call_tool('front_screenshot', arguments)).is_error
+
+
+async def test_front_status_counts_the_screens_looked_at(client, shots, fake_run, monkeypatch):
+    """
+    `reviewed` counts the screens of the last report with a screenshot given whole by
+    `front_screenshot` in its run, every part of a tall one; a screen not shot is not counted.
+    """
+    monkeypatch.setattr(front, 'PART_HEIGHT', 2)
+    report = shots / 'report.json'
+    report.write_text(json.dumps({'errors': 1, 'warnings': 0, 'shots': [
+        {'screen': 'task-list', 'file': 'task-list-manager-dark-390.png', 'issues': []},
+        {'screen': 'home', 'file': 'home-manager-light-1280.png', 'issues': []},
+        {'screen': 'home', 'file': 'home-manager-dark-1280.png', 'issues': []},
+        {'screen': 'board', 'file': None, 'issues': [{'code': 'V001', 'severity': 'error'}]},
+    ]}))
+    (shots / 'home-manager-light-1280.png').write_bytes(_png(_pixels(4, 2, 3), 4))
+
+    async def reviewed():
+        fake_run.outputs = [probe_output(), status_output()]
+        return result(await client.call_tool('front_status', {}))['reviewed']
+
+    async def look(file, part=1):
+        assert not (await client.call_tool('front_screenshot', {'file': file, 'part': part})).is_error
+
+    assert await reviewed() == {'screens': 2, 'looked': 0, 'not_looked': ['home', 'task-list']}
+
+    # one screenshot of a screen is enough; a tall one is looked at once each part is
+    await look('home-manager-light-1280.png')
+    await look('task-list-manager-dark-390.png')
+    assert await reviewed() == {'screens': 2, 'looked': 1, 'not_looked': ['task-list']}
+    await look('task-list-manager-dark-390.png', 2)
+    assert await reviewed() == {'screens': 2, 'looked': 2, 'not_looked': []}
+
+    # a new run of `shots` (its report written again) is looked at again
+    os.utime(report, ns=(report.stat().st_atime_ns, report.stat().st_mtime_ns + 1))
+    assert await reviewed() == {'screens': 2, 'looked': 0, 'not_looked': ['home', 'task-list']}
+
+    # no report: nothing to look at
+    report.unlink()
+    assert await reviewed() is None

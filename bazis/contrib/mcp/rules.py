@@ -131,7 +131,8 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   database of the project, migrate it.
 - The final checks are `run_doctor`, the tests and, with a frontend, the checks of its
   rules. Run the final checks once, after the last change: fix what fails and run again only
-  the checks that failed, not the whole round.
+  the checks that failed, not the whole round. A next change asked in the conversation ends
+  with the whole round again, also the checks of the parts it did not change.
 - End with a short summary in these sections: Built (what you built or changed), Packages
   (the Bazis packages used), Run (how to run it), Outside the files (what you created
   outside them, such as the database), Left for you (what is left for the user, each with
@@ -209,10 +210,14 @@ do not write generators or frontends of your own.
   checklist of "The visual check" of the guide (without a shell, `front_screenshot` shows
   the `file` of a shot of the report, a tall one in parts, each `part` of which is looked
   at): fix the specs, the screens, the design or
-  the backend and take them again, at most three rounds. The errors left after the third
-  are `shot_errors` of `front_status` (not stale): the work is not done while it has one
-  that Left for you does not list with its screen, its code and why it is left. Never
-  commit `frontend/.scratch/`.
+  the backend and take them again, at most three rounds. Each warning of the report is
+  fixed as well, or listed in Left for you with its screen, its code and why it stays. The
+  errors left after the third are `shot_errors` of `front_status` (not stale): the work is
+  not done while it has one that Left for you does not list with its screen, its code and
+  why it is left. Every screen of the last report is looked at, one of its screenshots at
+  least: without a shell, `reviewed` of `front_status` counts those looked at whole with
+  `front_screenshot` and names the others (`not_looked`), and the work is not done while it
+  names one that Left for you does not list. Never commit `frontend/.scratch/`.
 - Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/src/screens/generated/`,
   `frontend/e2e/generated/`, the
   copies of `frontend/src/bazis/client/`, `frontend/src/bazis/react/`,
