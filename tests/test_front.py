@@ -533,6 +533,7 @@ async def test_front_screenshot(client, shots):
     call_result = await client.call_tool('front_screenshot', {'file': 'task-list-manager-dark-390.png'})
 
     assert not call_result.is_error, call_result.content
+    assert call_result.structured_content is None
     [image] = call_result.content
     assert image.type == 'image' and image.mime_type == 'image/png'
     assert base64.b64decode(image.data) == (shots / 'task-list-manager-dark-390.png').read_bytes()

@@ -528,7 +528,8 @@ def front_status() -> dict:
     return _project_call(front.status)
 
 
-@server.tool(annotations=READ_ONLY)
+# images for the model, not data: mcp before 2.3 fails on an output schema of Image unless told
+@server.tool(annotations=READ_ONLY, structured_output=False)
 def front_screenshot(file: str, part: int = 1) -> list[str | Image]:
     """
     A screenshot of the last run of `bazis_front shots`, as an image: `file` is the name of a
