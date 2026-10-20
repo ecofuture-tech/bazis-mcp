@@ -65,7 +65,8 @@ def signal_group(process: subprocess.Popen, kill: bool = False) -> None:
     """
     Sends SIGTERM, or SIGKILL when `kill`, to the process group of `process` (started with
     `start_new_session`): also to the processes it started, such as the node of
-    `npm run dev`. On Windows to the process only.
+    `npm run dev`. On Windows to the process only. A group that has ended is not an error:
+    no process (ESRCH), or, on macOS, a group of only zombies (EPERM).
     """
     try:
         if os.name == 'posix':
@@ -74,7 +75,7 @@ def signal_group(process: subprocess.Popen, kill: bool = False) -> None:
             process.kill()
         else:
             process.terminate()
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
 
 

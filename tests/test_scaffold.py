@@ -454,6 +454,8 @@ def test_create_database(tmp_path):
     as JSON, is what `bazis new` says to the user and the agent.
     """
     commands = []
+    server = 'BS_DATABASES__DEFAULT__HOST=db\nBS_DATABASES__DEFAULT__PORT=5432\n'
+    (tmp_path / '.env').write_text(server)
 
     def runner(stdout, stderr=''):
         def run(command, **kwargs):
@@ -463,10 +465,12 @@ def test_create_database(tmp_path):
         return run
 
     def outcome(outcome, **extra):
-        result = {'name': 'store', 'server': 'db:5432', 'outcome': outcome, **extra}
+        result = {'name': 'store', 'server': 'db:5432', 'host': 'db', 'port': '5432',
+                  'outcome': outcome, **extra}
         return scaffold.create_database(tmp_path, 'store', '/p/python', run=runner(json.dumps(result)))
 
     assert outcome('created') == 'Created the database `store` on PostgreSQL db:5432.'
+    assert (tmp_path / '.env').read_text() == server
     command, cwd = commands[0]
     assert command == ['/p/python', '-c', scaffold.CREATE_DATABASE_PY, 'store'] and cwd == tmp_path
     assert outcome('exists') == 'The database `store` exists on PostgreSQL db:5432 without tables.'
@@ -496,6 +500,19 @@ def test_create_database(tmp_path):
         'The database `store` was not created on PostgreSQL db:5432: permission denied'
     )
     assert 'not on PostgreSQL' in outcome('other')
+    # the database is on the server of the environment of the caller, not of `.env`: the
+    # server is set in `.env`, once
+    (tmp_path / '.env').write_text('BS_DATABASES__DEFAULT__HOST=localhost\nBS_DATABASES__DEFAULT__PORT=5432\n')
+    assert outcome('created', server='localhost:55910', host='localhost', port='55910').endswith(
+        '`.env` sets it: `BS_DATABASES__DEFAULT__PORT=55910`.'
+    )
+    assert (tmp_path / '.env').read_text() == (
+        'BS_DATABASES__DEFAULT__HOST=localhost\nBS_DATABASES__DEFAULT__PORT=55910\n'
+    )
+    assert outcome('exists', server='localhost:55910', host='localhost', port='55910').endswith('tables.')
+    # no database, no server: `.env` is left as it is
+    assert 'cannot be reached' in outcome('unreachable', detail='x', port='1')
+    assert 'PORT=55910' in (tmp_path / '.env').read_text()
     # the databases of the name are taken: the one prepared instead is set in .env
     (tmp_path / '.env').write_text('BS_DEBUG=true\nBS_DATABASES__DEFAULT__NAME=store\nE2E_PASSWORD=x\n')
     assert outcome('failed', name='store_2', taken=['store'], detail='permission denied') == (
@@ -565,7 +582,8 @@ def test_create_database_of_a_project(tmp_path, monkeypatch):
     """
     The database of the settings of the project is created with PostGIS, once: the second
     run finds it, and one with tables is reported as the data of another project. Its name
-    comes from the environment: no other database is chosen.
+    comes from the environment: no other database is chosen. The server of the environment
+    is set in `.env` (the skeleton says localhost:5432), once.
     """
     import psycopg
 
@@ -577,8 +595,10 @@ def test_create_database_of_a_project(tmp_path, monkeypatch):
     server = dict(host=host, port=port, user='postgres', password='postgres', autocommit=True)
     try:
         assert scaffold.create_database(directory, 'store') == (
-            f'Created the database `{name}` on PostgreSQL {host}:{port}.'
+            f'Created the database `{name}` on PostgreSQL {host}:{port}. `.env` sets it: '
+            f'`BS_DATABASES__DEFAULT__HOST={host}`, `BS_DATABASES__DEFAULT__PORT={port}`.'
         )
+        assert f'\nBS_DATABASES__DEFAULT__PORT={port}\n' in (directory / '.env').read_text()
         # PostGIS, whose table is no data of a project
         assert scaffold.create_database(directory, 'store') == (
             f'The database `{name}` exists on PostgreSQL {host}:{port} without tables.'
@@ -621,7 +641,8 @@ def test_create_database_with_a_taken_name(tmp_path, monkeypatch):
         chosen = (
             f'Taken on PostgreSQL {host}:{port} and left as they are (data of another '
             f'project, or no access): `{name}`, `{name}_2`. Created the database `{name}_3` '
-            f'on PostgreSQL {host}:{port}. `.env` sets it: `BS_DATABASES__DEFAULT__NAME={name}_3`.'
+            f'on PostgreSQL {host}:{port}. `.env` sets it: `BS_DATABASES__DEFAULT__NAME={name}_3`, '
+            f'`BS_DATABASES__DEFAULT__HOST={host}`, `BS_DATABASES__DEFAULT__PORT={port}`.'
         )
         assert scaffold.create_database(directory, name) == chosen
         assert f'\nBS_DATABASES__DEFAULT__NAME={name}_3\n' in env.read_text()

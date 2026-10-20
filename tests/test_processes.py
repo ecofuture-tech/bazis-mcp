@@ -325,6 +325,22 @@ time.sleep(60)
     assert all([gone(pid) for pid in [*pids, *children]])
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='process groups')
+@pytest.mark.parametrize('error', [ProcessLookupError, PermissionError])
+def test_a_group_that_has_ended_is_not_an_error(monkeypatch, error):
+    """
+    `os.killpg` of a group that has ended raises ESRCH, or EPERM on macOS: stopping it goes on.
+    """
+    def killpg(pid, signum):
+        raise error
+
+    monkeypatch.setattr(processes.os, 'killpg', killpg)
+    process = types.SimpleNamespace(pid=1, wait=lambda timeout=None: 0)
+
+    processes.signal_group(process)
+    processes.terminate(process)
+
+
 def test_the_groups_are_waited_for_until_one_deadline(monkeypatch):
     """
     `terminate` waits for the groups until one deadline, STOP_TIMEOUT after the SIGTERMs:

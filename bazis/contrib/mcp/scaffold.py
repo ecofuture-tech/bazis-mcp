@@ -294,6 +294,10 @@ with npm is needed for the frontend.
 #: its `.env` when the name of its settings is taken
 DATABASE_NAME = 'BS_DATABASES__DEFAULT__NAME'
 
+#: the variables of the server of the database, which `create_database` sets in `.env` to
+#: those the database was prepared on (the environment of the caller may differ from `.env`)
+DATABASE_SERVER = {'host': 'BS_DATABASES__DEFAULT__HOST', 'port': 'BS_DATABASES__DEFAULT__PORT'}
+
 #: run by the Python of a project in its directory (`create_database`): creates the database
 #: of its settings (`.env`, the `BS_*` variables of the environment) when it is missing, with
 #: PostGIS for the PostGIS backend, and prints the outcome as a JSON object: `outcome`
@@ -315,13 +319,14 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', sys.argv[1] + '.settings')
 from django.conf import settings
 
 db = settings.DATABASES['default']
-server = f"{db['HOST'] or 'localhost'}:{db['PORT'] or 5432}"
+host, port = db['HOST'] or 'localhost', str(db['PORT'] or 5432)
+server = f'{host}:{port}'
 backend = db['ENGINE'].rsplit('.', 1)[-1]
 TAKEN = ('has_data', 'uninspected')
 
 
 def prepare(connection, name):
-    result = {'name': name, 'server': server}
+    result = {'name': name, 'server': server, 'host': host, 'port': port}
     try:
         query = 'SELECT 1 FROM pg_database WHERE datname = %s'
         exists = connection.execute(query, [name]).fetchone() is not None
@@ -770,23 +775,39 @@ def create_database(directory: Path, name: str, python: Path | str = sys.executa
         error = done.stderr.strip().splitlines()
         return f'{not_created}: {error[-1] if error else "its script printed nothing"}'
     message = _database_message(result)
-    if not (taken := result.get('taken')):
-        return message
-    names = ', '.join(f'`{it}`' for it in taken)
-    message = (
-        f'Taken on PostgreSQL {result["server"]} and left as they are (data of another '
-        f'project, or no access): {names}. {message}'
-    )
+    taken = result.get('taken')
+    if taken:
+        names = ', '.join(f'`{it}`' for it in taken)
+        message = (
+            f'Taken on PostgreSQL {result["server"]} and left as they are (data of another '
+            f'project, or no access): {names}. {message}'
+        )
+        if result['outcome'] not in ('created', 'exists'):
+            return f'{message}. Set `{DATABASE_NAME}` in `.env` to a free database before migrating.'
     if result['outcome'] not in ('created', 'exists'):
-        return f'{message}. Set `{DATABASE_NAME}` in `.env` to a free database before migrating.'
-    # the line of the skeleton (DOT_ENV), else a line added at the end: the last one counts
-    path, line = directory / '.env', f'{DATABASE_NAME}={result["name"]}'
+        return message
+    # the name when another was prepared, and the server where the database is (the lines
+    # of the skeleton, DOT_ENV): the environment of the caller may differ from `.env`
+    path = directory / '.env'
     text = path.read_text(encoding='utf-8')
-    text, replaced = re.subn(rf'^{DATABASE_NAME}=.*$', line, text, flags=re.MULTILINE)
-    if not replaced:
-        text += ('\n' if text and not text.endswith('\n') else '') + f'{line}\n'
+    values = {DATABASE_NAME: result['name']} if taken else {}
+    for key, variable in DATABASE_SERVER.items():
+        if re.search(rf'^{variable}=', text, flags=re.MULTILINE):
+            values[variable] = result[key]
+    lines = []
+    for variable, value in values.items():
+        line = f'{variable}={value}'
+        # else a line added at the end: the last one counts
+        new, replaced = re.subn(rf'^{variable}=.*$', line, text, flags=re.MULTILINE)
+        if not replaced:
+            new = text + ('\n' if text and not text.endswith('\n') else '') + f'{line}\n'
+        if new != text:
+            text = new
+            lines.append(f'`{line}`')
+    if not lines:
+        return message
     path.write_text(text, encoding='utf-8')
-    return f'{message} `.env` sets it: `{line}`.'
+    return f'{message} `.env` sets it: {", ".join(lines)}.'
 
 
 def _database_message(result: dict) -> str:

@@ -69,7 +69,9 @@ The project of the conversation:
   database of the name with data (of another project) or that cannot be opened is left
   as it is: the first missing or empty `<name>_2` ... `<name>_99` is created instead and
   set in `.env` (an empty one of the name is kept; a name of the environment of the
-  server is not changed). A failed step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
+  server is not changed). The host and the port of the server where the database was
+  prepared are set in `.env` too (those of the environment of the server, which `.env`
+  may not repeat). A failed step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
   task of building the project.
 - `use_project(directory)` — serves the existing project in `directory` (the directory of
   its `manage.py`): its status and its `rules`. The project served changes only once its
