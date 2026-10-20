@@ -231,6 +231,34 @@ do not write generators or frontends of your own.
   product code (the texts of the product are in its own dictionaries).
 - The backend decides the permissions (bazis-permit): never encode roles or permission
   rules in the frontend. The screens use the tokens of the design, never literal colors.
+- The users who do not log in (the guests of a public site) are an anonymous role of
+  `spec/product.yaml` (`anonymous: true`, without a `test_user`), whose permit role is
+  `Role(for_anonymous=True)` with permissions of the selector `all` only: anonymous users
+  match no other (P030). A screen is public when its `roles` lists that role, and only
+  then: `bazis_front screens` routes it outside the session (`PUBLIC_ROUTES`), never a
+  route or a layout of your own in `frontend/src/app/router.tsx`. Every anonymous role is
+  in `roles` of a screen (S047), a scenario of the role opens only public screens (P035)
+  and a public screen leads only to public screens (S045).
+- A guest only reads through the routes of the entities: bazis-permit refuses him every
+  create, change and deletion, so a public screen has no form, deletion, bulk action or
+  move (S044). He writes only through a custom action of the route set declared
+  `public=True` (S046), limited by a throttle (`BAZIS_THROTTLE_PUBLIC`, or a `throttle` of
+  its own), whose code restricts what it writes and returns; a transit of a guest is a
+  route set of its own with `action_transit =
+  route_declare(StatusyRouteSetBase.action_transit, public=True)`. `run_doctor` names an
+  action that declares neither `access_action` nor `public` (`permit.W007`) and one whose
+  `access_action` a role for anonymous users has (`permit.W008`): fix both. Set
+  `BS_BAZIS_WS_ANONYMOUS_COMMON_CHANNEL=true` only when what the common channel says is
+  public. No package registers a user or resets a password: a guest who needs an account
+  is given one, say so in Left for you.
+- After `pip install -U bazis-front`, `bazis_front update` merges the copies and the
+  template: a conflict of `frontend/src/app/router.tsx` is resolved by taking the file of
+  the template, its pristine copy `frontend/.bazis/base/template@<version>/src/app/router.tsx`,
+  and applying the changes of the product to it again (taking the side of the product
+  alone drops the public routes, S048). A product of bazis-front 0.3 that routed the
+  screens of its guests by hand lists their anonymous role in `roles` of their specs and
+  removes its routes and layout. Then `contract`, `check`, `screens`, `e2e` and `shots`
+  again.
 - The frontend is in the languages of the backend (`languages` and `language` of
   `spec/product.yaml` as `BS_LANGUAGES` and `BS_LANGUAGE_CODE`): a text of a spec is a map
   of those languages or a key of the dictionaries, and every text of an extension or a

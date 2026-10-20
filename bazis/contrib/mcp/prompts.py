@@ -37,8 +37,10 @@ you reach it, and with what this product adds to them:
   `.venv/bin/python manage.py`.
 - Step 2: the specs describe {source}, with scenarios for the main tasks of every role,
   including what a role may not do, the `languages` and `language` of the backend, and
-  the `navigation` in groups once it has more than five links; run `front_check` and fix
-  the errors of the shape and of the references before the backend.
+  the `navigation` in groups once it has more than five links; the users who do not log in
+  are an anonymous role, listed in `roles` of each screen they open (a public screen, as
+  the rules of the frontend say); run `front_check` and fix the errors of the shape and of
+  the references before the backend.
 - Step 3: the backend also has the tests and the translations that the rules require,
   `makemigrations` and `run_doctor` without errors.
 - Step 5 is `front_check`. Step 6: the screens are generated, never written as TSX: a

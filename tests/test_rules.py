@@ -14,6 +14,8 @@
 
 import re
 
+import pytest
+
 from bazis.contrib.mcp import prompts, scaffold
 from bazis.contrib.mcp.rules import FRONTEND_RULES, RULES
 
@@ -90,6 +92,51 @@ def test_frontend_rules():
         assert text in rules, text
     assert '--port 8000' not in rules
     assert rules.index('`npm run format`, `npx tsc --noEmit`') < rules.index('`npm run lint`, `npm test`')
+
+
+def test_rules_of_the_public_screens():
+    """
+    The guests of a product (bazis-front 0.4.0): an anonymous role whose permit role is for
+    anonymous users with the selector `all`, the public screens declared by their `roles`
+    and routed by `screens`, never by hand; a guest writes only through a custom action
+    declared `public=True` under a throttle (bazis-permit refuses him the routes of the
+    entities); a router changed before 0.4.0 is replaced by that of the template.
+    """
+    rules = ' '.join(FRONTEND_RULES.split())
+    for text in ('an anonymous role of `spec/product.yaml` (`anonymous: true`, without a `test_user`)',
+                 '`Role(for_anonymous=True)` with permissions of the selector `all` only',
+                 'A screen is public when its `roles` lists that role, and only then',
+                 '(`PUBLIC_ROUTES`), never a route or a layout of your own in `frontend/src/app/router.tsx`',
+                 'A guest only reads through the routes of the entities',
+                 'a public screen has no form, deletion, bulk action or move (S044)',
+                 'declared `public=True` (S046), limited by a throttle (`BAZIS_THROTTLE_PUBLIC`',
+                 'route_declare(StatusyRouteSetBase.action_transit, public=True)',
+                 '`permit.W007`', '`permit.W008`', 'BS_BAZIS_WS_ANONYMOUS_COMMON_CHANNEL=true',
+                 'a guest who needs an account is given one, say so in Left for you',
+                 # the router of a product of bazis-front 0.3: the template, never the side of
+                 # the product alone, and no route of the guests by hand
+                 'a conflict of `frontend/src/app/router.tsx` is resolved by taking the file of the template',
+                 '`frontend/.bazis/base/template@<version>/src/app/router.tsx`',
+                 'taking the side of the product alone drops the public routes, S048',
+                 'lists their anonymous role in `roles` of their specs and removes its routes and layout'):
+        assert text in rules, text
+    steps = ' '.join(prompts.FRONTEND_STEPS.split())
+    assert 'the users who do not log in are an anonymous role, listed in `roles` of each screen' in steps
+
+
+def test_the_codes_of_the_rules_are_those_of_bazis_front():
+    """
+    Every code of `check` that the rules of the frontend name is one of the table of the
+    guide of the installed bazis-front.
+    """
+    pytest.importorskip('bazis.contrib.front')
+    from importlib.resources import files
+
+    guide = (files('bazis.contrib.front') / 'AGENTS.md').read_text(encoding='utf-8')
+    named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
+    assert {'P030', 'P035', 'S044', 'S045', 'S046', 'S047', 'S048'} <= named
+    for code in named:
+        assert f'| `{code}` |' in guide, code
 
 
 def test_the_declarations_and_the_test_data_are_said_once():

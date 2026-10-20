@@ -319,7 +319,7 @@ def test_scaffold_with_a_frontend(tmp_path):
     assert '## Frontend' not in (backend / 'AGENTS.md').read_text()
 
     assert (product / 'requirements.txt').read_text().splitlines() == [
-        *scaffold.REQUIREMENTS, 'bazis-front>=0.3.0',
+        *scaffold.REQUIREMENTS, 'bazis-front>=0.4.0',
     ]
     assert """BS_INSTALLED_APPS='["bazis.contrib.front"]'""" in (product / 'project.env').read_text()
     agents_md = (product / 'AGENTS.md').read_text()
@@ -644,7 +644,7 @@ def test_create_database_with_a_taken_name(tmp_path, monkeypatch):
 def test_requirements_are_the_latest_releases():
     """
     The skeleton requires at least the releases of the catalog of bazis-mcp, which its
-    guides describe: an agent never starts from an older Bazis.
+    guides describe, bazis-front too: an agent never starts from an older Bazis.
     """
     from bazis.contrib.mcp import catalog
 
@@ -652,7 +652,7 @@ def test_requirements_are_the_latest_releases():
         return tuple(int(part) for part in text.split('.')[:3])
 
     released = catalog.catalog()
-    for requirement in [*scaffold.REQUIREMENTS, *scaffold.REQUIREMENTS_DEV]:
+    for requirement in [*scaffold.REQUIREMENTS, *scaffold.REQUIREMENTS_DEV, scaffold.FRONTEND_REQUIREMENT]:
         name, minimum = requirement.split('>=')
         if name in released:
             assert version(minimum) >= version(released[name]['version']), requirement
