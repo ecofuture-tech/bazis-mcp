@@ -171,7 +171,7 @@ def test_requirements_are_raised_to_the_installed_releases(tmp_path, monkeypatch
 
     scaffold.create_venv(tmp_path, run=run)
     assert (tmp_path / 'requirements.txt').read_text().splitlines() == [
-        'bazis>=2.16.0', '/src/bazis-front',
+        'bazis>=2.17.0', '/src/bazis-front',
     ]
     # a pre-release does not satisfy its release, an older one does not lower the minimum
     assert (tmp_path / 'requirements-dev.txt').read_text().splitlines() == [
