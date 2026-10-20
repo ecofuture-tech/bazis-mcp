@@ -110,7 +110,7 @@ def test_rules_of_the_public_screens():
                  'A screen is public when its `roles` lists that role, and only then',
                  '(`PUBLIC_ROUTES`), never a route or a layout of your own in `frontend/src/app/router.tsx`',
                  'A guest only reads through the routes of the entities',
-                 'a public screen has no form, deletion, bulk action or move (S044)',
+                 'a public screen has no form of the items, deletion, bulk action or move (S044)',
                  'declared `public=True` (S046), limited by a throttle (`BAZIS_THROTTLE_PUBLIC`',
                  'route_declare(StatusyRouteSetBase.action_transit, public=True)',
                  '`permit.W007`', '`permit.W008`', 'BS_BAZIS_WS_ANONYMOUS_COMMON_CHANNEL=true',
@@ -147,12 +147,38 @@ def test_rules_of_the_dashboards():
                  'a chart by day or by week groups the days of its periods, so a long one is by '
                  '`month` or has a smaller `last`',
                  'The axis of a chart is in the time zone of the backend (`TIME_ZONE`), not of the browser',
-                 'after the update to 0.5 the contract is of format 8',
                  'until `bazis_front contract` exports it again',
-                 'with the capability `statusy`, 0.5 needs `bazis-statusy>=2.13.0` (C004, `front.W006`)',
+                 'with the capability `statusy`, the frontend needs `bazis-statusy>=2.13.0` (C004, `front.W006`)',
                  '`useTransitsOf` and the message `board.no_moves` are gone since 0.5: never write code on them'):
         assert text in rules, text
     assert 'a longer `bucket`' not in rules
+
+
+def test_rules_of_the_forms_of_the_actions():
+    """
+    bazis-front 0.6.0: the form of a guest is the spec of the form of a public custom action
+    (its fields named as those of the entity, the result with the answer), its throttle leaves
+    room for the end-to-end tests, a decimal is typed by the form, the top bar folds its links
+    and the link of the form requires its action; the update exports the contract of format 9
+    and replaces the custom code that the specs now say.
+    """
+    rules = ' '.join(FRONTEND_RULES.split())
+    for text in ('is a spec too, `primitive: form` with `form.action`, never a custom screen',
+                 'name the properties of the body as the fields of the entity',
+                 'which the anonymous role must view, S052', 'label the others with `labels`',
+                 '`result`, `{title, message}`, whose `{name}` are the properties of its `response_model` (S053)',
+                 'give the throttle room for the runs of the tests (`20/hour` answers 429',
+                 'it is the only guard of the form against spam',
+                 'typed with a point or the comma of the language and sent as `"2.5"`',
+                 'is typed as JSON (S054)',
+                 'A tile of a `value` takes the whole row of a phone',
+                 'into its menu `nav:more` (More) by itself',
+                 'never drop or hide links for their number',
+                 'give it no `requires` (S030)',
+                 'after the update to 0.6 the contract is of format 9',
+                 'A custom screen that only sends a custom action becomes the form of the action'):
+        assert text in rules, text
+    assert 'format 8' not in rules
 
 
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
@@ -162,7 +188,8 @@ def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     guide = catalog.catalog()['bazis-front']['agents_md']
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
-    assert {'C002', 'C004', 'P030', 'P035', 'S044', 'S045', 'S046', 'S047', 'S048', 'S049', 'S050'} <= named
+    assert {'C002', 'C004', 'P030', 'P035', 'S030', 'S044', 'S045', 'S046', 'S047', 'S048', 'S049',
+            'S050', 'S052', 'S053', 'S054'} <= named
     for code in named:
         assert f'| `{code}` |' in guide, code
 
