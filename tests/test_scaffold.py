@@ -319,7 +319,7 @@ def test_scaffold_with_a_frontend(tmp_path):
     assert '## Frontend' not in (backend / 'AGENTS.md').read_text()
 
     assert (product / 'requirements.txt').read_text().splitlines() == [
-        *scaffold.REQUIREMENTS, 'bazis-front>=0.4.0',
+        *scaffold.REQUIREMENTS, 'bazis-front>=0.5.0',
     ]
     assert """BS_INSTALLED_APPS='["bazis.contrib.front"]'""" in (product / 'project.env').read_text()
     agents_md = (product / 'AGENTS.md').read_text()

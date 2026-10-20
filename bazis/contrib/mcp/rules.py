@@ -207,6 +207,14 @@ do not write generators or frontends of your own.
   `frontend/src/screens/generated/`. `screens` refuses to overwrite an edited generated file
   (`front.W010`): move the edit to the extension and leave `--force`, which drops it, to the
   user.
+- The numbers of a dashboard are the aggregates of the core (`meta=aggregates`): a sum, an
+  average, a minimum or a maximum is the `value` of a tile (`{sum: <field>}`, `avg`, `min`,
+  `max`) or of a chart (`sum`, `avg`), never computed in an extension, a hook or a request
+  of your own. A sum or an average of an amount or a quantity with a fraction is of a
+  `DecimalField` (the format `decimal` in the contract, S049), and the route set of the
+  entity filters by the field (S050). The core groups a chart into at most 1000 groups
+  (more is 400 `ERR_AGGREGATE`: a longer `bucket` or fewer periods), and its axis is in the
+  time zone of the backend (`TIME_ZONE`), not of the browser.
 - The screens are done when `bazis_front shots` (the backend running as for `npm run e2e`)
   reports no error in `frontend/.scratch/shots/report.json` and its screenshots pass the
   checklist of "The visual check" of the guide (without a shell, `front_screenshot` shows
@@ -260,7 +268,10 @@ do not write generators or frontends of your own.
   alone drops the public routes, S048). A product of bazis-front 0.3 that routed the
   screens of its guests by hand lists their anonymous role in `roles` of their specs and
   removes its routes and layout. Then `contract`, `check`, `screens`, `e2e` and `shots`
-  again.
+  again: after the update to 0.5 the contract is of format 8, and `check` reports C002 until
+  `bazis_front contract` exports it again. `useTransitsOf` and the message
+  `board.no_moves` are gone since 0.5: never write code on them (the transits of the items
+  of a list are `meta: ['for_transit']` of the list, those of an item `useTransits`).
 - The frontend is in the languages of the backend (`languages` and `language` of
   `spec/product.yaml` as `BS_LANGUAGES` and `BS_LANGUAGE_CODE`): a text of a spec is a map
   of those languages or a key of the dictionaries, and every text of an extension or a

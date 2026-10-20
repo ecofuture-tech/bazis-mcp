@@ -126,6 +126,28 @@ def test_rules_of_the_public_screens():
     assert 'the users who do not log in are an anonymous role, listed in `roles` of each screen' in steps
 
 
+def test_rules_of_the_dashboards():
+    """
+    The numbers of the tiles and the charts are the aggregates of the core (bazis-front
+    0.5.0, bazis 2.17.0), never computed by the product: a decimal field for a sum or an
+    average, a field the route set filters by, the limit of the groups and the time zone of
+    the axis; after the update the contract is exported again, and the removed hook and
+    message are not used.
+    """
+    rules = ' '.join(FRONTEND_RULES.split())
+    for text in ('The numbers of a dashboard are the aggregates of the core (`meta=aggregates`)',
+                 'the `value` of a tile (`{sum: <field>}`, `avg`, `min`, `max`) or of a chart (`sum`, `avg`)',
+                 'never computed in an extension, a hook or a request of your own',
+                 '`DecimalField` (the format `decimal` in the contract, S049)',
+                 'the route set of the entity filters by the field (S050)',
+                 'at most 1000 groups (more is 400 `ERR_AGGREGATE`',
+                 'its axis is in the time zone of the backend (`TIME_ZONE`), not of the browser',
+                 'after the update to 0.5 the contract is of format 8',
+                 'until `bazis_front contract` exports it again',
+                 '`useTransitsOf` and the message `board.no_moves` are gone since 0.5: never write code on them'):
+        assert text in rules, text
+
+
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the
@@ -133,7 +155,7 @@ def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     guide = catalog.catalog()['bazis-front']['agents_md']
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
-    assert {'P030', 'P035', 'S044', 'S045', 'S046', 'S047', 'S048'} <= named
+    assert {'C002', 'P030', 'P035', 'S044', 'S045', 'S046', 'S047', 'S048', 'S049', 'S050'} <= named
     for code in named:
         assert f'| `{code}` |' in guide, code
 
