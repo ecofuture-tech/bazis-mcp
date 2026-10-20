@@ -14,9 +14,7 @@
 
 import re
 
-import pytest
-
-from bazis.contrib.mcp import prompts, scaffold
+from bazis.contrib.mcp import catalog, prompts, scaffold
 from bazis.contrib.mcp.rules import FRONTEND_RULES, RULES
 
 
@@ -105,6 +103,10 @@ def test_rules_of_the_public_screens():
     rules = ' '.join(FRONTEND_RULES.split())
     for text in ('an anonymous role of `spec/product.yaml` (`anonymous: true`, without a `test_user`)',
                  '`Role(for_anonymous=True)` with permissions of the selector `all` only',
+                 # no role that opens the entities to guests who use only the public actions
+                 'or none when the guests use only the public actions (no `access` then)',
+                 'never create a role for anonymous users that views the entities when the guests '
+                 'do not read them, it opens their data to anyone (P030)',
                  'A screen is public when its `roles` lists that role, and only then',
                  '(`PUBLIC_ROUTES`), never a route or a layout of your own in `frontend/src/app/router.tsx`',
                  'A guest only reads through the routes of the entities',
@@ -127,12 +129,9 @@ def test_rules_of_the_public_screens():
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the
-    guide of the installed bazis-front.
+    guide of bazis-front in the catalog, the guide that the agent reads.
     """
-    pytest.importorskip('bazis.contrib.front')
-    from importlib.resources import files
-
-    guide = (files('bazis.contrib.front') / 'AGENTS.md').read_text(encoding='utf-8')
+    guide = catalog.catalog()['bazis-front']['agents_md']
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
     assert {'P030', 'P035', 'S044', 'S045', 'S046', 'S047', 'S048'} <= named
     for code in named:

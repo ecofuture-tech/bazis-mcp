@@ -232,9 +232,11 @@ do not write generators or frontends of your own.
 - The backend decides the permissions (bazis-permit): never encode roles or permission
   rules in the frontend. The screens use the tokens of the design, never literal colors.
 - The users who do not log in (the guests of a public site) are an anonymous role of
-  `spec/product.yaml` (`anonymous: true`, without a `test_user`), whose permit role is
-  `Role(for_anonymous=True)` with permissions of the selector `all` only: anonymous users
-  match no other (P030). A screen is public when its `roles` lists that role, and only
+  `spec/product.yaml` (`anonymous: true`, without a `test_user`). Its permit role is
+  `Role(for_anonymous=True)` with permissions of the selector `all` only (anonymous users
+  match no other), or none when the guests use only the public actions (no `access`
+  then): never create a role for anonymous users that views the entities when the guests
+  do not read them, it opens their data to anyone (P030). A screen is public when its `roles` lists that role, and only
   then: `bazis_front screens` routes it outside the session (`PUBLIC_ROUTES`), never a
   route or a layout of your own in `frontend/src/app/router.tsx`. Every anonymous role is
   in `roles` of a screen (S047), a scenario of the role opens only public screens (P035)
