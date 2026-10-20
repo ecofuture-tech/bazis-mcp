@@ -209,12 +209,15 @@ do not write generators or frontends of your own.
   user.
 - The numbers of a dashboard are the aggregates of the core (`meta=aggregates`): a sum, an
   average, a minimum or a maximum is the `value` of a tile (`{sum: <field>}`, `avg`, `min`,
-  `max`) or of a chart (`sum`, `avg`), never computed in an extension, a hook or a request
-  of your own. A sum or an average of an amount or a quantity with a fraction is of a
-  `DecimalField` (the format `decimal` in the contract, S049), and the route set of the
-  entity filters by the field (S050). The core groups a chart into at most 1000 groups
-  (more is 400 `ERR_AGGREGATE`: a longer `bucket` or fewer periods), and its axis is in the
-  time zone of the backend (`TIME_ZONE`), not of the browser.
+  `max`) or of a chart (`sum`, `avg`). Never count or sum items in the browser: what a tile
+  or a chart cannot say (a sum by a category or a related item) is `useList` with
+  `meta: ['aggregates']`, `aggregate` and `group` in an extension. A sum or an average of
+  an amount or a quantity with a fraction is of a `DecimalField` (the format `decimal` in
+  the contract, S049), and the route set of the entity filters by the field (S050). The
+  core answers 400 `ERR_AGGREGATE` over more groups than `BAZIS_API_AGGREGATE_GROUPS_MAX`
+  (1000 by default, `BS_BAZIS_API_AGGREGATE_GROUPS_MAX`): a chart by day or by week groups
+  the days of its periods, so a long one is by `month` or has a smaller `last`. The axis of
+  a chart is in the time zone of the backend (`TIME_ZONE`), not of the browser.
 - The screens are done when `bazis_front shots` (the backend running as for `npm run e2e`)
   reports no error in `frontend/.scratch/shots/report.json` and its screenshots pass the
   checklist of "The visual check" of the guide (without a shell, `front_screenshot` shows
@@ -269,7 +272,8 @@ do not write generators or frontends of your own.
   screens of its guests by hand lists their anonymous role in `roles` of their specs and
   removes its routes and layout. Then `contract`, `check`, `screens`, `e2e` and `shots`
   again: after the update to 0.5 the contract is of format 8, and `check` reports C002 until
-  `bazis_front contract` exports it again. `useTransitsOf` and the message
+  `bazis_front contract` exports it again; with the capability `statusy`, 0.5 needs
+  `bazis-statusy>=2.13.0` (C004, `front.W006`). `useTransitsOf` and the message
   `board.no_moves` are gone since 0.5: never write code on them (the transits of the items
   of a list are `meta: ['for_transit']` of the list, those of an item `useTransits`).
 - The frontend is in the languages of the backend (`languages` and `language` of
