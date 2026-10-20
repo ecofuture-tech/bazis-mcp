@@ -503,16 +503,16 @@ def test_create_database(tmp_path):
     # the database is on the server of the environment of the caller, not of `.env`: the
     # server is set in `.env`, once
     (tmp_path / '.env').write_text('BS_DATABASES__DEFAULT__HOST=localhost\nBS_DATABASES__DEFAULT__PORT=5432\n')
-    assert outcome('created', server='localhost:55910', host='localhost', port='55910').endswith(
-        '`.env` sets it: `BS_DATABASES__DEFAULT__PORT=55910`.'
+    assert outcome('created', server='localhost:5433', host='localhost', port='5433').endswith(
+        '`.env` sets it: `BS_DATABASES__DEFAULT__PORT=5433`.'
     )
     assert (tmp_path / '.env').read_text() == (
-        'BS_DATABASES__DEFAULT__HOST=localhost\nBS_DATABASES__DEFAULT__PORT=55910\n'
+        'BS_DATABASES__DEFAULT__HOST=localhost\nBS_DATABASES__DEFAULT__PORT=5433\n'
     )
-    assert outcome('exists', server='localhost:55910', host='localhost', port='55910').endswith('tables.')
+    assert outcome('exists', server='localhost:5433', host='localhost', port='5433').endswith('tables.')
     # no database, no server: `.env` is left as it is
     assert 'cannot be reached' in outcome('unreachable', detail='x', port='1')
-    assert 'PORT=55910' in (tmp_path / '.env').read_text()
+    assert 'PORT=5433' in (tmp_path / '.env').read_text()
     # the databases of the name are taken: the one prepared instead is set in .env
     (tmp_path / '.env').write_text('BS_DEBUG=true\nBS_DATABASES__DEFAULT__NAME=store\nE2E_PASSWORD=x\n')
     assert outcome('failed', name='store_2', taken=['store'], detail='permission denied') == (
