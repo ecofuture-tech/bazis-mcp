@@ -267,7 +267,7 @@ def test_requirements_are_raised_to_the_installed_releases(tmp_path, monkeypatch
 
     scaffold.create_venv(tmp_path, run=run)
     assert (tmp_path / 'requirements.txt').read_text().splitlines() == [
-        'bazis>=2.19.1', '/src/bazis-front',
+        *scaffold.REQUIREMENTS, '/src/bazis-front',
     ]
     # a pre-release does not satisfy its release, an older one does not lower the minimum
     assert (tmp_path / 'requirements-dev.txt').read_text().splitlines() == [
@@ -431,7 +431,7 @@ def test_scaffold_with_a_frontend(tmp_path):
     assert '## Frontend' not in (backend / 'AGENTS.md').read_text()
 
     assert (product / 'requirements.txt').read_text().splitlines() == [
-        *scaffold.REQUIREMENTS, 'bazis-front>=0.8.0',
+        *scaffold.REQUIREMENTS, scaffold.FRONTEND_REQUIREMENT,
     ]
     assert """BS_INSTALLED_APPS='["bazis.contrib.front"]'""" in (product / 'project.env').read_text()
     agents_md = (product / 'AGENTS.md').read_text()
@@ -786,8 +786,10 @@ def test_create_database_with_a_taken_name(tmp_path, monkeypatch):
 
 def test_requirements_are_the_latest_releases():
     """
-    The skeleton requires at least the releases of the catalog of bazis-mcp, which its
-    guides describe, bazis-front too: an agent never starts from an older Bazis.
+    The skeleton requires the releases of the catalog of bazis-mcp, bazis-front too: an agent
+    never starts from an older Bazis than the guides of the catalog describe, nor reads
+    guides older than what the skeleton installs (a minimum raised without the catalog
+    rebuilt from PyPI).
     """
     from bazis.contrib.mcp import catalog
 
@@ -798,7 +800,7 @@ def test_requirements_are_the_latest_releases():
     for requirement in [*scaffold.REQUIREMENTS, *scaffold.REQUIREMENTS_DEV, scaffold.FRONTEND_REQUIREMENT]:
         name, minimum = requirement.split('>=')
         if name in released:
-            assert version(minimum) >= version(released[name]['version']), requirement
+            assert version(minimum) == version(released[name]['version']), requirement
 
 
 def test_bazis_is_required_as_bazis_front_requires_it():

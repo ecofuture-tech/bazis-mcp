@@ -22,7 +22,8 @@ How the tools work and what they refuse is in the guide,
   `add_packages`;
 - `bazis/contrib/mcp/processes.py` — the servers and the commands that run, stopped by
   process group, also when bazis-mcp ends;
-- `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `delete_file`, `list_files`;
+- `bazis/contrib/mcp/files.py` — `read_file`, `write_file`, `delete_file`, `clean_project`,
+  `list_files`;
 - `bazis/contrib/mcp/front.py` — the frontend tools (bazis-front);
 - `bazis/contrib/mcp/scaffold.py`, `rules.py`, `prompts.py` — the skeleton of a new
   project, the rules and the tasks of an agent, used by bazis-cli too (nothing here

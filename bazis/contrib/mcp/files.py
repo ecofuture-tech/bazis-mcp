@@ -20,6 +20,8 @@ resolved). `.env` is never read nor written; `.venv/`, `.git/`, `contract/` and 
 These names are compared whatever their case. What is never written is never deleted.
 """
 
+import os
+import shutil
 from pathlib import Path
 
 from . import catalog, project
@@ -35,6 +37,12 @@ NOT_WRITTEN = {
 WRITE_LIMIT = 1_000_000
 #: the most entries of `listing`
 LIST_LIMIT = 400
+#: what `clean` removes: the temporary files of the agent and the outputs of the builds and
+#: the tests of the frontend, which the commands make again
+CLEANED = (
+    '.scratch', 'frontend/dist', 'frontend/test-results', 'frontend/playwright-report',
+    'frontend/node_modules/.vite-e2e',
+)
 
 
 def _relative(path: Path) -> str:
@@ -131,6 +139,25 @@ def delete(path: str) -> dict:
     link = entry.is_symlink()
     entry.unlink()
     return {'path': _relative(entry), 'link': link}
+
+
+def clean() -> dict:
+    """
+    Removes what the project has of CLEANED and returns it in `removed`: a directory with
+    its files (the symbolic links in it are removed, never followed), a file, or a symbolic
+    link itself. Nothing is removed when the directory of one links outside the project.
+    """
+    entries = [project.inside(Path(it).parent) / Path(it).name for it in CLEANED]
+    removed = []
+    for entry in entries:
+        if not os.path.lexists(entry):
+            continue
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+        removed.append(_relative(entry))
+    return {'removed': removed}
 
 
 def listing(subdir: str = '') -> dict:

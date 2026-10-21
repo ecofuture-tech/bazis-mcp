@@ -13,10 +13,12 @@
 # limitations under the License.
 
 """
-The files of the project: `read_file`, `write_file`, `delete_file` and `list_files`, within
-the project directory, never `.env`, never written nor deleted in what is installed,
-committed or generated.
+The files of the project: `read_file`, `write_file`, `delete_file`, `clean_project` and
+`list_files`, within the project directory, never `.env`, never written nor deleted in what
+is installed, committed or generated.
 """
+
+import shutil
 
 import pytest
 
@@ -289,6 +291,42 @@ async def test_delete_file_stays_in_the_project(client, shop, tmp_path):
         assert 'is outside the project directory' in message, path
     assert (tmp_path / 'secrets.txt').read_text() == SECRET
     assert (shop / 'secrets-link').is_symlink()
+
+
+async def test_clean_project(client, shop, tmp_path):
+    """
+    The temporary files and the outputs of the builds and the tests are removed, those the
+    project has, and only them: a symbolic link itself, never what it links to.
+    """
+    for path in ('.scratch/run.py', 'frontend/dist/index.html', 'frontend/test-results/.last-run.json',
+                 'frontend/node_modules/.vite-e2e/deps/react.js', 'frontend/node_modules/react/index.js',
+                 'frontend/.scratch/shots/report.json', 'frontend/src/main.tsx'):
+        (shop / path).parent.mkdir(parents=True, exist_ok=True)
+        (shop / path).write_text('x')
+    (tmp_path / 'report').mkdir()
+    (tmp_path / 'report' / 'index.html').write_text('x')
+    (shop / 'frontend' / 'playwright-report').symlink_to(tmp_path / 'report')
+
+    assert result(await client.call_tool('clean_project', {})) == {'removed': [
+        '.scratch', 'frontend/dist', 'frontend/test-results', 'frontend/playwright-report',
+        'frontend/node_modules/.vite-e2e',
+    ]}
+    for path in ('.scratch', 'frontend/dist', 'frontend/test-results', 'frontend/playwright-report',
+                 'frontend/node_modules/.vite-e2e'):
+        assert not (shop / path).exists() and not (shop / path).is_symlink(), path
+    for path in ('frontend/node_modules/react/index.js', 'frontend/.scratch/shots/report.json',
+                 'frontend/src/main.tsx', 'manage.py', '.env'):
+        assert (shop / path).is_file(), path
+    assert (tmp_path / 'report' / 'index.html').is_file()
+    assert result(await client.call_tool('clean_project', {})) == {'removed': []}
+
+    # the frontend links outside the project: nothing is removed
+    (shop / '.scratch').mkdir()
+    (tmp_path / 'frontend' / 'dist').mkdir(parents=True)
+    shutil.rmtree(shop / 'frontend')
+    (shop / 'frontend').symlink_to(tmp_path / 'frontend')
+    assert 'is outside the project directory' in error(await client.call_tool('clean_project', {}))
+    assert (shop / '.scratch').is_dir() and (tmp_path / 'frontend' / 'dist').is_dir()
 
 
 async def test_list_files(client, shop, tmp_path, monkeypatch):

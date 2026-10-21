@@ -57,23 +57,29 @@ The programs of the machine:
 
 The project of the conversation:
 
-- `create_project(directory, description, name=None, frontend=True, language=None)` — a
-  new project in `directory` (an absolute path to a new or empty directory; a temporary
-  directory, the home directory and a directory inside another project are refused),
-  served from then on: the skeleton (bazis-front in its requirements and apps unless
-  `frontend` is false, which needs Node.js), `.venv` installed from PyPI, the project
-  package `name` (default: from the name of the directory) checked against the modules of
-  the Python of the project, the `language` of the product (a code of Django such as `ru`,
+- `create_project(directory, description, name=None, frontend=True, language=None,
+  database=None)` — a new project in `directory` (an absolute path to a new or empty
+  directory; a temporary directory, the home directory and a directory inside another
+  project are refused), served from then on: the skeleton (bazis-front in its requirements
+  and apps unless `frontend` is false, which needs Node.js), `.venv` installed from PyPI,
+  the project package `name`, the slug of the product (default: from the name of the
+  directory; without it a directory named `app`, `src`, `project`, `backend` or `service`,
+  which names no product, is refused) checked against the modules of the Python of the
+  project, the `language` of the product (a code of Django such as `ru`,
   `pt-br`; default English, until the agent sets that of the description; its
   `BS_LANGUAGES` is that language alone), the app `users/` of the team (`users/routes.py`,
   `users/router.py`) with a frontend, the database
-  when PostgreSQL is reachable (`database` says what was done) and the `ports`. A
+  when PostgreSQL is reachable (`database` says what was done) and the `ports`. The server
+  of the database is chosen, never the default localhost:5432 that may be the server of
+  other projects: the one that the environment of the server names
+  (`BS_DATABASES__DEFAULT__HOST`, `BS_DATABASES__DEFAULT__PORT`), else `database`, the
+  `host:port` that the user chose; either is written in `.env`, also when the database
+  is not created. Without either, and with a `database` other than the server of the
+  environment, nothing is written and the call is refused. A
   database of the name with data (of another project) or that cannot be opened is left
   as it is: the first missing or empty `<name>_2` ... `<name>_99` is created instead and
   set in `.env` (an empty one of the name is kept; a name of the environment of the
-  server is not changed). The host and the port of the server where the database was
-  prepared are set in `.env` too (those of the environment of the server, which `.env`
-  may not repeat), and so is the Redis of the server, `BS_CACHES__DEFAULT__LOCATION`
+  server is not changed). The Redis of the server is set in `.env` too, `BS_CACHES__DEFAULT__LOCATION`
   (`cache`, without its password; `redis://localhost:6379/0` when the server has none).
   A failed step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
   task of building the project.
@@ -162,7 +168,7 @@ The work on the project served (never a command or a path of the caller outside 
 - `server_logs(which, lines=100)` — the last lines of its log (at most 20,000 bytes) and
   whether it is `running`.
 - `read_file(path, offset=0, limit=None)`, `write_file(path, content)`,
-  `delete_file(path)`, `list_files(subdir='')` — the files of the project directory (a path relative to it or
+  `delete_file(path)`, `clean_project()`, `list_files(subdir='')` — the files of the project directory (a path relative to it or
   absolute in it, symbolic links resolved). `.env` is never read nor written
   (`project_status` gives the names of its variables); `.venv/`, `.git/`, `contract/` and
   the `generated/` directories are never written. These names count in any case (`.ENV`
@@ -172,7 +178,12 @@ The work on the project served (never a command or a path of the caller outside 
   at the end, so a longer file is read in parts. A file written has at most 1,000,000
   bytes, its directories are created. `delete_file` deletes one file (`path`, `link`): a
   symbolic link is deleted itself, never what it links to (a file of the project); never
-  a directory nor what is never written. `list_files` lists one directory (`name`, `type`:
+  a directory nor what is never written. `clean_project` removes the temporary files and
+  the outputs of the builds and the tests, which the commands make again: `.scratch/`,
+  `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/` and
+  `frontend/node_modules/.vite-e2e/`, those the project has (`removed`; a symbolic link
+  itself, and nothing when the directory of one links outside the project), never another
+  path. `list_files` lists one directory (`name`, `type`:
   `directory`, `file`, `link` never followed, `other`; `size`), at most 400 entries.
 
 These limits keep an agent from mistakes and misuse of the tools (a command, a path or a
@@ -220,7 +231,7 @@ The catalog and the project served:
 The frontend layer of the project (bazis-front, its guide is `package_guide("bazis-front")`):
 
 - `front_check(layer)` — the issues of the specs in `spec/` (`manage.py bazis_front check
-  --json`): `ok`, `contract` (false: not checked against `contract/contract.json`),
+  --json`; check the specs with it, not with `run_command`): `ok`, `contract` (false: not checked against `contract/contract.json`),
   `errors`, `warnings` and `issues` with `code`, `severity`, `file`, `path` and `hint`;
   `layer` (`product`, `screens`, `design`) reports one layer.
 - `front_status()` — what is stale, without Node: the issues of `bazis_front status --json`
@@ -262,7 +273,9 @@ bazis-front).
 
 - Before creating a project, call `check_machine`; list the `missing` programs to the user
   with what they are for and their `install_command`, and call `install_tools` only after
-  the user said yes. Give the user the `run_yourself` commands, then check again.
+  the user said yes. Give the user the `run_yourself` commands, then check again. Pass
+  `create_project` the `name` of the product and, unless the environment of the server
+  names one, the PostgreSQL server the user chose as `database`.
 - Without a project, create it (`create_project`) or choose it (`use_project`) first; the
   rules speak of the current directory: it is `directory` of the project. Change only the
   files in it, and never read `.env` (`project_status` gives the names of its variables).

@@ -36,11 +36,11 @@ from urllib.parse import urlsplit, urlunsplit
 #: minimums are the latest releases, not older than those of the catalog of bazis-mcp
 #: (tests/test_scaffold.py compares them); `create_venv` raises them to the installed releases,
 #: whose guides the agent reads and whose API the project uses
-REQUIREMENTS = ['bazis>=2.19.1']
+REQUIREMENTS = ['bazis>=2.21.0']
 REQUIREMENTS_DEV = ['bazis-mcp>=2.4.5', 'bazis-test-utils>=2.5.2']
 
 #: the frontend layer of a product (`bazis new` without `--no-frontend`)
-FRONTEND_REQUIREMENT = 'bazis-front>=0.8.0'
+FRONTEND_REQUIREMENT = 'bazis-front>=0.9.0'
 FRONTEND_APP = 'bazis.contrib.front'
 #: replaces FRONTEND_REQUIREMENT in requirements.txt: a pip requirement such as a path to a
 #: wheel or a checkout, or `bazis-front @ <url>`, to try a bazis-front that is not on PyPI
@@ -223,8 +223,8 @@ BS_TEMPLATES='{templates}'
 DOT_ENV = '''# Local settings and secrets of this environment; not committed
 BS_DEBUG=true
 BS_SECRET_KEY={secret_key}
-BS_DATABASES__DEFAULT__HOST=localhost
-BS_DATABASES__DEFAULT__PORT=5432
+BS_DATABASES__DEFAULT__HOST={host}
+BS_DATABASES__DEFAULT__PORT={port}
 BS_DATABASES__DEFAULT__NAME={name}
 BS_DATABASES__DEFAULT__USER=postgres
 BS_DATABASES__DEFAULT__PASSWORD=postgres
@@ -374,6 +374,9 @@ DATABASE_NAME = 'BS_DATABASES__DEFAULT__NAME'
 #: the variables of the server of the database, which `create_database` sets in `.env` to
 #: those the database was prepared on (the environment of the caller may differ from `.env`)
 DATABASE_SERVER = {'host': 'BS_DATABASES__DEFAULT__HOST', 'port': 'BS_DATABASES__DEFAULT__PORT'}
+#: the server of the database in `.env` of the skeleton (DOT_ENV) unless another is given:
+#: the default of PostgreSQL, on many machines the server of other projects too
+DEFAULT_DATABASE_SERVER = ('localhost', '5432')
 
 #: run by the Python of a project in its directory (`create_database`): creates the database
 #: of its settings (`.env`, the `BS_*` variables of the environment) when it is missing, with
@@ -727,13 +730,17 @@ def cache_location(shown: bool = False) -> str:
     return location
 
 
-def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path]:
+def write_files(
+    directory: Path, name: str, frontend: bool = False,
+    database: tuple[str, str] = DEFAULT_DATABASE_SERVER,
+) -> list[Path]:
     """
     Writes the skeleton of the project in English (`set_language` gives it another
     language), with bazis-front in its requirements and apps when it has a `frontend`
     (the agent creates the frontend itself with `bazis_front init`) and the app `users/` of
-    the team (`write_users`), the Redis of the environment of the server (`cache_location`)
-    and its ports (`project_ports`). Fails if the directory has files already.
+    the team (`write_users`), the server of the `database` (host, port), the Redis of the
+    environment of the server (`cache_location`) and its ports (`project_ports`). Fails if
+    the directory has files already.
     """
     if directory.exists() and any(directory.iterdir()):
         raise ScaffoldError(f'{directory} is not empty')
@@ -758,7 +765,7 @@ def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path
         ),
         '.env': DOT_ENV.format(
             name=name, secret_key=secrets.token_urlsafe(48), e2e_password=secrets.token_urlsafe(16),
-            cache=cache_location(),
+            host=database[0], port=database[1], cache=cache_location(),
         ),
         '.gitignore': GITIGNORE,
         'requirements.txt': '\n'.join(requirements) + '\n',
