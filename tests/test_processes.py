@@ -302,7 +302,9 @@ processes.server_command = lambda which, directory: (
 signal_group = processes.signal_group
 
 def printed(process, kill=False):
-    print('kill' if kill else 'term', process.pid, flush=True)
+    # called by the signal handler: a print could interrupt the print of the main thread
+    # (RuntimeError: reentrant call inside BufferedWriter), os.write cannot
+    os.write(1, f"{{'kill' if kill else 'term'}} {{process.pid}}\\n".encode())
     signal_group(process, kill)
 
 processes.signal_group = printed
