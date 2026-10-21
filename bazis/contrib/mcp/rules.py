@@ -112,16 +112,16 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
 - The app `users/` with the route set of the team, `users/routes.py` and `users/router.py`,
   is in the skeleton of a product with a frontend (`create_project`; `add_packages` writes
   it when bazis-users is added to a project without it). With bazis-users, add the package,
-  the app `users` to `BS_INSTALLED_APPS` and `router.register('users.router')`: the user
-  app of the project is named `users`, keeps them (a user model of its own goes to `users/models.py`, with `UserLanguageMixin`,
-  so that the language of a user follows him) and the root router module registers
-  `router.register('users.router')`, which also declares the token endpoint (`users.E002`),
-  never the bundled `bazis.contrib.users.router` and never only the import of
-  `bazis.contrib.users.token`. A frontend labels by that route the author of a status,
-  the assignee and the watchers by name, and picks the users with a search; without it
-  they are the start of an id, and `front_check` warns P036 for a field related to the
-  users of a project without a route of them. Widen only its `restrict_queryset`
-  for `view`, never remove it.
+  the app `users` to `BS_INSTALLED_APPS` and `router.register('users.router')` to the root
+  router module: the user app of the project is named `users` and keeps these two files (a
+  user model of its own goes to `users/models.py`, with `UserLanguageMixin`, so that the
+  language of a user follows him). That registration also declares the token endpoint
+  (`users.E002`): never register the bundled `bazis.contrib.users.router`, and never only
+  import `bazis.contrib.users.token`. A frontend labels by that route the author of a
+  status, the assignee and the watchers by name, and picks the users with a search; without
+  it they are the start of an id, and `front_check` warns P036 for a field related to the
+  users of a project without a route of them. Widen only its `restrict_queryset` for
+  `view`, never remove it.
 - With bazis-statusy, the payload type of a transit is the classmethod
   `Model.get_transit_payload_type(transit)` (bazis-statusy 2.15; 2.14 does not call it, its
   payload type is `item.transit_payload_type(transit)`): override it, never
