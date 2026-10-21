@@ -158,9 +158,10 @@ def test_rules_of_the_forms_of_the_actions():
     """
     bazis-front 0.6.0: the form of a guest is the spec of the form of a public custom action
     (its fields named as those of the entity, the result with the answer), its throttle leaves
-    room for the end-to-end tests, a decimal is typed by the form, the top bar folds its links
-    and the link of the form requires its action; the update exports the contract of format 9
-    and replaces the custom code that the specs now say.
+    room for the end-to-end tests, a decimal is typed by the form (`FieldInput` in code), an
+    average shows the decimal places of its field, the top bar folds its links into a menu no
+    screen is named as, and the link of the form requires its action; the update replaces
+    the custom code that the specs now say.
     """
     rules = ' '.join(FRONTEND_RULES.split())
     for text in ('is a spec too, `primitive: form` with `form.action`, never a custom screen',
@@ -171,14 +172,46 @@ def test_rules_of_the_forms_of_the_actions():
                  'it is the only guard of the form against spam',
                  'typed with a point or the comma of the language and sent as `"2.5"`',
                  'is typed as JSON (S054)',
+                 'is the `FieldInput` of its field (its `DecimalInput`), never an input or a parse of your own',
                  'A tile of a `value` takes the whole row of a phone',
+                 'an average shows the decimal places of its field (`decimal_places`, `places` of the contract)',
                  'into its menu `nav:more` (More) by itself',
                  'never drop or hide links for their number',
+                 'never give a screen the id `more`, the mark of that menu (S055)',
                  'give it no `requires` (S030)',
-                 'after the update to 0.6 the contract is of format 9',
-                 'A custom screen that only sends a custom action becomes the form of the action'):
+                 'A custom screen that only sends a custom action becomes the form of the action',
+                 'a screen with the id `more` is renamed (S055)'):
         assert text in rules, text
-    assert 'format 8' not in rules
+
+
+def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
+    """
+    bazis-authing 2.8 starts the Google login of a browser with a POST that binds a one-time
+    ticket to the browser (the page same-site with the API, the store token in no URL), which
+    bazis-front 0.7.0 offers alone (C005 for the GET of an older one, the contract of format
+    10 without `token_param`); bazis-statusy 2.15 keeps the payload of a transit in its
+    history, read with the permission `history`, and names its payload type by a classmethod.
+    """
+    rules = ' '.join(RULES.split())
+    for text in ('the payload type of a transit is the classmethod `Model.get_transit_payload_type(transit)`: '
+                 'override it, never `transit_payload_type` of an item (its old name)',
+                 '`GET /{item_id}/status_history/` (bazis-statusy 2.15): grant `history` only to the roles '
+                 'that may read the payloads',
+                 '`Annotated[..., NOT_IN_HISTORY]` (`bazis.contrib.statusy.schemas`',
+                 'never inside a list or a nested model',
+                 'The calculated field `status_history` is the compact history under `view`, without the payloads',
+                 'the Google login of a browser is `POST /google-auth-init/` with the store token as the bearer token',
+                 'never a URL with the store token',
+                 'so the page is same-site with the API (an API of another origin also answers CORS with credentials)'):
+        assert text in rules, text
+    frontend = ' '.join(FRONTEND_RULES.split())
+    for text in ('offers Google only with bazis-authing 2.8 or newer',
+                 '`check` warns of the `GET` of an older one (C005): upgrade bazis-authing to 2.8.0 (it requires bazis 2.19)',
+                 'a login screen of your own opens Google with `loginInWindow`',
+                 'after the update to 0.7 the contract is of format 10',
+                 'code that read `CAPABILITIES.authing.token_param` (gone in format 10) uses `loginInWindow`'):
+        assert text in frontend, text
+    assert 'format 9' not in frontend and 'format 8' not in frontend
 
 
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
@@ -188,8 +221,8 @@ def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     guide = catalog.catalog()['bazis-front']['agents_md']
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
-    assert {'C002', 'C004', 'P030', 'P035', 'S030', 'S044', 'S045', 'S046', 'S047', 'S048', 'S049',
-            'S050', 'S052', 'S053', 'S054'} <= named
+    assert {'C002', 'C004', 'C005', 'P030', 'P035', 'S030', 'S044', 'S045', 'S046', 'S047', 'S048',
+            'S049', 'S050', 'S052', 'S053', 'S054', 'S055'} <= named
     for code in named:
         assert f'| `{code}` |' in guide, code
 

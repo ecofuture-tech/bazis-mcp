@@ -35,11 +35,11 @@ from pathlib import Path
 #: minimums are the latest releases, not older than those of the catalog of bazis-mcp
 #: (tests/test_scaffold.py compares them); `create_venv` raises them to the installed releases,
 #: whose guides the agent reads and whose API the project uses
-REQUIREMENTS = ['bazis>=2.17.0']
+REQUIREMENTS = ['bazis>=2.19.1']
 REQUIREMENTS_DEV = ['bazis-mcp>=2.4.5', 'bazis-test-utils>=2.5.2']
 
 #: the frontend layer of a product (`bazis new` without `--no-frontend`)
-FRONTEND_REQUIREMENT = 'bazis-front>=0.6.0'
+FRONTEND_REQUIREMENT = 'bazis-front>=0.7.0'
 FRONTEND_APP = 'bazis.contrib.front'
 #: replaces FRONTEND_REQUIREMENT in requirements.txt: a pip requirement such as a path to a
 #: wheel or a checkout, or `bazis-front @ <url>`, to try a bazis-front that is not on PyPI
