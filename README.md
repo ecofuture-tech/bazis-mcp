@@ -22,7 +22,7 @@ check a Bazis project from the project itself rather than from memory:
 The tools only read, but `create_project`, which writes a new project, `use_project`,
 which chooses the project of the next calls, `install_tools`, which installs programs of
 the machine, and the tools of the project: `add_packages`, `run_command`, `start_server`,
-`stop_server`, `write_file` and `delete_file`. They never run a command of the caller: the commands come
+`stop_server`, `write_file`, `delete_file` and `clean_project`. They never run a command of the caller: the commands come
 from closed tables, as argv without a shell, and the files stay in the project directory.
 
 ## Create an app from Claude
@@ -132,13 +132,14 @@ limits protect from.
 |---|---|
 | `check_machine()` | Finds the programs a project needs on this machine, without changing anything |
 | `install_tools(names, confirmed_by_user)` | Installs them from a closed table of commands (Homebrew, apt), once the user agrees |
-| `create_project(directory, description, name, frontend, language)` | Creates a project in a new or empty directory (skeleton, `.venv`, database, ports) and serves it |
+| `create_project(directory, description, name, frontend, language, database)` | Creates a project in a new or empty directory (skeleton, `.venv`, database on the server chosen, ports) and serves it |
 | `use_project(directory)` | Serves an existing project; the project served chosen again keeps its `--settings` and `--python` |
 | `project_status()` | The facts of the project served, with the names of the variables of `.env`, never their values |
 | `add_packages(names)` | Adds Bazis packages and those they require to `requirements.txt` and installs them from PyPI into `.venv` |
 | `run_command(kind, args)` | Runs a command of a closed table (`manage`, `pytest`, `pip`, `npm`, `npx`) as argv without a shell |
 | `start_server(which)`, `stop_server(which)`, `server_logs(which, lines)` | The backend and the dev server of the frontend, in the background |
 | `read_file`, `write_file`, `delete_file`, `list_files` | The files of the project directory; `.env` is never read nor written |
+| `clean_project()` | Removes the temporary files and the outputs of the builds and the tests, a fixed list |
 | `list_packages` | Every Bazis package: what it solves and requires, its installed and catalog versions |
 | `package_guide(name, section)` | The `AGENTS.md` and the manifest of a package, whole or by sections |
 | `guide_search(query, package, limit)` | The parts of the guides that match a query best |

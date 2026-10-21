@@ -41,6 +41,11 @@ SETTINGS_RE = re.compile(r"""DJANGO_SETTINGS_MODULE['"]\s*,\s*['"]([\w.]+)['"]""
 ENV_NAME_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 TIMEOUT = 300
 NO_PROJECT = 'No project: call create_project or use_project.'
+#: the names of a directory that name no product: a project in one gets its `name` from the
+#: agent, else the package and the database of every such project are `app`, `app_2`...
+GENERIC_NAMES = ('app', 'src', 'project', 'backend', 'service')
+#: a server of PostgreSQL given to `create`
+SERVER_RE = re.compile(r'([A-Za-z0-9.-]+):(\d{1,5})')
 
 #: the project directory (the directory of manage.py and project.env), None without a project
 project_dir: Path | None = None
@@ -437,31 +442,73 @@ def refusal(directory: Path) -> str | None:
     return None
 
 
+def database_server(database: str | None) -> tuple[str, str]:
+    """
+    The server of PostgreSQL of a new project, as host and port: `database` (`host:port`,
+    the one the user chose), else the one that the environment of the server names (its host
+    or its port, the other of DEFAULT_DATABASE_SERVER; `create_database` sets it in `.env`).
+    Without either it is refused: the default localhost:5432 is nobody's choice, and on many
+    machines the server of other projects. A `database` other than that of the environment,
+    which the commands of the server use, is refused too.
+    """
+    default_host, default_port = scaffold.DEFAULT_DATABASE_SERVER
+    host, port = (os.environ.get(scaffold.DATABASE_SERVER[key], '').strip() for key in ('host', 'port'))
+    named = f'{host or default_host}:{port or default_port}' if host or port else None
+    if database is None:
+        if not named:
+            raise ProjectError(
+                'No PostgreSQL server is chosen for the database of the project, and '
+                'localhost:5432 may be the server of other projects: ask the user which '
+                'server it uses (`check_machine` finds one on port 5432, `postgresql-service`) '
+                'and pass it as `database`, such as localhost:5432.'
+            )
+        return scaffold.DEFAULT_DATABASE_SERVER
+    if not (match := SERVER_RE.fullmatch(database.strip())):
+        raise ProjectError(
+            f'{database!r} is no server: pass `database` as host:port, such as localhost:5432.'
+        )
+    if named and named != match[0]:
+        raise ProjectError(
+            f'The environment of bazis-mcp sets the server of the database, {named}, which '
+            'its commands use: leave `database` out.'
+        )
+    return match[1], match[2]
+
+
 def create(
     directory: str,
     description: str,
     name: str | None = None,
     frontend: bool = True,
     language: str | None = None,
+    database: str | None = None,
 ) -> dict:
     """
     Creates a project in `directory` (an absolute path to a missing or empty directory) and
     serves it: the skeleton, `.venv` with its packages, the language of the product, the
-    database, the ports. Either all of it is done or the directory is left as it was. Returns
-    the facts, the rules and the task of the agent (`next_steps`).
+    database on the server of `database_server`, the ports. Either all of it is done or the
+    directory is left as it was. Returns the facts, the rules and the task of the agent
+    (`next_steps`).
     """
     path = Path(directory)
     if not path.is_absolute():
         raise ProjectError(f'{directory} is not an absolute path.')
     with CHANGE_LOCK:
-        return _create(path.resolve(), description, name, frontend, language)
+        return _create(path.resolve(), description, name, frontend, language, database)
 
 
 def _create(
-    path: Path, description: str, name: str | None, frontend: bool, language: str | None
+    path: Path, description: str, name: str | None, frontend: bool, language: str | None,
+    database: str | None,
 ) -> dict:
     if problem := refusal(path):
         raise ProjectError(problem)
+    if not name and path.name.casefold() in GENERIC_NAMES:
+        raise ProjectError(
+            f'The directory {path.name} names no product: pass `name`, the slug of the '
+            'product in Latin letters (such as `repair_shop`), the package of the project.'
+        )
+    server = database_server(database)
     if frontend and (problem := scaffold.node_problem()):
         raise ProjectError(f'{problem}. Install it, or pass frontend false for a backend only.')
     name = name or scaffold.package_name(path)
@@ -471,7 +518,7 @@ def _create(
         top = top.parent
     existed = path.exists()
     try:
-        scaffold.write_files(path, name, frontend=frontend)
+        scaffold.write_files(path, name, frontend=frontend, database=server)
         python = scaffold.create_venv(path)
         if not scaffold.valid_package_name(name, python):
             raise ProjectError(

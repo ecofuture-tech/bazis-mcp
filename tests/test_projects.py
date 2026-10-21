@@ -56,6 +56,7 @@ PROJECT_TOOLS = {
     'read_file': {'path': 'manage.py'},
     'write_file': {'path': 'notes.txt', 'content': 'x'},
     'delete_file': {'path': 'notes.txt'},
+    'clean_project': {},
     'list_files': {},
 }
 
@@ -314,6 +315,68 @@ async def test_the_result_of_create_project_with_a_frontend_fits_the_limit(
     )
     assert result(call_result)['frontend'] is True
     assert len(text_of(call_result).encode()) < catalog.RESULT_LIMIT * 0.9
+
+
+async def test_create_project_needs_the_name_of_the_product(client, no_project, machine, tmp_path):
+    """
+    A directory such as `app` names no product: without `name` it is refused before anything
+    is written (the package and the database of every such project would be `app`, `app_2`);
+    with it the project is created there.
+    """
+    for directory in ('app', 'Backend', 'src'):
+        message = error(await client.call_tool('create_project', {
+            'directory': str(tmp_path / directory), 'description': 'A repair shop', 'frontend': False,
+        }))
+        assert message.startswith(f'The directory {directory} names no product: pass `name`'), message
+        assert not (tmp_path / directory).exists()
+
+    created = result(await client.call_tool('create_project', {
+        'directory': str(tmp_path / 'app'), 'description': 'A repair shop', 'name': 'repair_shop',
+        'frontend': False,
+    }))
+    assert created['name'] == 'repair_shop' and (tmp_path / 'app' / 'repair_shop' / 'settings.py').is_file()
+
+
+async def test_create_project_on_the_server_the_user_chose(
+    client, no_project, machine, monkeypatch, tmp_path
+):
+    """
+    The server of the database is chosen: by the environment of bazis-mcp, else by
+    `database`. Without either nothing is written, never a database on localhost:5432, which
+    may be the server of other projects; the server chosen is in `.env` also when it cannot
+    be reached, and another one than that of the environment is refused.
+    """
+    for key in ('HOST', 'PORT'):
+        monkeypatch.delenv(f'BS_DATABASES__DEFAULT__{key}')
+    shop = tmp_path / 'shop'
+    message = error(await client.call_tool(
+        'create_project', {'directory': str(shop), 'description': 'A shop', 'frontend': False}
+    ))
+    assert message.startswith('No PostgreSQL server is chosen for the database of the project'), message
+    assert 'pass it as `database`, such as localhost:5432' in message
+    for database in ('localhost', 'localhost:', ':5432', 'localhost:5432/db', 'host name:5432'):
+        assert error(await client.call_tool('create_project', {
+            'directory': str(shop), 'description': 'A shop', 'frontend': False, 'database': database,
+        })).endswith('is no server: pass `database` as host:port, such as localhost:5432.'), database
+    assert not shop.exists()
+
+    created = result(await client.call_tool('create_project', {
+        'directory': str(shop), 'description': 'A shop', 'frontend': False, 'database': '127.0.0.1:9',
+    }))
+    assert created['database'].startswith('PostgreSQL 127.0.0.1:9 cannot be reached'), created['database']
+    env = (shop / '.env').read_text()
+    assert '\nBS_DATABASES__DEFAULT__HOST=127.0.0.1\nBS_DATABASES__DEFAULT__PORT=9\n' in env
+
+    # the environment names the server: its commands use it, another one is refused
+    monkeypatch.setenv('BS_DATABASES__DEFAULT__PORT', '9')
+    assert error(await client.call_tool('create_project', {
+        'directory': str(tmp_path / 'blog'), 'description': 'A blog', 'frontend': False,
+        'database': '127.0.0.1:5432',
+    })) == (
+        'The environment of bazis-mcp sets the server of the database, localhost:9, which its '
+        'commands use: leave `database` out.'
+    )
+    assert not (tmp_path / 'blog').exists()
 
 
 async def test_create_project_needs_node_for_a_frontend(

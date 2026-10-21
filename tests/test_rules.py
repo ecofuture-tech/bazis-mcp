@@ -233,6 +233,36 @@ def test_rules_of_bazis_front_0_8_0():
     assert '`front_check` warns P036' in ' '.join(RULES.split())
 
 
+def test_rules_of_the_files_of_guests_the_exports_and_the_flows_of_several_users():
+    """
+    bazis-uploadable 2.8 takes the files of guests (service1: photos as data URLs in JSON, 239
+    lines of a custom screen), bazis 2.21 labels the choices of a body by `TextChoices`, and
+    bazis-front 0.9 says in the specs the public form with files, the export of a file and a
+    scenario of several users; an amount of a notification is formatted in the language, the
+    specs are checked by the tool, and the outputs are removed by `clean_project`.
+    """
+    rules = ' '.join(RULES.split())
+    for text in ('the anonymous uploads of bazis-uploadable 2.8, never a file in JSON',
+                 '`BS_BAZIS_FILE_UPLOAD_ANONYMOUS=true` with `BS_BAZIS_FILE_UPLOAD_MAX_SIZE`',
+                 'the body takes `list[UploadedFileId]`, the tokens the uploads answered',
+                 '`FileUpload.objects.anonymous(tokens)` for a guest, by id among his own for a user',
+                 '`uploadable_clean_anonymous` in cron', '`client_max_body_size`', '`X-Forwarded-For`',
+                 '`number_format(amount, decimal_pos=2, force_grouping=True)` (`django.utils.formats`)',
+                 '`clean_project` removes it with the outputs of the builds and the tests'):
+        assert text in rules, text
+    frontend = ' '.join(FRONTEND_RULES.split())
+    for text in ('check the specs with `front_check`', 'never `bazis_front check` through `run_command`',
+                 'A choice of a body is the `TextChoices` of the model (its labels, bazis 2.21), never a `Literal`',
+                 'a long text has no `max_length`',
+                 'With bazis-front 0.9 the specs say what was code of your own',
+                 'the files of a public form (`FilesField`)',
+                 'an export (the form of an action that answers a file, `access_action` view, the rows of '
+                 'its `restrict_queryset`; bazis-bg only for a long one)',
+                 '`as: <role>`', '`remember` of what the server made, a number or an id, never the echo '
+                 'of a text typed'):
+        assert text in frontend, text
+
+
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the

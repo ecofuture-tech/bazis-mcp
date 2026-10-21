@@ -46,4 +46,7 @@ text = "run_command runs only the commands of its closed table, with plain argum
 text = "write_file never writes .env, .venv/, .git/, contract/ or a generated/ directory, and read_file never reads .env (these names in any case): they are written by the user, installed, committed or generated"
 
 [[pitfalls]]
-text = "delete_file deletes one file of the project, or a symbolic link itself: never a directory nor what write_file never writes"
+text = "delete_file deletes one file of the project, or a symbolic link itself: never a directory nor what write_file never writes; clean_project removes only its fixed list of temporary files and outputs of the builds and the tests"
+
+[[pitfalls]]
+text = "create_project creates the database only on a server chosen, that of the environment of the server or its database (host:port): without either it is refused, never a database on localhost:5432 of other projects"

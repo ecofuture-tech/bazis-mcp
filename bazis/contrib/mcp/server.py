@@ -76,8 +76,10 @@ projects of the current directory to choose with `use_project`, and the catalog
 - Then ask for the directory of the application unless the user named one (a new
   directory, never a temporary one; else the current working directory of the
   conversation under a new name), and call `create_project` with it, the description of
-  the user and the `language` of the description (its code, such as `ru`; `frontend`
-  false only for a backend without screens).
+  the user, the `name` of the product (a slug in Latin letters), the `language` of the
+  description (its code, such as `ru`; `frontend` false only for a backend without
+  screens) and the PostgreSQL server the user chose as `database` (`host:port`; not when
+  the environment of the server names one, the tool says so).
   It writes the skeleton, installs `.venv`, creates the database and serves the new
   project: do its `next_steps` following its `rules`.
 - An existing project: `use_project(directory)`, then do what is asked following the
@@ -244,16 +246,22 @@ def create_project(
     name: str | None = None,
     frontend: bool = True,
     language: str | None = None,
+    database: str | None = None,
 ) -> dict:
     """
     Creates a Bazis project and serves it from now on. `directory` is an absolute path to a
-    new or empty directory, not a temporary one nor inside another project. `name` is the
-    project package (default: from the name of the directory), `frontend` adds bazis-front
+    new or empty directory, not a temporary one nor inside another project. Pass `name`, the
+    slug of the product, the project package (default: from the name of the directory; a
+    directory such as `app`, `src`, `project`, `backend` or `service` names no product and
+    is refused without it). `frontend` adds bazis-front
     (it needs Node.js; false: a backend only), `language` is the language of the product,
     a code such as `ru`, `pt-br` (default: English, until the agent sets the language of
-    the description). It writes the skeleton, installs `.venv` from PyPI, checks the name
-    and the language with the Python of the project, creates the database when PostgreSQL
-    is reachable and chooses the ports; when a step fails, the directory is left as it was.
+    the description). `database` is the PostgreSQL server of the project, `host:port`, the
+    one the user chose (`check_machine` finds one on port 5432): needed when the environment
+    of bazis-mcp names none, and refused when it names another. It writes the skeleton,
+    installs `.venv` from PyPI, checks the name and the language with the Python of the
+    project, creates the database when that server is reachable and chooses the ports; when
+    a step fails, the directory is left as it was.
     A database of the name that has data or cannot be opened is left as it is: the first
     free `<name>_N` is created instead and set in `.env`. A product with a frontend gets the app
     `users/` of the team (`users/routes.py`, `users/router.py`). The Redis of the environment of
@@ -261,7 +269,7 @@ def create_project(
     `cache` is the Redis location), `rules` to follow and `next_steps`, the task of building the
     project.
     """
-    return _project_call(project.create, directory, description, name, frontend, language)
+    return _project_call(project.create, directory, description, name, frontend, language, database)
 
 
 @server.tool(annotations=CHOOSES)
@@ -406,6 +414,18 @@ def delete_file(path: str) -> dict:
     `.git/`, `contract/`, a `generated/` directory) nor a path outside the project. Returns `path` and `link`.
     """
     return _project_call(files.delete, path)
+
+
+@server.tool(annotations=WRITES)
+def clean_project() -> dict:
+    """
+    Removes the temporary files and the outputs of the builds and the tests of the project,
+    which the commands make again: `.scratch/`, `frontend/dist/`, `frontend/test-results/`,
+    `frontend/playwright-report/` and `frontend/node_modules/.vite-e2e/`, those it has (a
+    symbolic link itself, never what it links to). Returns them in `removed`. Nothing else:
+    `delete_file` deletes a file.
+    """
+    return _project_call(files.clean)
 
 
 @server.tool(annotations=READ_ONLY)
@@ -605,7 +625,8 @@ Create a Bazis project: {description}
 Call `check_machine` first; if programs are `missing`, list them to the user and call
 `install_tools` only after the user agrees. Then ask for its directory unless it is named
 above (a new directory, never a temporary one), and call `create_project` with it, this
-description and the language of the description.
+description, the name of the product (a slug), the language of the description and the
+PostgreSQL server of the user (`database`, unless the environment of the server names one).
 Do its `next_steps` following its `rules` in the project directory, with the commands of
 `run_command` and the servers of `start_server`.
 """
