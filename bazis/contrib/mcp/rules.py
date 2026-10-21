@@ -109,9 +109,16 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   route, never by a distance computed in Python or SQL of your own; a distance in the code
   is `point_distance`/`point_within` of `bazis.core.utils.geo`, as the guide of the core
   shows.
-- With bazis-users, the root router module imports `bazis.contrib.users.token` (the token
-  endpoint) unless it registers the user routes (`users.E002`), and a user model of the
-  project has `UserLanguageMixin`, so that the language of a user follows him.
+- With bazis-users, `add_packages` writes the app `users/` with the route set of the team,
+  `users/routes.py` and `users/router.py`: the user app of the project is named `users`,
+  keeps them (a user model of its own goes to `users/models.py`, with `UserLanguageMixin`,
+  so that the language of a user follows him) and the root router module registers
+  `router.register('users.router')`, which also declares the token endpoint (`users.E002`),
+  never the bundled `bazis.contrib.users.router` and never only the import of
+  `bazis.contrib.users.token`. A frontend labels by that route the author of a status,
+  the assignee and the watchers by name, and picks the users with a search; without it
+  they are the start of an id (P036 of bazis-front). Widen only its `restrict_queryset`
+  for `view`, never remove it.
 - With bazis-statusy, the payload type of a transit is the classmethod
   `Model.get_transit_payload_type(transit)` (bazis-statusy 2.15; 2.14 does not call it, its
   payload type is `item.transit_payload_type(transit)`): override it, never
@@ -159,8 +166,11 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
 
 # Languages
 
-The languages of the product are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of `project.env`;
-English, the language of the msgids, is always one of them.
+The languages of the product are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of `project.env`:
+those of the description, one unless it asks for more. English, the language of the msgids,
+is added only as the fallback of a language that bazis-front has no dictionary for (it has
+those of `en` and `ru`); never add it to a language that has one, or the product gets a
+second language that nobody asked for, with all its texts to translate.
 
 - The texts of the code are English msgids through `gettext_lazy`
   (`from django.utils.translation import gettext_lazy as _`): `verbose_name`, `help_text`,
@@ -327,7 +337,8 @@ do not write generators or frontends of your own.
   `board.no_moves` are gone since 0.5: never write code on them (the transits of the items
   of a list are `meta: ['for_transit']` of the list, those of an item `useTransits`).
 - The frontend is in the languages of the backend (`languages` and `language` of
-  `spec/product.yaml` as `BS_LANGUAGES` and `BS_LANGUAGE_CODE`): a text of a spec is a map
+  `spec/product.yaml` list the codes of `BS_LANGUAGES` and the one of `BS_LANGUAGE_CODE`,
+  no more and no fewer, P029): a text of a spec is a map
   of those languages or a key of the dictionaries, and every text of an extension or a
   custom screen goes through `t()` with a key in the dictionaries of the product,
   `frontend/src/i18n/<language>.ts`, one for each language (listed in

@@ -377,6 +377,9 @@ async def test_add_packages(client, shop, fake_popen, monkeypatch):
     assert done['added'] == expected
     assert done['required'] == ['bazis']
     assert done['installed'] == {'bazis': metadata.version('bazis')}
+    # bazis-users is added: the route set of the team is written (the users of the labels)
+    assert done['files'] == ['users/__init__.py', 'users/routes.py', 'users/router.py']
+    assert (shop / 'users' / 'routes.py').read_text() == scaffold.USERS_ROUTES_PY
     [(command, kwargs)] = fake_popen.ran
     assert command == [str(python), '-m', 'pip', 'install', '-r', 'requirements-dev.txt']
     assert kwargs['cwd'] == shop and 'shell' not in kwargs
@@ -387,7 +390,7 @@ async def test_add_packages(client, shop, fake_popen, monkeypatch):
 
     # again: nothing to add, the requirements stay
     done = result(await client.call_tool('add_packages', {'names': ['bazis-permit']}))
-    assert done['added'] == [] and set(done['required']) == set(packages)
+    assert done['added'] == [] and set(done['required']) == set(packages) and done['files'] == []
 
 
 async def test_add_packages_refusals(client, shop, fake_popen):
@@ -401,7 +404,8 @@ async def test_add_packages_refusals(client, shop, fake_popen):
     fake_popen.returncode = 1
     fake_popen.stdout = 'ERROR: No matching distribution found for bazis-permit'
     done = result(await client.call_tool('add_packages', {'names': ['bazis-permit']}))
-    assert done['added'] == [] and done['install']['ok'] is False
+    assert done['added'] == [] and done['install']['ok'] is False and done['files'] == []
+    assert not (shop / 'users').exists()
     assert 'No matching distribution' in done['install']['stdout']
     assert (shop / 'requirements.txt').read_text() == before
 

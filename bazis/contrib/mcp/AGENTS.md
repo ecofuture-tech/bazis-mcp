@@ -64,14 +64,18 @@ The project of the conversation:
   `frontend` is false, which needs Node.js), `.venv` installed from PyPI, the project
   package `name` (default: from the name of the directory) checked against the modules of
   the Python of the project, the `language` of the product (a code of Django such as `ru`,
-  `pt-br`; default English, until the agent sets that of the description), the database
+  `pt-br`; default English, until the agent sets that of the description; its
+  `BS_LANGUAGES` is that language alone when the installed bazis-front has a dictionary of
+  it, `en` and `ru`, else English too as its fallback), the database
   when PostgreSQL is reachable (`database` says what was done) and the `ports`. A
   database of the name with data (of another project) or that cannot be opened is left
   as it is: the first missing or empty `<name>_2` ... `<name>_99` is created instead and
   set in `.env` (an empty one of the name is kept; a name of the environment of the
   server is not changed). The host and the port of the server where the database was
   prepared are set in `.env` too (those of the environment of the server, which `.env`
-  may not repeat). A failed step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
+  may not repeat), and so is the Redis of the server, `BS_CACHES__DEFAULT__LOCATION`
+  (`cache`, without its password; `redis://localhost:6379/0` when the server has none).
+  A failed step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
   task of building the project.
 - `use_project(directory)` — serves the existing project in `directory` (the directory of
   its `manage.py`): its status and its `rules`. The project served changes only once its
@@ -100,7 +104,10 @@ The work on the project served (never a command or a path of the caller outside 
   (`python -m pip install -r requirements-dev.txt`) and raises the minimums to the
   installed releases: `added`, `required` (named already), `installed` (their versions)
   and `install` (the result of pip; when it fails or the call fails meanwhile,
-  `requirements.txt` stays as it was).
+  `requirements.txt` stays as it was). When bazis-users is added, it writes the app
+  `users/` with the route set of the team (`users/routes.py`, `users/router.py`; a file
+  the project has already is kept) and lists them in `files`; the model, the settings and
+  the registration of `users.router` are left to the agent.
   pip (here and in `run_command`) installs only into the Python of the project, `.venv`
   or `--python`, never into that of bazis-mcp (without one it is refused: the user creates
   `.venv`), and only from PyPI: every line of `requirements.txt` and

@@ -480,7 +480,7 @@ def _create(
             )
         product = scaffold.product_language(language, python) if language else None
         if product:
-            scaffold.set_language(path, product)
+            scaffold.set_language(path, product, scaffold.front_languages(python))
     except Exception as err:
         if existed:
             for child in path.iterdir():
@@ -502,6 +502,7 @@ def _create(
         'frontend': frontend,
         'language': list(product) if product else None,
         'database': database,
+        'cache': scaffold.cache_location(shown=True),
         'ports': ports,
         'rules': project_rules(frontend),
         'next_steps': prompts.new_prompt(description, name, frontend, product, database, ports),
