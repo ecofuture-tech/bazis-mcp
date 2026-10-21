@@ -88,17 +88,15 @@ def language_step(language: tuple[str, str] | None) -> str:
     """
     if language:
         code, own_name = language
-        languages = ' and English' if code != 'en' else ''
         return f"""\
-The product is in {own_name} (`{code}`){languages}: `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of
+The product is in {own_name} (`{code}`): `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of
 `project.env` are set. Follow the rules of the languages."""
     return """\
-The language of the product is the language of the description, and English is always one
-of its languages (the language of the msgids). `project.env` has English only: if the
-description is not in English, first set there
-`BS_LANGUAGES='[["<code>", "<its own name>"], ["en", "English"]]'` and
-`BS_LANGUAGE_CODE=<code>` with the code of Django of that language (`ru`, `de`, `pt-br`).
-Follow the rules of the languages."""
+The language of the product is the language of the description, and it has no other unless
+the description asks for more. `project.env` has English only: if the description is not in
+English, first set there `BS_LANGUAGES='[["<code>", "<its own name>"]]'` and
+`BS_LANGUAGE_CODE=<code>` with the code of Django of that language (`ru`, `de`, `pt-br`),
+without English. Follow the rules of the languages."""
 
 
 def ports_text(ports: dict[str, int]) -> str:

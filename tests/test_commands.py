@@ -377,6 +377,9 @@ async def test_add_packages(client, shop, fake_popen, monkeypatch):
     assert done['added'] == expected
     assert done['required'] == ['bazis']
     assert done['installed'] == {'bazis': metadata.version('bazis')}
+    # bazis-users is added: the route set of the team is written (the users of the labels)
+    assert done['files'] == ['users/__init__.py', 'users/routes.py', 'users/router.py']
+    assert (shop / 'users' / 'routes.py').read_text() == scaffold.USERS_ROUTES_PY
     [(command, kwargs)] = fake_popen.ran
     assert command == [str(python), '-m', 'pip', 'install', '-r', 'requirements-dev.txt']
     assert kwargs['cwd'] == shop and 'shell' not in kwargs
@@ -387,7 +390,29 @@ async def test_add_packages(client, shop, fake_popen, monkeypatch):
 
     # again: nothing to add, the requirements stay
     done = result(await client.call_tool('add_packages', {'names': ['bazis-permit']}))
-    assert done['added'] == [] and set(done['required']) == set(packages)
+    assert done['added'] == [] and set(done['required']) == set(packages) and done['files'] == []
+
+
+async def test_add_packages_keeps_the_users_of_a_product_with_a_frontend(client, shop, fake_popen, monkeypatch):
+    """
+    The app `users/` that `create_project` wrote is the project's own: nothing is written
+    over it. A link out of the project in its place is refused before anything is changed.
+    """
+    monkeypatch.setattr(project, 'python', None)
+    make_venv(shop)
+    scaffold.write_users(shop)
+    (shop / 'users' / 'routes.py').write_text('# own\n')
+    done = result(await client.call_tool('add_packages', {'names': ['bazis-users']}))
+    assert done['added'] and done['files'] == []
+    assert (shop / 'users' / 'routes.py').read_text() == '# own\n'
+
+    (shop / 'requirements.txt').write_text('bazis>=2.19.1\n')
+    outside = shop.parent / 'outside.py'
+    (shop / 'users' / 'routes.py').unlink()
+    (shop / 'users' / 'routes.py').symlink_to(outside)
+    message = error(await client.call_tool('add_packages', {'names': ['bazis-users']}))
+    assert 'is outside the project directory' in message
+    assert (shop / 'requirements.txt').read_text() == 'bazis>=2.19.1\n' and not outside.exists()
 
 
 async def test_add_packages_refusals(client, shop, fake_popen):
@@ -401,7 +426,8 @@ async def test_add_packages_refusals(client, shop, fake_popen):
     fake_popen.returncode = 1
     fake_popen.stdout = 'ERROR: No matching distribution found for bazis-permit'
     done = result(await client.call_tool('add_packages', {'names': ['bazis-permit']}))
-    assert done['added'] == [] and done['install']['ok'] is False
+    assert done['added'] == [] and done['install']['ok'] is False and done['files'] == []
+    assert not (shop / 'users').exists()
     assert 'No matching distribution' in done['install']['stdout']
     assert (shop / 'requirements.txt').read_text() == before
 

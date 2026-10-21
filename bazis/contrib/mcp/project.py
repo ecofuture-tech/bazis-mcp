@@ -502,6 +502,7 @@ def _create(
         'frontend': frontend,
         'language': list(product) if product else None,
         'database': database,
+        'cache': scaffold.cache_location(shown=True),
         'ports': ports,
         'rules': project_rules(frontend),
         'next_steps': prompts.new_prompt(description, name, frontend, product, database, ports),

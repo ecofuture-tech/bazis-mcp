@@ -35,6 +35,8 @@ TIMEOUT = 600
 PROGRESS_INTERVAL = 5
 #: the end of stdout and of stderr kept in a result, in bytes
 OUTPUT_LIMIT = 10_000
+#: the package whose app `users/` `add_packages` writes
+USERS = 'bazis-users'
 
 #: the management commands of `manage` (their options follow them), and those that need one
 #: of their subcommands
@@ -378,8 +380,10 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
     do not name yet to `requirements.txt`, with the version of the catalog as the minimum,
     installs `requirements-dev.txt` into `.venv` (`PIP`) and raises the minimums to the
     installed releases (`scaffold.raise_minimums`). When the installation fails or raises,
-    `requirements.txt` is written back as it was. The apps and the settings are left to
-    the agent, as the guides say.
+    `requirements.txt` is written back as it was. With bazis-users, newly added, it writes
+    the app `users/` with the route set of the team (`scaffold.write_users`; none of a
+    product with a frontend, whose `create_project` has written it) and lists the `files`
+    written. The apps and the settings are left to the agent, as the guides say.
     """
     packages = closure(names)
     required = requirements()
@@ -388,6 +392,9 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
     known = catalog.catalog()
     present = [name for name in packages if name in required]
     added = [f'{name}>={known[name]["version"]}' for name in packages if name not in required]
+    users = USERS in packages and USERS not in present
+    for relative in scaffold.USERS_FILES if users else ():
+        project.inside(relative)  # a link out of the project is refused before anything is changed
     before = requirements_txt.read_text(encoding='utf-8')
     if added:
         requirements_txt.write_text(
@@ -404,11 +411,13 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
         if not installed:
             requirements_txt.write_text(before, encoding='utf-8')
     if not installed:
-        return {'added': [], 'required': present, 'installed': {}, 'install': done}
+        return {'added': [], 'required': present, 'installed': {}, 'install': done, 'files': []}
     versions = scaffold.raise_minimums(project.project_dir, python)
+    files = scaffold.write_users(project.project_dir) if users else []
     return {
         'added': added,
         'required': present,
         'installed': {name: versions[name] for name in packages if name in versions},
         'install': done,
+        'files': [str(path.relative_to(project.project_dir)) for path in files],
     }

@@ -127,6 +127,102 @@ def test_scaffold_is_a_working_project(tmp_path):
     assert '`.bazis/`' in (directory / 'AGENTS.md').read_text()
 
 
+def test_cache_of_the_skeleton_is_that_of_the_server(tmp_path, monkeypatch):
+    """
+    The Redis of `.env` is that of the environment of the server (its database is not the
+    one of the product, whose tests share it with its backend), else the default; the
+    answer to the agent never has its password.
+    """
+    monkeypatch.delenv(scaffold.CACHE_LOCATION, raising=False)
+    scaffold.write_files(tmp_path / 'default', 'store')
+    assert f'\nBS_CACHES__DEFAULT__LOCATION={scaffold.DEFAULT_CACHE}\n' in (
+        tmp_path / 'default' / '.env'
+    ).read_text()
+    assert scaffold.DEFAULT_CACHE == 'redis://localhost:6379/0'
+    assert scaffold.cache_location(shown=True) == scaffold.DEFAULT_CACHE
+
+    monkeypatch.setenv(scaffold.CACHE_LOCATION, 'redis://:s3cret@127.0.0.1:6400/1')
+    scaffold.write_files(tmp_path / 'server', 'store')
+    assert '\nBS_CACHES__DEFAULT__LOCATION=redis://:s3cret@127.0.0.1:6400/1\n' in (
+        tmp_path / 'server' / '.env'
+    ).read_text()
+    assert scaffold.cache_location(shown=True) == 'redis://***@127.0.0.1:6400/1'
+
+    monkeypatch.setenv(scaffold.CACHE_LOCATION, 'redis://127.0.0.1:6400/2')
+    assert scaffold.cache_location(shown=True) == 'redis://127.0.0.1:6400/2'
+    monkeypatch.setenv(scaffold.CACHE_LOCATION, '')
+    assert scaffold.cache_location() == scaffold.DEFAULT_CACHE
+
+
+def test_users_app_is_written_once(tmp_path):
+    """
+    The files of the team's users are written when missing and never over the project's own.
+    """
+    assert [it.name for it in scaffold.write_users(tmp_path)] == ['__init__.py', 'routes.py', 'router.py']
+    assert (tmp_path / 'users' / 'router.py').read_text() == scaffold.USERS_ROUTER_PY
+    (tmp_path / 'users' / 'routes.py').write_text('# own\n')
+    (tmp_path / 'users' / 'router.py').unlink()
+
+    assert [it.name for it in scaffold.write_users(tmp_path)] == ['router.py']
+    assert (tmp_path / 'users' / 'routes.py').read_text() == '# own\n'
+    assert scaffold.write_users(tmp_path) == []
+
+
+def test_users_app_never_writes_through_a_link(tmp_path):
+    """
+    A dangling link of the project where a file would be written is a file it has already.
+    """
+    outside = tmp_path / 'outside.py'
+    (tmp_path / 'project' / 'users').mkdir(parents=True)
+    (tmp_path / 'project' / 'users' / 'routes.py').symlink_to(outside)
+
+    assert [it.name for it in scaffold.write_users(tmp_path / 'project')] == ['__init__.py', 'router.py']
+    assert not outside.exists()
+
+
+def test_users_app_is_a_working_part_of_a_project(tmp_path):
+    """
+    The route set of the team registered in the root router of the skeleton: the checks of
+    the project pass (also `users.E002`, which the registration satisfies), the migrations
+    are made, and the user resource is a route of the application.
+    """
+    pytest.importorskip('bazis.contrib.users')
+    directory = tmp_path / 'store'
+    scaffold.write_files(directory, 'store')
+    scaffold.write_users(directory)
+    (directory / 'users' / 'models.py').write_text(
+        'from bazis.contrib.users.models_abstract import (\n'
+        '    AnonymousUserAbstract, UserAbstract, UserLanguageMixin,\n'
+        ')\n'
+        'from bazis.core.models_abstract import JsonApiMixin, UuidMixin\n\n\n'
+        'class User(JsonApiMixin, UuidMixin, UserLanguageMixin, UserAbstract):\n'
+        '    pass\n\n\n'
+        'class AnonymousUser(AnonymousUserAbstract):\n'
+        '    pass\n'
+    )
+    (directory / 'users' / 'apps.py').write_text(
+        'from bazis.contrib.users.apps import UsersConfig as UsersConfigBase\n\n\n'
+        "class UsersConfig(UsersConfigBase):\n    name = 'users'\n"
+    )
+    env = directory / 'project.env'
+    env.write_text(
+        env.read_text().replace("BS_INSTALLED_APPS='[]'", "BS_INSTALLED_APPS='[\"users\"]'")
+        + 'BS_AUTH_USER_MODEL=users.User\n'
+        'BS_AUTH_ANONYMOUS_USER_MODEL=users.models.AnonymousUser\n'
+    )
+    router = directory / 'store' / 'router.py'
+    router.write_text(router.read_text() + "router.register('users.router')\n")
+
+    assert doctor(directory) == []
+    done = manage(directory, 'makemigrations', 'users')
+    assert done.returncode == 0, done.stderr[-2000:]
+    assert (directory / 'users' / 'migrations' / '0001_initial.py').is_file()
+    done = manage(directory, 'shell', '-c',
+                  'from bazis.core.app import app; from bazis.core import introspect; '
+                  "print(sorted({p for p, r in introspect.iter_routes_with_paths(app.routes) if '/user' in p})[:2])")
+    assert "/api/v1/users/user/" in done.stdout, done.stderr[-2000:]
+
+
 def test_project_ports(tmp_path):
     """
     The ports are chosen free once and kept; a missing or broken file is written again.
@@ -215,8 +311,8 @@ def test_product_language_needs_django():
 
 def test_scaffold_in_a_language(tmp_path):
     """
-    The skeleton of a product in Russian: Russian by default and English, and the checks of
-    the translations (bazis.W005) pass.
+    The skeleton of a product in Russian: Russian alone, and the checks of the translations
+    (bazis.W005) pass.
     """
     english = tmp_path / 'en'
     scaffold.write_files(english, 'store')
@@ -228,7 +324,7 @@ def test_scaffold_in_a_language(tmp_path):
     scaffold.set_language(directory, scaffold.product_language('ru'))
 
     env = (directory / 'project.env').read_text(encoding='utf-8')
-    assert """BS_LANGUAGES='[["ru", "Русский"], ["en", "English"]]'""" in env
+    assert """BS_LANGUAGES='[["ru", "Русский"]]'""" in env
     assert 'BS_LANGUAGE_CODE=ru\n' in env
     # the other settings are kept
     def others(env):
@@ -236,6 +332,22 @@ def test_scaffold_in_a_language(tmp_path):
 
     assert others(env) == others((english / 'project.env').read_text(encoding='utf-8'))
     assert doctor(directory) == []
+
+
+@pytest.mark.parametrize(('code', 'languages'), [
+    ('ru', '[["ru", "Русский"]]'),
+    ('de', '[["de", "Deutsch"]]'),
+    ('en', '[["en", "English"]]'),
+])
+def test_a_product_is_in_the_language_of_its_request_alone(tmp_path, code, languages):
+    """
+    English is no second language of a product (bazis-front and Django fall back to it).
+    """
+    scaffold.write_files(tmp_path / 'store', 'store')
+    scaffold.set_language(tmp_path / 'store', scaffold.product_language(code))
+
+    env = (tmp_path / 'store' / 'project.env').read_text(encoding='utf-8')
+    assert f"BS_LANGUAGES='{languages}'\n" in env and f'BS_LANGUAGE_CODE={code}\n' in env
 
 
 def test_bazis_messages_keeps_the_catalogs_of_the_project(tmp_path):
@@ -319,7 +431,7 @@ def test_scaffold_with_a_frontend(tmp_path):
     assert '## Frontend' not in (backend / 'AGENTS.md').read_text()
 
     assert (product / 'requirements.txt').read_text().splitlines() == [
-        *scaffold.REQUIREMENTS, 'bazis-front>=0.7.0',
+        *scaffold.REQUIREMENTS, 'bazis-front>=0.8.0',
     ]
     assert """BS_INSTALLED_APPS='["bazis.contrib.front"]'""" in (product / 'project.env').read_text()
     agents_md = (product / 'AGENTS.md').read_text()
@@ -329,6 +441,16 @@ def test_scaffold_with_a_frontend(tmp_path):
     assert 'bazis_front shots' in agents_md and '`frontend/.scratch/shots/` (not committed)' in agents_md
     # the agent creates the frontend with `bazis_front init`, after choosing the packages
     assert not (product / 'frontend').exists() and not (product / 'spec').exists()
+
+    # the route set of the team is in the skeleton of a product, neither imported nor
+    # registered (bazis-users is added later); a backend has none
+    users = ['__init__.py', 'routes.py', 'router.py']
+    assert sorted(it.name for it in (product / 'users').iterdir() if it.suffix == '.py') == sorted(users)
+    assert (product / 'users' / 'routes.py').read_text() == scaffold.USERS_ROUTES_PY
+    assert 'users' not in (product / 'project.env').read_text()
+    assert 'users' not in (product / 'store' / 'router.py').read_text()
+    assert not (backend / 'users').exists()
+    assert [it.name for it in scaffold.write_users(product)] == []
 
 
 def test_frontend_requirement_override(tmp_path, monkeypatch):

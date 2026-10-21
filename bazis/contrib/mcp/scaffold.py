@@ -29,6 +29,7 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 
 #: the packages of every project; the agent adds the Bazis packages the project needs. The
@@ -39,7 +40,7 @@ REQUIREMENTS = ['bazis>=2.19.1']
 REQUIREMENTS_DEV = ['bazis-mcp>=2.4.5', 'bazis-test-utils>=2.5.2']
 
 #: the frontend layer of a product (`bazis new` without `--no-frontend`)
-FRONTEND_REQUIREMENT = 'bazis-front>=0.7.0'
+FRONTEND_REQUIREMENT = 'bazis-front>=0.8.0'
 FRONTEND_APP = 'bazis.contrib.front'
 #: replaces FRONTEND_REQUIREMENT in requirements.txt: a pip requirement such as a path to a
 #: wheel or a checkout, or `bazis-front @ <url>`, to try a bazis-front that is not on PyPI
@@ -94,6 +95,76 @@ ROUTER_PY = '''from bazis.core.routing import BazisRouter
 router = BazisRouter(prefix='/api/v1')
 # register the routers of the apps: router.register('<app>.router')
 '''
+
+#: the route set of the users of a team (`write_users`), written when bazis-users is added:
+#: the frontend labels the author of a status, the assignee and the watchers by the route of
+#: the user resource (`capabilities.users.user_resource` of the contract) and searches the
+#: users by their names; without a route the labels are the start of an id
+USERS_ROUTES_PY = '''from django.db.models import Q
+from django.utils.translation import gettext_lazy as _
+
+from bazis.contrib.users.models_abstract import UserMixin
+from bazis.contrib.users.routes import UserRouteSet as UserRouteSetBase
+from bazis.core.schemas import CrudAccessAction, SchemaField, SchemaFields
+from bazis.core.schemas.enums import RouteKind
+
+
+class UserRouteSet(UserRouteSetBase):
+    """
+    The users of bazis-users, searched by their username and their names. The users of the
+    team pick each other: a signed-in user views and links every active user (and himself),
+    in the list and the items of this route and in the relationships, `included` and the
+    filters of the other routes (`restrict_queryset`, which the core calls on the default
+    route of the user model); an inactive user is seen by staff only. Who changes a user
+    stays the rule of bazis-users: staff every user, another user only himself. Widen
+    `restrict_queryset` for a view of the users that the product needs, never remove it.
+    """
+
+    default_route = True
+    search_fields = ['username', 'first_name', 'last_name']
+
+    # the `verbose_name` of the username of Django is its name in English: the title of the
+    # field in the contract would be its name (S018)
+    fields = {None: SchemaFields(include={'username': SchemaField(title=_('Username'))})}
+
+    @classmethod
+    def restrict_queryset(cls, qs, access_action, user=None, **kwargs):
+        if user is None:
+            user = UserMixin.CTX_USER_REQUEST.get()
+        if getattr(user, 'is_authenticated', False) is not True:
+            return qs.none()
+        if user.is_staff:
+            return qs
+        if access_action == CrudAccessAction.VIEW:
+            return qs.filter(Q(is_active=True) | Q(pk=user.pk))
+        return qs.filter(pk=user.pk)
+
+    def get_queryset(self):
+        # the reads of this route show the users of the team; its changes keep the rule of
+        # bazis-users (its `get_queryset`)
+        if self.route_ctx.kind in (RouteKind.COLLECTION, RouteKind.ITEM):
+            return type(self).restrict_queryset(
+                super(UserRouteSetBase, self).get_queryset(), CrudAccessAction.VIEW, user=self.inject.user
+            )
+        return super().get_queryset()
+'''
+
+USERS_ROUTER_PY = '''from django.utils.translation import gettext_lazy as _
+
+from bazis.core.routing import BazisRouter
+
+from . import routes
+
+
+router = BazisRouter(tags=[_('Users')])
+router.register('/user', routes.UserRouteSet.as_router())
+'''
+
+
+#: the files of the app `users` that `write_users` writes
+USERS_FILES = {
+    'users/__init__.py': '', 'users/routes.py': USERS_ROUTES_PY, 'users/router.py': USERS_ROUTER_PY,
+}
 
 URLS_PY = '''from django.conf import settings
 from django.contrib import admin
@@ -157,7 +228,7 @@ BS_DATABASES__DEFAULT__PORT=5432
 BS_DATABASES__DEFAULT__NAME={name}
 BS_DATABASES__DEFAULT__USER=postgres
 BS_DATABASES__DEFAULT__PASSWORD=postgres
-BS_CACHES__DEFAULT__LOCATION=redis://localhost:6379/0
+BS_CACHES__DEFAULT__LOCATION={cache}
 # the files of this project, not those of every project in /tmp
 BS_MEDIA_ROOT=__BASE_DIR__/media
 BS_STATIC_ROOT=__BASE_DIR__/static
@@ -248,11 +319,12 @@ FastAPI and Pydantic.
   tasks need no SMTP server, and the tests read them in `django.core.mail.outbox`. A
   deployment removes the variable and sets the SMTP server and the sender (the E-mail
   section of the guide of the core).
-- The languages are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` (`project.env`), English always
-  among them: the texts of the code are English msgids (`gettext_lazy`), translated in
-  the catalogs of the project, `locale/<language>/LC_MESSAGES/django.po`, by `python
-  manage.py bazis_messages`: `make`, the translations of what it lists as untranslated or
-  fuzzy in `locale/translations.json` (kept), `apply locale/translations.json --check`.
+- The languages are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` (`project.env`), those of the
+  product, English too only when the description asks for it: the texts of the code are
+  English msgids (`gettext_lazy`), translated in the catalogs of the project,
+  `locale/<language>/LC_MESSAGES/django.po`, by `python manage.py bazis_messages`: `make`,
+  the translations of what it lists as untranslated or fuzzy in `locale/translations.json`
+  (kept), `apply locale/translations.json --check`.
   A msgid of the Bazis packages that the project translates itself (`bazis.W004`) is
   declared with `gettext_noop` in `{name}/translations.py`. Never edit the `.po` files with
   a script, never run `makemessages` yourself.
@@ -289,6 +361,11 @@ with npm is needed for the frontend.
   pass the checklist of "The visual check" of the guide.
 '''
 
+
+#: the Redis of a project: the variable of its settings, and the location the skeleton
+#: (DOT_ENV) has unless the environment of the server sets it (`cache_location`)
+CACHE_LOCATION = 'BS_CACHES__DEFAULT__LOCATION'
+DEFAULT_CACHE = 'redis://localhost:6379/0'
 
 #: the variable of the name of the database of a project, which `create_database` sets in
 #: its `.env` when the name of its settings is taken
@@ -533,11 +610,12 @@ def set_language(directory: Path, language: tuple[str, str]) -> None:
     """
     Makes the project written by `write_files` a product in a `language` of
     `product_language`: `BS_LANGUAGE_CODE` of `project.env`, and `BS_LANGUAGES` with that
-    language, then English.
+    language alone. English, the language of the msgids, is not added: bazis-front falls
+    back to its English dictionary and Django to the msgids by itself, while a second
+    language of the product is one nobody asked for (the frontend lists it, P029).
     """
-    languages = [list(language), *([ENGLISH] if language[0] != ENGLISH[0] else [])]
     values = {
-        'BS_LANGUAGES': f"'{json.dumps(languages, ensure_ascii=False)}'",
+        'BS_LANGUAGES': f"'{json.dumps([list(language)], ensure_ascii=False)}'",
         'BS_LANGUAGE_CODE': language[0],
     }
     path = directory / 'project.env'
@@ -635,12 +713,27 @@ def project_ports(directory: Path) -> dict[str, int]:
     return ports
 
 
+def cache_location(shown: bool = False) -> str:
+    """
+    The Redis location of a new project: `CACHE_LOCATION` of the environment of the server,
+    else DEFAULT_CACHE (the environment of the caller may differ from the skeleton, as for
+    the server of the database, `DATABASE_SERVER`). `shown` is the location without the
+    password, for the answer to the agent.
+    """
+    location = os.environ.get(CACHE_LOCATION) or DEFAULT_CACHE
+    parts = urlsplit(location)
+    if shown and parts.password is not None:
+        return urlunsplit(parts._replace(netloc=f'***@{parts.netloc.rpartition("@")[2]}'))
+    return location
+
+
 def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path]:
     """
     Writes the skeleton of the project in English (`set_language` gives it another
     language), with bazis-front in its requirements and apps when it has a `frontend`
-    (the agent creates the frontend itself with `bazis_front init`), and chooses its ports
-    (`project_ports`). Fails if the directory has files already.
+    (the agent creates the frontend itself with `bazis_front init`) and the app `users/` of
+    the team (`write_users`), the Redis of the environment of the server (`cache_location`)
+    and its ports (`project_ports`). Fails if the directory has files already.
     """
     if directory.exists() and any(directory.iterdir()):
         raise ScaffoldError(f'{directory} is not empty')
@@ -664,7 +757,8 @@ def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path
             languages=json.dumps([ENGLISH]), language=ENGLISH[0],
         ),
         '.env': DOT_ENV.format(
-            name=name, secret_key=secrets.token_urlsafe(48), e2e_password=secrets.token_urlsafe(16)
+            name=name, secret_key=secrets.token_urlsafe(48), e2e_password=secrets.token_urlsafe(16),
+            cache=cache_location(),
         ),
         '.gitignore': GITIGNORE,
         'requirements.txt': '\n'.join(requirements) + '\n',
@@ -684,8 +778,28 @@ def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding='utf-8')
         written.append(path)
+    if frontend:
+        written += write_users(directory)
     project_ports(directory)
     written.append(directory / LOCAL_DIR / 'ports.json')
+    return written
+
+
+def write_users(directory: Path) -> list[Path]:
+    """
+    Writes the app `users` of the team of a project (`USERS_ROUTES_PY`, `USERS_ROUTER_PY`)
+    and returns the files written; a file the project has already is kept, also a link
+    (never written through). The model and the settings of the users, and the registration
+    of `users.router` in the root router, are left to the agent, as the guides of
+    bazis-users say.
+    """
+    written = []
+    for relative, content in USERS_FILES.items():
+        path = directory / relative
+        if not os.path.lexists(path):
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(content, encoding='utf-8')
+            written.append(path)
     return written
 
 

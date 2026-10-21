@@ -109,9 +109,19 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   route, never by a distance computed in Python or SQL of your own; a distance in the code
   is `point_distance`/`point_within` of `bazis.core.utils.geo`, as the guide of the core
   shows.
-- With bazis-users, the root router module imports `bazis.contrib.users.token` (the token
-  endpoint) unless it registers the user routes (`users.E002`), and a user model of the
-  project has `UserLanguageMixin`, so that the language of a user follows him.
+- The app `users/` with the route set of the team, `users/routes.py` and `users/router.py`,
+  is in the skeleton of a product with a frontend (`create_project`; `add_packages` writes
+  it when bazis-users is added to a project without it). With bazis-users, add the package,
+  the app `users` to `BS_INSTALLED_APPS` and `router.register('users.router')`: the user
+  app of the project is named `users`, keeps them (a user model of its own goes to `users/models.py`, with `UserLanguageMixin`,
+  so that the language of a user follows him) and the root router module registers
+  `router.register('users.router')`, which also declares the token endpoint (`users.E002`),
+  never the bundled `bazis.contrib.users.router` and never only the import of
+  `bazis.contrib.users.token`. A frontend labels by that route the author of a status,
+  the assignee and the watchers by name, and picks the users with a search; without it
+  they are the start of an id, and `front_check` warns P036 for a field related to the
+  users of a project without a route of them. Widen only its `restrict_queryset`
+  for `view`, never remove it.
 - With bazis-statusy, the payload type of a transit is the classmethod
   `Model.get_transit_payload_type(transit)` (bazis-statusy 2.15; 2.14 does not call it, its
   payload type is `item.transit_payload_type(transit)`): override it, never
@@ -159,8 +169,11 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
 
 # Languages
 
-The languages of the product are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of `project.env`;
-English, the language of the msgids, is always one of them.
+The languages of the product are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of `project.env`:
+those of the request, one unless it asks for more. Never add English, the language of
+the msgids, for its own sake: bazis-front and Django fall back to it by themselves, while a
+second language is one nobody asked for, with all its texts to translate and a switch of
+languages in the interface.
 
 - The texts of the code are English msgids through `gettext_lazy`
   (`from django.utils.translation import gettext_lazy as _`): `verbose_name`, `help_text`,
@@ -214,8 +227,10 @@ do not write generators or frontends of your own.
 - With more than five links, the navigation is `navigation` of `spec/product.yaml` with
   groups of related screens (`{group, title, items}`), a `label` shorter than the title of
   a screen where it is long, and an `icon` (a name of lucide, D013) where that of its
-  entity does not fit: "The specs" of the guide of bazis-front. The top bar moves the links
-  it has no room for into its menu `nav:more` (More) by itself: choose `navigation` of the
+  entity does not fit: "The specs" of the guide of bazis-front. The top bar shows the
+  links it has room for, one by one, and moves the others, from the first that does not
+  fit, into its menu `nav:more` (More) by itself; a group is shared by the row and the
+  menu, so a group does not need to fit whole: choose `navigation` of the
   theme by the look of the product, never drop or hide links for their number, and never
   give a screen the id `more`, the mark of that menu (S055). The link of
   the form of a custom action requires its action by itself (a public one is shown to all):
@@ -248,7 +263,13 @@ do not write generators or frontends of your own.
   text, a number, a date, a choice, the id of a related item or a list of them; another
   union, an object or another array is typed as JSON (S054). A decimal in an extension or a
   custom screen is the `FieldInput` of its field (its `DecimalInput`), never an input or a
-  parse of your own.
+  parse of your own. In the spec the type of such a decimal is `string` (`number` is
+  allowed too, P017), and an Enum or a Literal of strings is `string` as well, never `json` (an `IntEnum` is `integer`).
+- The YAML of the specs follows YAML 1.2: a text with `: ` or a special first character
+  goes in quotes (`summary: "Tasks: of the team"`), and `summary` of `product` is a text
+  or a map of the languages of the product (`{en: ..., ru: ...}`).
+- A file that a scenario uploads (`upload`) is a file of `frontend/e2e/fixtures/`, which
+  `npm run format` leaves byte for byte: put it there, never in a generated directory.
 - With bazis-authing, the login screen of the template offers Google only with
   bazis-authing 2.8 or newer (the `POST` of its init): `check` warns of the `GET` of an older
   one (C005): upgrade bazis-authing to 2.8.0 (it requires bazis 2.19) and export the
@@ -327,7 +348,8 @@ do not write generators or frontends of your own.
   `board.no_moves` are gone since 0.5: never write code on them (the transits of the items
   of a list are `meta: ['for_transit']` of the list, those of an item `useTransits`).
 - The frontend is in the languages of the backend (`languages` and `language` of
-  `spec/product.yaml` as `BS_LANGUAGES` and `BS_LANGUAGE_CODE`): a text of a spec is a map
+  `spec/product.yaml` list exactly the codes of `BS_LANGUAGES` and the one of
+  `BS_LANGUAGE_CODE`, only the language of the request, P029): a text of a spec is a map
   of those languages or a key of the dictionaries, and every text of an extension or a
   custom screen goes through `t()` with a key in the dictionaries of the product,
   `frontend/src/i18n/<language>.ts`, one for each language (listed in
