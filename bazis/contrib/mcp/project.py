@@ -444,16 +444,16 @@ def refusal(directory: Path) -> str | None:
 
 def database_server(database: str | None) -> tuple[str, str]:
     """
-    The server of PostgreSQL of a new project, as host and port: `database` (`host:port`,
-    the one the user chose), else the one that the environment of the server names (its host
-    or its port, the other of DEFAULT_DATABASE_SERVER; `create_database` sets it in `.env`).
-    Without either it is refused: the default localhost:5432 is nobody's choice, and on many
-    machines the server of other projects. A `database` other than that of the environment,
-    which the commands of the server use, is refused too.
+    The server of PostgreSQL of a new project, as host and port, which `.env` names whatever
+    becomes of its database: `database` (`host:port`, the one the user chose), else the one
+    that the environment of the server names (its host or its port, the other of
+    DEFAULT_DATABASE_SERVER). Without either it is refused: the default localhost:5432 is
+    nobody's choice, and on many machines the server of other projects. A `database` other
+    than that of the environment, which the commands of the server use, is refused too.
     """
     default_host, default_port = scaffold.DEFAULT_DATABASE_SERVER
     host, port = (os.environ.get(scaffold.DATABASE_SERVER[key], '').strip() for key in ('host', 'port'))
-    named = f'{host or default_host}:{port or default_port}' if host or port else None
+    named = (host or default_host, port or default_port) if host or port else None
     if database is None:
         if not named:
             raise ProjectError(
@@ -462,15 +462,15 @@ def database_server(database: str | None) -> tuple[str, str]:
                 'server it uses (`check_machine` finds one on port 5432, `postgresql-service`) '
                 'and pass it as `database`, such as localhost:5432.'
             )
-        return scaffold.DEFAULT_DATABASE_SERVER
+        return named
     if not (match := SERVER_RE.fullmatch(database.strip())):
         raise ProjectError(
             f'{database!r} is no server: pass `database` as host:port, such as localhost:5432.'
         )
-    if named and named != match[0]:
+    if named and named != (match[1], match[2]):
         raise ProjectError(
-            f'The environment of bazis-mcp sets the server of the database, {named}, which '
-            'its commands use: leave `database` out.'
+            f'The environment of bazis-mcp sets the server of the database, {":".join(named)}, '
+            'which its commands use: leave `database` out.'
         )
     return match[1], match[2]
 

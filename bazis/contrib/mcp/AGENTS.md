@@ -73,14 +73,13 @@ The project of the conversation:
   of the database is chosen, never the default localhost:5432 that may be the server of
   other projects: the one that the environment of the server names
   (`BS_DATABASES__DEFAULT__HOST`, `BS_DATABASES__DEFAULT__PORT`), else `database`, the
-  `host:port` that the user chose, written in `.env` (also when it cannot be reached).
-  Without either, and with a `database` other than the server of the environment, nothing
-  is written and the call is refused. A
+  `host:port` that the user chose; either is written in `.env`, also when the database
+  is not created. Without either, and with a `database` other than the server of the
+  environment, nothing is written and the call is refused. A
   database of the name with data (of another project) or that cannot be opened is left
   as it is: the first missing or empty `<name>_2` ... `<name>_99` is created instead and
   set in `.env` (an empty one of the name is kept; a name of the environment of the
-  server is not changed). The host and the port of the server where the database was
-  prepared are set in `.env` too (those of the environment of the server), and so is the Redis of the server, `BS_CACHES__DEFAULT__LOCATION`
+  server is not changed). The Redis of the server is set in `.env` too, `BS_CACHES__DEFAULT__LOCATION`
   (`cache`, without its password; `redis://localhost:6379/0` when the server has none).
   A failed step leaves the directory as it was. `rules` are the rules to follow, `next_steps` the
   task of building the project.

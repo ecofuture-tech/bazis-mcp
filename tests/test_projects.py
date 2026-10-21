@@ -343,8 +343,8 @@ async def test_create_project_on_the_server_the_user_chose(
     """
     The server of the database is chosen: by the environment of bazis-mcp, else by
     `database`. Without either nothing is written, never a database on localhost:5432, which
-    may be the server of other projects; the server chosen is in `.env` also when it cannot
-    be reached, and another one than that of the environment is refused.
+    may be the server of other projects; the server chosen, by either, is in `.env` also
+    when it cannot be reached, and another one than that of the environment is refused.
     """
     for key in ('HOST', 'PORT'):
         monkeypatch.delenv(f'BS_DATABASES__DEFAULT__{key}')
@@ -377,6 +377,13 @@ async def test_create_project_on_the_server_the_user_chose(
         'commands use: leave `database` out.'
     )
     assert not (tmp_path / 'blog').exists()
+    # and `.env` names it, also when the database is not created there
+    created = result(await client.call_tool('create_project', {
+        'directory': str(tmp_path / 'blog'), 'description': 'A blog', 'frontend': False,
+    }))
+    assert created['database'].startswith('PostgreSQL localhost:9 cannot be reached'), created['database']
+    env = (tmp_path / 'blog' / '.env').read_text()
+    assert '\nBS_DATABASES__DEFAULT__HOST=localhost\nBS_DATABASES__DEFAULT__PORT=9\n' in env
 
 
 async def test_create_project_needs_node_for_a_frontend(
