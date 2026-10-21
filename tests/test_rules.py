@@ -215,6 +215,24 @@ def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
     assert 'format 9' not in frontend and 'format 8' not in frontend
 
 
+def test_rules_of_bazis_front_0_8_0():
+    """
+    The specs of a product follow YAML 1.2, a decimal or an Enum of a payload is a `string`
+    (P017), the files of an upload are in `e2e/fixtures/`, the top bar is cut by links, and
+    the users of the labels are a route of the project (P036).
+    """
+    frontend = ' '.join(FRONTEND_RULES.split())
+    for text in ('a text with `: ` or a special first character goes in quotes',
+                 '`summary` of `product` is a text or a map of the languages',
+                 'the type of such a decimal is `string` (`number` is allowed too, P017), and an Enum '
+                 'or a Literal is `string` as well, never `json`',
+                 'a file of `frontend/e2e/fixtures/`',
+                 'from the first that does not fit',
+                 'a group is shared by the row and the menu'):
+        assert text in frontend, text
+    assert '`front_check` warns P036' in ' '.join(RULES.split())
+
+
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the

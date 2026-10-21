@@ -117,7 +117,8 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   never the bundled `bazis.contrib.users.router` and never only the import of
   `bazis.contrib.users.token`. A frontend labels by that route the author of a status,
   the assignee and the watchers by name, and picks the users with a search; without it
-  they are the start of an id (P036 of bazis-front). Widen only its `restrict_queryset`
+  they are the start of an id, and `front_check` warns P036 for a field related to the
+  users of a project without a route of them. Widen only its `restrict_queryset`
   for `view`, never remove it.
 - With bazis-statusy, the payload type of a transit is the classmethod
   `Model.get_transit_payload_type(transit)` (bazis-statusy 2.15; 2.14 does not call it, its
@@ -224,8 +225,10 @@ do not write generators or frontends of your own.
 - With more than five links, the navigation is `navigation` of `spec/product.yaml` with
   groups of related screens (`{group, title, items}`), a `label` shorter than the title of
   a screen where it is long, and an `icon` (a name of lucide, D013) where that of its
-  entity does not fit: "The specs" of the guide of bazis-front. The top bar moves the links
-  it has no room for into its menu `nav:more` (More) by itself: choose `navigation` of the
+  entity does not fit: "The specs" of the guide of bazis-front. The top bar shows the
+  links it has room for, one by one, and moves the others, from the first that does not
+  fit, into its menu `nav:more` (More) by itself; a group is shared by the row and the
+  menu, so a group does not need to fit whole: choose `navigation` of the
   theme by the look of the product, never drop or hide links for their number, and never
   give a screen the id `more`, the mark of that menu (S055). The link of
   the form of a custom action requires its action by itself (a public one is shown to all):
@@ -258,7 +261,13 @@ do not write generators or frontends of your own.
   text, a number, a date, a choice, the id of a related item or a list of them; another
   union, an object or another array is typed as JSON (S054). A decimal in an extension or a
   custom screen is the `FieldInput` of its field (its `DecimalInput`), never an input or a
-  parse of your own.
+  parse of your own. In the spec the type of such a decimal is `string` (`number` is
+  allowed too, P017), and an Enum or a Literal is `string` as well, never `json`.
+- The YAML of the specs follows YAML 1.2: a text with `: ` or a special first character
+  goes in quotes (`summary: "Tasks: of the team"`), and `summary` of `product` is a text
+  or a map of the languages of the product (`{en: ..., ru: ...}`).
+- A file that a scenario uploads (`upload`) is a file of `frontend/e2e/fixtures/`, which
+  `npm run format` leaves byte for byte: put it there, never in a generated directory.
 - With bazis-authing, the login screen of the template offers Google only with
   bazis-authing 2.8 or newer (the `POST` of its init): `check` warns of the `GET` of an older
   one (C005): upgrade bazis-authing to 2.8.0 (it requires bazis 2.19) and export the
