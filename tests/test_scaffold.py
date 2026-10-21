@@ -168,6 +168,18 @@ def test_users_app_is_written_once(tmp_path):
     assert scaffold.write_users(tmp_path) == []
 
 
+def test_users_app_never_writes_through_a_link(tmp_path):
+    """
+    A dangling link of the project where a file would be written is a file it has already.
+    """
+    outside = tmp_path / 'outside.py'
+    (tmp_path / 'project' / 'users').mkdir(parents=True)
+    (tmp_path / 'project' / 'users' / 'routes.py').symlink_to(outside)
+
+    assert [it.name for it in scaffold.write_users(tmp_path / 'project')] == ['__init__.py', 'router.py']
+    assert not outside.exists()
+
+
 def test_users_app_is_a_working_part_of_a_project(tmp_path):
     """
     The route set of the team registered in the root router of the skeleton: the checks of
@@ -299,8 +311,8 @@ def test_product_language_needs_django():
 
 def test_scaffold_in_a_language(tmp_path):
     """
-    The skeleton of a product in Russian: Russian alone, as bazis-front has its dictionary,
-    and the checks of the translations (bazis.W005) pass.
+    The skeleton of a product in Russian: Russian alone, and the checks of the translations
+    (bazis.W005) pass.
     """
     english = tmp_path / 'en'
     scaffold.write_files(english, 'store')
@@ -309,7 +321,7 @@ def test_scaffold_in_a_language(tmp_path):
 
     directory = tmp_path / 'store'
     scaffold.write_files(directory, 'store')
-    scaffold.set_language(directory, scaffold.product_language('ru'), {'en', 'ru'})
+    scaffold.set_language(directory, scaffold.product_language('ru'))
 
     env = (directory / 'project.env').read_text(encoding='utf-8')
     assert """BS_LANGUAGES='[["ru", "Русский"]]'""" in env
@@ -322,32 +334,20 @@ def test_scaffold_in_a_language(tmp_path):
     assert doctor(directory) == []
 
 
-@pytest.mark.parametrize(('code', 'dictionaries', 'languages'), [
-    ('ru', {'en', 'ru'}, '[["ru", "Русский"]]'),
-    # English is the fallback of a language without a dictionary of the frontend
-    ('de', {'en', 'ru'}, '[["de", "Deutsch"], ["en", "English"]]'),
-    ('ru', set(), '[["ru", "Русский"], ["en", "English"]]'),
-    ('en', {'en', 'ru'}, '[["en", "English"]]'),
-    ('en', set(), '[["en", "English"]]'),
+@pytest.mark.parametrize(('code', 'languages'), [
+    ('ru', '[["ru", "Русский"]]'),
+    ('de', '[["de", "Deutsch"]]'),
+    ('en', '[["en", "English"]]'),
 ])
-def test_english_is_the_fallback_of_a_language_without_a_dictionary(
-    tmp_path, code, dictionaries, languages
-):
+def test_a_product_is_in_the_language_of_its_request_alone(tmp_path, code, languages):
+    """
+    English is no second language of a product (bazis-front and Django fall back to it).
+    """
     scaffold.write_files(tmp_path / 'store', 'store')
-    scaffold.set_language(tmp_path / 'store', scaffold.product_language(code), dictionaries)
+    scaffold.set_language(tmp_path / 'store', scaffold.product_language(code))
 
     env = (tmp_path / 'store' / 'project.env').read_text(encoding='utf-8')
     assert f"BS_LANGUAGES='{languages}'\n" in env and f'BS_LANGUAGE_CODE={code}\n' in env
-
-
-def test_front_languages(tmp_path):
-    """
-    The dictionaries of the bazis-front installed in the Python asked: none without it.
-    """
-    assert scaffold.front_languages(make_venv(tmp_path, with_packages=False)) == set()
-    assert scaffold.front_languages('/nonexistent/python') == set()
-    pytest.importorskip('bazis.contrib.front')
-    assert {'en', 'ru'} <= scaffold.front_languages()
 
 
 def test_bazis_messages_keeps_the_catalogs_of_the_project(tmp_path):
@@ -361,7 +361,7 @@ def test_bazis_messages_keeps_the_catalogs_of_the_project(tmp_path):
         pytest.skip('gettext is not installed')
     directory = tmp_path / 'store'
     scaffold.write_files(directory, 'store')
-    scaffold.set_language(directory, ('ru', 'Русский'), {'en', 'ru'})
+    scaffold.set_language(directory, ('ru', 'Русский'))
     (directory / 'store' / 'texts.py').write_text(
         "from django.utils.translation import gettext_lazy as _\n\nTITLE = _('A text of the shop')\n"
     )

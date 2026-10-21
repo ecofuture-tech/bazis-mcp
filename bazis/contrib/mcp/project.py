@@ -472,6 +472,8 @@ def _create(
     existed = path.exists()
     try:
         scaffold.write_files(path, name, frontend=frontend)
+        if frontend:
+            scaffold.write_users(path)
         python = scaffold.create_venv(path)
         if not scaffold.valid_package_name(name, python):
             raise ProjectError(
@@ -480,7 +482,7 @@ def _create(
             )
         product = scaffold.product_language(language, python) if language else None
         if product:
-            scaffold.set_language(path, product, scaffold.front_languages(python))
+            scaffold.set_language(path, product)
     except Exception as err:
         if existed:
             for child in path.iterdir():

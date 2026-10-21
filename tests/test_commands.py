@@ -393,6 +393,28 @@ async def test_add_packages(client, shop, fake_popen, monkeypatch):
     assert done['added'] == [] and set(done['required']) == set(packages) and done['files'] == []
 
 
+async def test_add_packages_keeps_the_users_of_a_product_with_a_frontend(client, shop, fake_popen, monkeypatch):
+    """
+    The app `users/` that `create_project` wrote is the project's own: nothing is written
+    over it. A link out of the project in its place is refused before anything is changed.
+    """
+    monkeypatch.setattr(project, 'python', None)
+    make_venv(shop)
+    scaffold.write_users(shop)
+    (shop / 'users' / 'routes.py').write_text('# own\n')
+    done = result(await client.call_tool('add_packages', {'names': ['bazis-users']}))
+    assert done['added'] and done['files'] == []
+    assert (shop / 'users' / 'routes.py').read_text() == '# own\n'
+
+    (shop / 'requirements.txt').write_text('bazis>=2.19.1\n')
+    outside = shop.parent / 'outside.py'
+    (shop / 'users' / 'routes.py').unlink()
+    (shop / 'users' / 'routes.py').symlink_to(outside)
+    message = error(await client.call_tool('add_packages', {'names': ['bazis-users']}))
+    assert 'is outside the project directory' in message
+    assert (shop / 'requirements.txt').read_text() == 'bazis>=2.19.1\n' and not outside.exists()
+
+
 async def test_add_packages_refusals(client, shop, fake_popen):
     before = (shop / 'requirements.txt').read_text()
 

@@ -95,9 +95,8 @@ The product is in {own_name} (`{code}`): `BS_LANGUAGES` and `BS_LANGUAGE_CODE` o
 The language of the product is the language of the description, and it has no other unless
 the description asks for more. `project.env` has English only: if the description is not in
 English, first set there `BS_LANGUAGES='[["<code>", "<its own name>"]]'` and
-`BS_LANGUAGE_CODE=<code>` with the code of Django of that language (`ru`, `de`, `pt-br`);
-for a language that bazis-front has no dictionary for (it has `en` and `ru`) add
-`["en", "English"]` to `BS_LANGUAGES` as its fallback. Follow the rules of the languages."""
+`BS_LANGUAGE_CODE=<code>` with the code of Django of that language (`ru`, `de`, `pt-br`),
+without English. Follow the rules of the languages."""
 
 
 def ports_text(ports: dict[str, int]) -> str:

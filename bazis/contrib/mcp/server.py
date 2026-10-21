@@ -255,7 +255,8 @@ def create_project(
     and the language with the Python of the project, creates the database when PostgreSQL
     is reachable and chooses the ports; when a step fails, the directory is left as it was.
     A database of the name that has data or cannot be opened is left as it is: the first
-    free `<name>_N` is created instead and set in `.env`. The Redis of the environment of
+    free `<name>_N` is created instead and set in `.env`. A product with a frontend gets the app
+    `users/` of the team (`users/routes.py`, `users/router.py`). The Redis of the environment of
     the server is the cache of `.env`. Returns the facts (`database` says what was done,
     `cache` is the Redis location), `rules` to follow and `next_steps`, the task of building the
     project.
@@ -307,8 +308,9 @@ def add_packages(names: list[str], ctx: Context) -> dict:
     `.venv` and raises the minimums to the installed releases. `added` lists the lines
     written, `required` the packages named already, `installed` the installed versions and
     `install` the result of pip; when pip fails, `requirements.txt` stays as it was. With
-    bazis-users newly added it writes `users/routes.py` and `users/router.py` (the route set
-    of the team, `files` lists them). Then add the apps and settings their guides name (`BS_INSTALLED_APPS`) yourself. Refused
+    bazis-users newly added to a project without them it writes `users/routes.py` and
+    `users/router.py` (the route set of the team, `files` lists them). Then add the apps and
+    settings their guides name (`BS_INSTALLED_APPS`) yourself. Refused
     without `.venv` (pip never installs into the Python of bazis-mcp) and when a line of the
     requirements is not a requirement of PyPI (a URL, a path, the file of an archive such as
     `demo-0.1-py3-none-any.whl`, an option of pip).

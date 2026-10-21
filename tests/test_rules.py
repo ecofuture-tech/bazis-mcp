@@ -225,7 +225,7 @@ def test_rules_of_bazis_front_0_8_0():
     for text in ('a text with `: ` or a special first character goes in quotes',
                  '`summary` of `product` is a text or a map of the languages',
                  'the type of such a decimal is `string` (`number` is allowed too, P017), and an Enum '
-                 'or a Literal is `string` as well, never `json`',
+                 'or a Literal of strings is `string` as well, never `json` (an `IntEnum` is `integer`)',
                  'a file of `frontend/e2e/fixtures/`',
                  'from the first that does not fit',
                  'a group is shared by the row and the menu'):

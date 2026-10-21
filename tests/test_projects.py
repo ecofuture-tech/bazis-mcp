@@ -197,6 +197,62 @@ async def test_create_project(client, no_project, machine, tmp_path):
         assert secret not in text_of(await client.call_tool('project_status', {}))
 
 
+@pytest.mark.parametrize('frontend', [False, True])
+@pytest.mark.parametrize(('language', 'languages'), [
+    ('ru', '[["ru", "Русский"]]'), ('de', '[["de", "Deutsch"]]'), ('en', '[["en", "English"]]'),
+])
+async def test_create_project_in_one_language(
+    client, no_project, machine, tmp_path, language, languages, frontend
+):
+    """
+    The product is in the language of its request alone, with and without a frontend.
+    """
+    await client.call_tool('create_project', {
+        'directory': str(tmp_path / 'shop'), 'description': 'A shop', 'frontend': frontend,
+        'language': language,
+    })
+    env = (tmp_path / 'shop' / 'project.env').read_text(encoding='utf-8')
+    assert f"BS_LANGUAGES='{languages}'\n" in env and f'BS_LANGUAGE_CODE={language}\n' in env
+
+
+async def test_create_project_writes_the_users_of_a_product_with_a_frontend(
+    client, no_project, machine, tmp_path
+):
+    """
+    The route set of the team is in the skeleton of a product with a frontend, not imported
+    nor registered (bazis-users is not installed yet); a backend has none until `add_packages`.
+    """
+    await client.call_tool('create_project', {'directory': str(tmp_path / 'desk'), 'description': 'A desk'})
+    await client.call_tool('create_project', {
+        'directory': str(tmp_path / 'api'), 'description': 'An API', 'frontend': False,
+    })
+
+    desk = tmp_path / 'desk'
+    assert (desk / 'users' / 'routes.py').read_text() == scaffold.USERS_ROUTES_PY
+    assert (desk / 'users' / 'router.py').read_text() == scaffold.USERS_ROUTER_PY
+    assert 'users' not in (desk / 'project.env').read_text()
+    assert 'users' not in (desk / 'desk' / 'router.py').read_text()
+    assert not (tmp_path / 'api' / 'users').exists()
+
+
+async def test_create_project_never_returns_the_password_of_the_cache(
+    client, no_project, machine, monkeypatch, tmp_path
+):
+    """
+    `.env` has the Redis of the server as it is; the answer has it without its password.
+    """
+    monkeypatch.setenv('BS_CACHES__DEFAULT__LOCATION', 'redis://:s3cret-pass@127.0.0.1:6400/3')
+    call_result = await client.call_tool('create_project', {
+        'directory': str(tmp_path / 'shop'), 'description': 'A shop', 'frontend': False,
+    })
+
+    assert result(call_result)['cache'] == 'redis://***@127.0.0.1:6400/3'
+    assert 's3cret-pass' not in text_of(call_result)
+    assert '\nBS_CACHES__DEFAULT__LOCATION=redis://:s3cret-pass@127.0.0.1:6400/3\n' in (
+        tmp_path / 'shop' / '.env'
+    ).read_text()
+
+
 @pytest.mark.skipif(not TEST_POSTGRES, reason='BAZIS_CLI_TEST_POSTGRES is not set')
 async def test_create_project_on_a_taken_database(client, no_project, machine, monkeypatch, tmp_path):
     """

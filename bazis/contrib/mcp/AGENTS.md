@@ -65,8 +65,8 @@ The project of the conversation:
   package `name` (default: from the name of the directory) checked against the modules of
   the Python of the project, the `language` of the product (a code of Django such as `ru`,
   `pt-br`; default English, until the agent sets that of the description; its
-  `BS_LANGUAGES` is that language alone when the installed bazis-front has a dictionary of
-  it, `en` and `ru`, else English too as its fallback), the database
+  `BS_LANGUAGES` is that language alone), the app `users/` of the team (`users/routes.py`,
+  `users/router.py`) with a frontend, the database
   when PostgreSQL is reachable (`database` says what was done) and the `ports`. A
   database of the name with data (of another project) or that cannot be opened is left
   as it is: the first missing or empty `<name>_2` ... `<name>_99` is created instead and
@@ -104,9 +104,10 @@ The work on the project served (never a command or a path of the caller outside 
   (`python -m pip install -r requirements-dev.txt`) and raises the minimums to the
   installed releases: `added`, `required` (named already), `installed` (their versions)
   and `install` (the result of pip; when it fails or the call fails meanwhile,
-  `requirements.txt` stays as it was). When bazis-users is added, it writes the app
-  `users/` with the route set of the team (`users/routes.py`, `users/router.py`; a file
-  the project has already is kept) and lists them in `files`; the model, the settings and
+  `requirements.txt` stays as it was). When bazis-users is added to a project without
+  the app `users/` of the team (`create_project` writes it for a product with a frontend),
+  it writes it (`users/routes.py`, `users/router.py`; a file the project has already is
+  kept, a link out of the project is refused) and lists the files in `files`; the model, the settings and
   the registration of `users.router` are left to the agent.
   pip (here and in `run_command`) installs only into the Python of the project, `.venv`
   or `--python`, never into that of bazis-mcp (without one it is refused: the user creates

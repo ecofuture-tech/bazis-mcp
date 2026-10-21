@@ -161,6 +161,11 @@ router.register('/user', routes.UserRouteSet.as_router())
 '''
 
 
+#: the files of the app `users` that `write_users` writes
+USERS_FILES = {
+    'users/__init__.py': '', 'users/routes.py': USERS_ROUTES_PY, 'users/router.py': USERS_ROUTER_PY,
+}
+
 URLS_PY = '''from django.conf import settings
 from django.contrib import admin
 from django.urls import path, re_path
@@ -315,11 +320,11 @@ FastAPI and Pydantic.
   deployment removes the variable and sets the SMTP server and the sender (the E-mail
   section of the guide of the core).
 - The languages are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` (`project.env`), those of the
-  product (English too only where bazis-front has no dictionary of its language): the
-  texts of the code are English msgids (`gettext_lazy`), translated in the catalogs of the
-  project, `locale/<language>/LC_MESSAGES/django.po`, by `python manage.py
-  bazis_messages`: `make`, the translations of what it lists as untranslated or fuzzy in
-  `locale/translations.json` (kept), `apply locale/translations.json --check`.
+  product, English too only when the description asks for it: the texts of the code are
+  English msgids (`gettext_lazy`), translated in the catalogs of the project,
+  `locale/<language>/LC_MESSAGES/django.po`, by `python manage.py bazis_messages`: `make`,
+  the translations of what it lists as untranslated or fuzzy in `locale/translations.json`
+  (kept), `apply locale/translations.json --check`.
   A msgid of the Bazis packages that the project translates itself (`bazis.W004`) is
   declared with `gettext_noop` in `{name}/translations.py`. Never edit the `.po` files with
   a script, never run `makemessages` yourself.
@@ -482,20 +487,6 @@ print(json.dumps(found))
 """
 
 
-#: run by a Python (`front_languages`): prints the codes of the dictionaries of the installed
-#: bazis-front as a JSON list
-FRONT_LANGUAGES_PY = """\
-import json
-from importlib import util
-from pathlib import Path
-
-spec = util.find_spec('bazis.contrib.front')
-found = []
-for root in spec.submodule_search_locations if spec else ():
-    found += [it.stem for it in (Path(root) / 'assets/react/src/i18n/messages').glob('*.ts')]
-print(json.dumps(sorted(found)))
-"""
-
 #: run by the Python of a project (`create_venv`): prints the installed versions of the
 #: distributions named in its arguments as a JSON object
 INSTALLED_VERSIONS_PY = """\
@@ -615,32 +606,16 @@ def product_language(
     return found[0], found[1]
 
 
-def front_languages(python: Path | str = sys.executable, run=subprocess.run) -> set[str]:
-    """
-    The codes of the languages that the bazis-front installed in a `python`, such as that of
-    the project, has a dictionary of components for (`i18n/messages/<code>.ts` of its React
-    assets); none when it is not installed or cannot be read.
-    """
-    try:
-        done = run([str(python), '-c', FRONT_LANGUAGES_PY], capture_output=True, text=True, timeout=60)
-        found = json.loads(done.stdout.strip().splitlines()[-1])
-    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
-        return set()
-    return {it for it in found if isinstance(it, str)} if isinstance(found, list) else set()
-
-
-def set_language(directory: Path, language: tuple[str, str], dictionaries: set[str]) -> None:
+def set_language(directory: Path, language: tuple[str, str]) -> None:
     """
     Makes the project written by `write_files` a product in a `language` of
     `product_language`: `BS_LANGUAGE_CODE` of `project.env`, and `BS_LANGUAGES` with that
-    language alone when the frontend has a dictionary of it (`dictionaries` of
-    `front_languages`), else with English as its fallback.
+    language alone. English, the language of the msgids, is not added: bazis-front falls
+    back to its English dictionary and Django to the msgids by itself, while a second
+    language of the product is one nobody asked for (the frontend lists it, P029).
     """
-    languages = [list(language)]
-    if language[0] != ENGLISH[0] and language[0] not in dictionaries:
-        languages.append(ENGLISH)
     values = {
-        'BS_LANGUAGES': f"'{json.dumps(languages, ensure_ascii=False)}'",
+        'BS_LANGUAGES': f"'{json.dumps([list(language)], ensure_ascii=False)}'",
         'BS_LANGUAGE_CODE': language[0],
     }
     path = directory / 'project.env'
@@ -810,16 +785,15 @@ def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path
 def write_users(directory: Path) -> list[Path]:
     """
     Writes the app `users` of the team of a project (`USERS_ROUTES_PY`, `USERS_ROUTER_PY`)
-    and returns the files written; a file the project has already is kept. The model and
-    the settings of the users, and the registration of `users.router` in the root router,
-    are left to the agent, as the guides of bazis-users say.
+    and returns the files written; a file the project has already is kept, also a link
+    (never written through). The model and the settings of the users, and the registration
+    of `users.router` in the root router, are left to the agent, as the guides of
+    bazis-users say.
     """
     written = []
-    for relative, content in {
-        'users/__init__.py': '', 'users/routes.py': USERS_ROUTES_PY, 'users/router.py': USERS_ROUTER_PY,
-    }.items():
+    for relative, content in USERS_FILES.items():
         path = directory / relative
-        if not path.exists():
+        if not os.path.lexists(path):
             path.parent.mkdir(exist_ok=True)
             path.write_text(content, encoding='utf-8')
             written.append(path)

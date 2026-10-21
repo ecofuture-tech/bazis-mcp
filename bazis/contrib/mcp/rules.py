@@ -109,9 +109,11 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   route, never by a distance computed in Python or SQL of your own; a distance in the code
   is `point_distance`/`point_within` of `bazis.core.utils.geo`, as the guide of the core
   shows.
-- With bazis-users, `add_packages` writes the app `users/` with the route set of the team,
-  `users/routes.py` and `users/router.py`: the user app of the project is named `users`,
-  keeps them (a user model of its own goes to `users/models.py`, with `UserLanguageMixin`,
+- The app `users/` with the route set of the team, `users/routes.py` and `users/router.py`,
+  is in the skeleton of a product with a frontend (`create_project`; `add_packages` writes
+  it when bazis-users is added to a project without it). With bazis-users, add the package,
+  the app `users` to `BS_INSTALLED_APPS` and `router.register('users.router')`: the user
+  app of the project is named `users`, keeps them (a user model of its own goes to `users/models.py`, with `UserLanguageMixin`,
   so that the language of a user follows him) and the root router module registers
   `router.register('users.router')`, which also declares the token endpoint (`users.E002`),
   never the bundled `bazis.contrib.users.router` and never only the import of
@@ -168,10 +170,10 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
 # Languages
 
 The languages of the product are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of `project.env`:
-those of the description, one unless it asks for more. English, the language of the msgids,
-is added only as the fallback of a language that bazis-front has no dictionary for (it has
-those of `en` and `ru`); never add it to a language that has one, or the product gets a
-second language that nobody asked for, with all its texts to translate.
+those of the request, one unless it asks for more. Never add English, the language of
+the msgids, for its own sake: bazis-front and Django fall back to it by themselves, while a
+second language is one nobody asked for, with all its texts to translate and a switch of
+languages in the interface.
 
 - The texts of the code are English msgids through `gettext_lazy`
   (`from django.utils.translation import gettext_lazy as _`): `verbose_name`, `help_text`,
@@ -262,7 +264,7 @@ do not write generators or frontends of your own.
   union, an object or another array is typed as JSON (S054). A decimal in an extension or a
   custom screen is the `FieldInput` of its field (its `DecimalInput`), never an input or a
   parse of your own. In the spec the type of such a decimal is `string` (`number` is
-  allowed too, P017), and an Enum or a Literal is `string` as well, never `json`.
+  allowed too, P017), and an Enum or a Literal of strings is `string` as well, never `json` (an `IntEnum` is `integer`).
 - The YAML of the specs follows YAML 1.2: a text with `: ` or a special first character
   goes in quotes (`summary: "Tasks: of the team"`), and `summary` of `product` is a text
   or a map of the languages of the product (`{en: ..., ru: ...}`).
@@ -346,8 +348,8 @@ do not write generators or frontends of your own.
   `board.no_moves` are gone since 0.5: never write code on them (the transits of the items
   of a list are `meta: ['for_transit']` of the list, those of an item `useTransits`).
 - The frontend is in the languages of the backend (`languages` and `language` of
-  `spec/product.yaml` list the codes of `BS_LANGUAGES` and the one of `BS_LANGUAGE_CODE`,
-  no more and no fewer, P029): a text of a spec is a map
+  `spec/product.yaml` list exactly the codes of `BS_LANGUAGES` and the one of
+  `BS_LANGUAGE_CODE`, only the language of the request, P029): a text of a spec is a map
   of those languages or a key of the dictionaries, and every text of an extension or a
   custom screen goes through `t()` with a key in the dictionaries of the product,
   `frontend/src/i18n/<language>.ts`, one for each language (listed in
