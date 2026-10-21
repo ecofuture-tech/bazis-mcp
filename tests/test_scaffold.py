@@ -442,6 +442,16 @@ def test_scaffold_with_a_frontend(tmp_path):
     # the agent creates the frontend with `bazis_front init`, after choosing the packages
     assert not (product / 'frontend').exists() and not (product / 'spec').exists()
 
+    # the route set of the team is in the skeleton of a product, neither imported nor
+    # registered (bazis-users is added later); a backend has none
+    users = ['__init__.py', 'routes.py', 'router.py']
+    assert sorted(it.name for it in (product / 'users').iterdir() if it.suffix == '.py') == sorted(users)
+    assert (product / 'users' / 'routes.py').read_text() == scaffold.USERS_ROUTES_PY
+    assert 'users' not in (product / 'project.env').read_text()
+    assert 'users' not in (product / 'store' / 'router.py').read_text()
+    assert not (backend / 'users').exists()
+    assert [it.name for it in scaffold.write_users(product)] == []
+
 
 def test_frontend_requirement_override(tmp_path, monkeypatch):
     """

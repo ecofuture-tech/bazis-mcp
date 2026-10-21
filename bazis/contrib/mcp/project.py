@@ -472,8 +472,6 @@ def _create(
     existed = path.exists()
     try:
         scaffold.write_files(path, name, frontend=frontend)
-        if frontend:
-            scaffold.write_users(path)
         python = scaffold.create_venv(path)
         if not scaffold.valid_package_name(name, python):
             raise ProjectError(

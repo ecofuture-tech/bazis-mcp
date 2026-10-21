@@ -731,8 +731,9 @@ def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path
     """
     Writes the skeleton of the project in English (`set_language` gives it another
     language), with bazis-front in its requirements and apps when it has a `frontend`
-    (the agent creates the frontend itself with `bazis_front init`), the Redis of the
-    environment of the server (`cache_location`) and its ports (`project_ports`). Fails if the directory has files already.
+    (the agent creates the frontend itself with `bazis_front init`) and the app `users/` of
+    the team (`write_users`), the Redis of the environment of the server (`cache_location`)
+    and its ports (`project_ports`). Fails if the directory has files already.
     """
     if directory.exists() and any(directory.iterdir()):
         raise ScaffoldError(f'{directory} is not empty')
@@ -777,6 +778,8 @@ def write_files(directory: Path, name: str, frontend: bool = False) -> list[Path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding='utf-8')
         written.append(path)
+    if frontend:
+        written += write_users(directory)
     project_ports(directory)
     written.append(directory / LOCAL_DIR / 'ports.json')
     return written
