@@ -193,7 +193,8 @@ def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
     history, read with the permission `history`, and names its payload type by a classmethod.
     """
     rules = ' '.join(RULES.split())
-    for text in ('the payload type of a transit is the classmethod `Model.get_transit_payload_type(transit)`: '
+    for text in ('the payload type of a transit is the classmethod `Model.get_transit_payload_type(transit)` '
+                 '(bazis-statusy 2.15; 2.14 does not call it, its payload type is `item.transit_payload_type(transit)`): '
                  'override it, never `transit_payload_type` of an item (its old name)',
                  '`GET /{item_id}/status_history/` (bazis-statusy 2.15): grant `history` only to the roles '
                  'that may read the payloads',

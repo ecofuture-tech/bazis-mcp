@@ -113,11 +113,12 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   endpoint) unless it registers the user routes (`users.E002`), and a user model of the
   project has `UserLanguageMixin`, so that the language of a user follows him.
 - With bazis-statusy, the payload type of a transit is the classmethod
-  `Model.get_transit_payload_type(transit)`: override it, never `transit_payload_type` of an
-  item (its old name). The validated payload is kept in the history record of the transit,
-  and whoever has the permission `history` of the item reads it with `GET
-  /{item_id}/status_history/` (bazis-statusy 2.15): grant `history` only to the roles that may
-  read the payloads, and mark a secret field of a payload model `Annotated[...,
+  `Model.get_transit_payload_type(transit)` (bazis-statusy 2.15; 2.14 does not call it, its
+  payload type is `item.transit_payload_type(transit)`): override it, never
+  `transit_payload_type` of an item (its old name). The validated payload is kept in the
+  history record of the transit, and whoever has the permission `history` of the item reads
+  it with `GET /{item_id}/status_history/` (bazis-statusy 2.15): grant `history` only to the
+  roles that may read the payloads, and mark a secret field of a payload model `Annotated[...,
   NOT_IN_HISTORY]` (`bazis.contrib.statusy.schemas`, on the field or a member of its
   `Optional`, never inside a list or a nested model): it is validated and given to the
   methods, not kept. The calculated field `status_history` is the compact history under

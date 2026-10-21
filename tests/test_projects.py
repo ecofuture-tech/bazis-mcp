@@ -245,6 +245,21 @@ async def test_create_project_with_a_frontend(client, no_project, machine, tmp_p
     assert scaffold.FRONTEND_REQUIREMENT in (tmp_path / 'desk' / 'requirements.txt').read_text()
 
 
+async def test_the_result_of_create_project_with_a_frontend_fits_the_limit(
+    client, no_project, machine, tmp_path
+):
+    """
+    The result of a product, the largest with the rules of the frontend (about 33,700 bytes in
+    2.9.0), keeps a tenth of the limit of the results of the clients free: a rule added later
+    fails here before a client cuts the result.
+    """
+    call_result = await client.call_tool(
+        'create_project', {'directory': str(tmp_path / 'desk'), 'description': 'A help desk'}
+    )
+    assert result(call_result)['frontend'] is True
+    assert len(text_of(call_result).encode()) < catalog.RESULT_LIMIT * 0.9
+
+
 async def test_create_project_needs_node_for_a_frontend(
     client, no_project, machine, monkeypatch, tmp_path
 ):
