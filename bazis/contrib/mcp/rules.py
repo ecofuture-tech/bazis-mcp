@@ -261,7 +261,7 @@ do not write generators or frontends of your own.
   of a model, typed with a point or the comma of the language and sent as `"2.5"`), else a
   text, a number, a date, a choice, the id of a related item or a list of them; another
   union, an object or another array is typed as JSON (S054). A choice of a body is the
-  `TextChoices` of the model (its labels, bazis 2.21), never a `Literal`; a long text has no
+  `TextChoices` of the model (its labels, bazis 2.21), never a `Literal` (S058); a long text has no
   `max_length`. A decimal in an extension or a custom screen is the `FieldInput` of its field (its `DecimalInput`), never an input or a
   parse of your own. In the spec the type of such a decimal is `string` (`number` is
   allowed too, P017), and an Enum or a Literal of strings is `string` as well, never `json` (an `IntEnum` is `integer`).
@@ -328,11 +328,12 @@ do not write generators or frontends of your own.
   `BS_BAZIS_WS_ANONYMOUS_COMMON_CHANNEL=true` only when what the common channel says is
   public. No package registers a user or resets a password: a guest who needs an account
   is given one, say so in Left for you.
-- With bazis-front 0.9 the specs say what was code of your own: the files of a public form
-  (`FilesField`), an export (the form of an action that answers a file, `access_action`
-  view, the rows of its `restrict_queryset`; bazis-bg only for a long one) and a flow of
-  several users (`as: <role>`, and `remember` of what the server made, a number or an id,
-  never the echo of a text typed).
+- The specs say what was code of your own: the files of a public form (`FilesField`) with
+  the anonymous uploads on (S057), an export (the form of an action that answers a file,
+  `access_action` view, the rows of its `restrict_queryset`; bazis-bg only for a long one)
+  and a flow of several users (`as: <role>`, and `remember` of what the server made, a
+  number or an id, never the echo of a text typed). After the update to 0.9 (a contract of
+  format 11) a custom screen or test of your own that did them becomes the spec.
 - After `pip install -U bazis-front`, `bazis_front update` merges the copies and the
   template: a conflict of `frontend/src/app/router.tsx` is resolved by taking the file of
   the template, its pristine copy `frontend/.bazis/base/template@<version>/src/app/router.tsx`,

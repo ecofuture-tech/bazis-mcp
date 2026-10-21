@@ -252,14 +252,15 @@ def test_rules_of_the_files_of_guests_the_exports_and_the_flows_of_several_users
         assert text in rules, text
     frontend = ' '.join(FRONTEND_RULES.split())
     for text in ('check the specs with `front_check`', 'never `bazis_front check` through `run_command`',
-                 'A choice of a body is the `TextChoices` of the model (its labels, bazis 2.21), never a `Literal`',
+                 'A choice of a body is the `TextChoices` of the model (its labels, bazis 2.21), never a `Literal` (S058)',
                  'a long text has no `max_length`',
-                 'With bazis-front 0.9 the specs say what was code of your own',
-                 'the files of a public form (`FilesField`)',
+                 'The specs say what was code of your own',
+                 'the files of a public form (`FilesField`) with the anonymous uploads on (S057)',
                  'an export (the form of an action that answers a file, `access_action` view, the rows of '
                  'its `restrict_queryset`; bazis-bg only for a long one)',
                  '`as: <role>`', '`remember` of what the server made, a number or an id, never the echo '
-                 'of a text typed'):
+                 'of a text typed', 'After the update to 0.9 (a contract of format 11) a custom screen or test of your '
+                 'own that did them becomes the spec'):
         assert text in frontend, text
 
 
@@ -271,7 +272,7 @@ def test_the_codes_of_the_rules_are_those_of_bazis_front():
     guide = catalog.catalog()['bazis-front']['agents_md']
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
     assert {'C002', 'C004', 'C005', 'P030', 'P035', 'S030', 'S044', 'S045', 'S046', 'S047', 'S048',
-            'S049', 'S050', 'S052', 'S053', 'S054', 'S055'} <= named
+            'S049', 'S050', 'S052', 'S053', 'S054', 'S055', 'S057', 'S058'} <= named
     for code in named:
         assert f'| `{code}` |' in guide, code
 
