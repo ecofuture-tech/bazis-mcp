@@ -43,6 +43,11 @@ def test_package_name(tmp_path):
     assert scaffold.package_name(tmp_path / 'django') == 'django_project'
     assert scaffold.package_name(tmp_path / 'class') == 'class_project'
     assert scaffold.package_name(tmp_path / 'tests') == 'tests_project'
+    # the name of a product, as `create_project` passes it
+    assert scaffold.package_name('Master-na-chas') == 'master_na_chas'
+    assert scaffold.package_name('42 shop') == 'project_42_shop'
+    assert scaffold.package_name('class') == 'class_project'
+    assert scaffold.package_name('repair_shop') == 'repair_shop'
 
 
 def test_package_name_is_checked_in_the_python_asked(tmp_path, monkeypatch):

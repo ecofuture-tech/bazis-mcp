@@ -36,11 +36,11 @@ from urllib.parse import urlsplit, urlunsplit
 #: minimums are the latest releases, not older than those of the catalog of bazis-mcp
 #: (tests/test_scaffold.py compares them); `create_venv` raises them to the installed releases,
 #: whose guides the agent reads and whose API the project uses
-REQUIREMENTS = ['bazis>=2.21.0']
+REQUIREMENTS = ['bazis>=2.22.0']
 REQUIREMENTS_DEV = ['bazis-mcp>=2.4.5', 'bazis-test-utils>=2.5.2']
 
 #: the frontend layer of a product (`bazis new` without `--no-frontend`)
-FRONTEND_REQUIREMENT = 'bazis-front>=0.9.0'
+FRONTEND_REQUIREMENT = 'bazis-front>=0.10.0'
 FRONTEND_APP = 'bazis.contrib.front'
 #: replaces FRONTEND_REQUIREMENT in requirements.txt: a pip requirement such as a path to a
 #: wheel or a checkout, or `bazis-front @ <url>`, to try a bazis-front that is not on PyPI
@@ -94,6 +94,8 @@ ROUTER_PY = '''from bazis.core.routing import BazisRouter
 
 router = BazisRouter(prefix='/api/v1')
 # register the routers of the apps: router.register('<app>.router')
+# with bazis-permit, for a picker narrowed to a role (filter roles__slug):
+# router.register('bazis.contrib.permit.router')
 '''
 
 #: the route set of the users of a team (`write_users`), written when bazis-users is added:
@@ -520,12 +522,14 @@ class ScaffoldError(Exception):
     pass
 
 
-def package_name(directory: Path) -> str:
+def package_name(source: Path | str) -> str:
     """
-    The name of the project package: the directory name as a Python identifier that does
-    not hide a module of this Python (`django`, `json`) or the tests.
+    The name of the project package: the name of the product or of its directory as a
+    Python identifier (`master-na-chas` is `master_na_chas`) that does not hide a module of
+    this Python (`django`, `json`) or the tests.
     """
-    name = re.sub(r'\W+', '_', directory.name.lower()).strip('_')
+    text = source.name if isinstance(source, Path) else source
+    name = re.sub(r'\W+', '_', text.lower()).strip('_')
     if not name or name[0].isdigit():
         name = f'project_{name}'.rstrip('_')
     if not valid_package_name(name):

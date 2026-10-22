@@ -442,27 +442,31 @@ def refusal(directory: Path) -> str | None:
     return None
 
 
-def database_server(database: str | None) -> tuple[str, str]:
+def database_server(
+    database: str | None, default: tuple[str, str] | None = None
+) -> tuple[str, str]:
     """
     The server of PostgreSQL of a new project, as host and port, which `.env` names whatever
     becomes of its database: `database` (`host:port`, the one the user chose), else the one
     that the environment of the server names (its host or its port, the other of
-    DEFAULT_DATABASE_SERVER). Without either it is refused: the default localhost:5432 is
-    nobody's choice, and on many machines the server of other projects. A `database` other
-    than that of the environment, which the commands of the server use, is refused too.
+    DEFAULT_DATABASE_SERVER), else `default`. Without any it is refused: the default
+    localhost:5432 is nobody's choice, and on many machines the server of other projects
+    (`create_project` passes no `default`; `bazis new` of bazis-cli, run by the user in a
+    terminal, passes DEFAULT_DATABASE_SERVER). A `database` other than that of the
+    environment, which the commands of the server use, is refused too.
     """
     default_host, default_port = scaffold.DEFAULT_DATABASE_SERVER
     host, port = (os.environ.get(scaffold.DATABASE_SERVER[key], '').strip() for key in ('host', 'port'))
     named = (host or default_host, port or default_port) if host or port else None
     if database is None:
-        if not named:
+        if not (named or default):
             raise ProjectError(
                 'No PostgreSQL server is chosen for the database of the project, and '
                 'localhost:5432 may be the server of other projects: ask the user which '
                 'server it uses (`check_machine` finds one on port 5432, `postgresql-service`) '
                 'and pass it as `database`, such as localhost:5432.'
             )
-        return named
+        return named or default
     if not (match := SERVER_RE.fullmatch(database.strip())):
         raise ProjectError(
             f'{database!r} is no server: pass `database` as host:port, such as localhost:5432.'
@@ -505,13 +509,14 @@ def _create(
         raise ProjectError(problem)
     if not name and path.name.casefold() in GENERIC_NAMES:
         raise ProjectError(
-            f'The directory {path.name} names no product: pass `name`, the slug of the '
-            'product in Latin letters (such as `repair_shop`), the package of the project.'
+            f'The directory {path.name} names no product: pass `name`, the name of the '
+            'product in Latin letters (`repair_shop`; `repair-shop` or `Repair Shop` becomes '
+            'it), the package of the project.'
         )
     server = database_server(database)
     if frontend and (problem := scaffold.node_problem()):
         raise ProjectError(f'{problem}. Install it, or pass frontend false for a backend only.')
-    name = name or scaffold.package_name(path)
+    name = scaffold.package_name(name or path)
     # what is removed when the creation fails: the directory, or the first of its missing parents
     top = path
     while not top.parent.exists():

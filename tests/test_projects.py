@@ -327,7 +327,9 @@ async def test_create_project_needs_the_name_of_the_product(client, no_project, 
         message = error(await client.call_tool('create_project', {
             'directory': str(tmp_path / directory), 'description': 'A repair shop', 'frontend': False,
         }))
-        assert message.startswith(f'The directory {directory} names no product: pass `name`'), message
+        assert message.startswith(f'The directory {directory} names no product: pass `name`, the '
+                                  'name of the product in Latin letters'), message
+        assert 'slug' not in message
         assert not (tmp_path / directory).exists()
 
     created = result(await client.call_tool('create_project', {
@@ -335,6 +337,52 @@ async def test_create_project_needs_the_name_of_the_product(client, no_project, 
         'frontend': False,
     }))
     assert created['name'] == 'repair_shop' and (tmp_path / 'app' / 'repair_shop' / 'settings.py').is_file()
+
+
+async def test_create_project_normalizes_the_name_of_the_product(client, no_project, machine, tmp_path):
+    """
+    `name` becomes the project package as the name of a directory does (it was refused in
+    2.11): the result, the skeleton and the task name the package. A name of a module of
+    the server or a keyword gets the suffix of a directory of that name.
+    """
+    created = result(await client.call_tool('create_project', {
+        'directory': str(tmp_path / 'app'), 'description': 'A handyman service',
+        'name': 'Master-na-chas',
+    }))
+    assert created['name'] == 'master_na_chas'
+    assert (tmp_path / 'app' / 'master_na_chas' / 'settings.py').is_file()
+    assert "'master_na_chas.settings'" in (tmp_path / 'app' / 'manage.py').read_text()
+    assert '`.venv/bin/uvicorn master_na_chas.main:app --port <backend>`' in created['next_steps']
+    assert result(await client.call_tool('project_status', {}))['settings'] == 'master_na_chas.settings'
+
+    for name, package in (('django', 'django_project'), ('class', 'class_project')):
+        directory = tmp_path / name
+        created = result(await client.call_tool('create_project', {
+            'directory': str(directory), 'description': 'A shop', 'name': name, 'frontend': False,
+        }))
+        assert created['name'] == package and (directory / package / 'settings.py').is_file()
+
+
+def test_the_server_of_the_database_by_default(machine, monkeypatch):
+    """
+    `database_server` with a `default` (that of `bazis new` of bazis-cli): the server the
+    user chose, else that of the environment, else the default; a `database` of another
+    form or other than that of the environment is refused as without it.
+    """
+    default = scaffold.DEFAULT_DATABASE_SERVER
+    assert project.database_server(None, default=default) == ('127.0.0.1', '9')
+    assert project.database_server('127.0.0.1:9', default=default) == ('127.0.0.1', '9')
+    with pytest.raises(project.ProjectError, match='leave `database` out'):
+        project.database_server('db:5432', default=default)
+
+    for key in ('HOST', 'PORT'):
+        monkeypatch.delenv(f'BS_DATABASES__DEFAULT__{key}')
+    assert project.database_server(None, default=default) == default
+    assert project.database_server('db:6432', default=default) == ('db', '6432')
+    with pytest.raises(project.ProjectError, match='is no server'):
+        project.database_server('localhost', default=default)
+    with pytest.raises(project.ProjectError, match='No PostgreSQL server is chosen'):
+        project.database_server(None)
 
 
 async def test_create_project_on_the_server_the_user_chose(
@@ -471,13 +519,6 @@ async def test_a_failed_creation_leaves_the_directory_as_it_was(
     assert message.startswith("'shop_lib' cannot be the project package: it would hide a module")
     assert list(empty.iterdir()) == []
     assert project.project_dir == SAMPLE_DIR
-
-    # a module of the server too is refused before anything is written
-    assert "'django' cannot be the project package" in error(await client.call_tool(
-        'create_project',
-        {'directory': str(empty), 'description': 'A shop', 'name': 'django', 'frontend': False},
-    ))
-    assert list(empty.iterdir()) == []
 
 
 async def test_creations_run_one_at_a_time(client, no_project, machine, monkeypatch, tmp_path):
