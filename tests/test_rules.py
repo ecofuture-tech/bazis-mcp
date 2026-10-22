@@ -194,8 +194,8 @@ def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
     """
     rules = ' '.join(RULES.split())
     for text in ('the payload type of a transit is the classmethod `Model.get_transit_payload_type(transit)` '
-                 '(bazis-statusy 2.15; 2.14 does not call it, its payload type is `item.transit_payload_type(transit)`): '
-                 'override it, never `transit_payload_type` of an item (its old name)',
+                 '(bazis-statusy 2.15): override it, never `transit_payload_type` of an item (its old name, '
+                 'which 2.14 calls)',
                  '`GET /{item_id}/status_history/` (bazis-statusy 2.15): grant `history` only to the roles '
                  'that may read the payloads',
                  '`Annotated[..., NOT_IN_HISTORY]` (`bazis.contrib.statusy.schemas`',
@@ -264,6 +264,54 @@ def test_rules_of_the_files_of_guests_the_exports_and_the_flows_of_several_users
         assert text in frontend, text
 
 
+def test_rules_of_bazis_front_0_10_0():
+    """
+    The passes that service2 spent (bazis-front 0.10.0, bazis 2.22.0): the image of the
+    scenarios is `photo.png` of the template, the user of a guest is the `AnonymousUser`, a
+    comma in a flow mapping is quoted, the test data passes the validators, one shot of a
+    screen is looked at and after a change only those it touched, the limits of the uploads
+    and of the bodies, the picker of a role through the router of bazis-permit, and what the
+    specs of 0.10 say instead of code.
+    """
+    rules = ' '.join(RULES.split())
+    for text in ('The limit of the uploads stays a few megabytes, also for the photos of phones '
+                 '(bazis-front 0.10 reduces a larger image, `fitImage`)',
+                 'with bazis 2.22 set `BS_BAZIS_API_MAX_BODY_SIZE` in `project.env` a megabyte above it',
+                 '`changes.user` of a guest (`validate_item`, a public action or transit) is the '
+                 '`AnonymousUser`, never None: test `is_authenticated`, not `pk`',
+                 "A picker of the users of a role (`roles__slug`) needs "
+                 "`router.register('bazis.contrib.permit.router')` too, which makes the roles a public "
+                 'catalog (say so in Left for you): never narrow it in the frontend, by the id of a role '
+                 'or in `restrict_queryset`'):
+        assert text in rules, text
+    frontend = ' '.join(FRONTEND_RULES.split())
+    for text in ('`update`; `status` only shows its state, `version` its release',
+                 'never a `Literal` (S058), and so is one of a payload (bazis 2.22, P037)',
+                 'so does a text with `, ` in a flow mapping (`values: {note: "entrance 1, floor 3"}`, P002)',
+                 'A file that a scenario uploads (`upload`, a payload) is a file of `frontend/e2e/fixtures/`',
+                 'an image is `photo.png` of the template, another file of the product is written beside it; '
+                 'never one made by a script or a test, never in a generated directory',
+                 'of a screen its first shot (another where the report names an error or a warning), after '
+                 'a change only the screens it touched',
+                 'since 0.10 also a section shown by status (`when`, S059), the values a form starts with '
+                 '(`values`, S060), the items of a picker (`filter`, `filters`, S061), several files '
+                 '(`type: file`, `many: true`), a move with a payload and what a role may not do '
+                 '(`transit_absent`, `action_absent: edit`, `field_readonly`; else a pytest of the 403)',
+                 'The update to 0.10 adds `e2e/fixtures/photo.png` (rename a file of the product of that '
+                 'name first, with its `upload` steps)',
+                 'a step drops `created: true` and `saved: true` (P002), a file of a payload is `type: file` '
+                 '(P017), and a transit run on a card only for its payload may be a `move` on the board',
+                 'its records pass the validators of the models (a refused one fails every test): run it '
+                 'before every `npm run e2e`'):
+        assert text in frontend, text
+    assert "router.register('bazis.contrib.permit.router')" in scaffold.ROUTER_PY
+
+    steps = ' '.join(prompts.FRONTEND_STEPS.split())
+    assert 'then the first shot of each other screen up to the limit of 40 images of a run' in steps
+    change = ' '.join(prompts.frontend_change('the change').split())
+    assert change.endswith('against the running backend, and look at the screens the change touched.')
+
+
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the
@@ -271,8 +319,9 @@ def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     guide = catalog.catalog()['bazis-front']['agents_md']
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
-    assert {'C002', 'C004', 'C005', 'P030', 'P035', 'S030', 'S044', 'S045', 'S046', 'S047', 'S048',
-            'S049', 'S050', 'S052', 'S053', 'S054', 'S055', 'S057', 'S058'} <= named
+    assert {'C002', 'C004', 'C005', 'P002', 'P017', 'P030', 'P035', 'P037', 'S030', 'S044', 'S045',
+            'S046', 'S047', 'S048', 'S049', 'S050', 'S052', 'S053', 'S054', 'S055', 'S057', 'S058',
+            'S059', 'S060', 'S061'} <= named
     for code in named:
         assert f'| `{code}` |' in guide, code
 

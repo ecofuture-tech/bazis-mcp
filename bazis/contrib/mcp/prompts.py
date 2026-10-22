@@ -27,45 +27,40 @@ from . import scaffold
 #: description, the ports, the rounds of the screenshots, the final checks of the rules)
 FRONTEND_STEPS = """\
 Follow the steps of "Building the frontend of a product" in the introduction of the guide
-of bazis-front (`package_guide("bazis-front")`), with the section of each step read when
-you reach it, and with what this product adds to them:
+of bazis-front (`package_guide("bazis-front")`), each with its section read when you reach
+it, and with what this product adds to them:
 
 - Before step 1, read the introduction of the guide of the core (`package_guide("bazis")`)
   and choose the Bazis packages the product needs with `list_packages` (the frontend logs in
-  with bazis-users, roles and access need bazis-permit, statuses and transits
-  bazis-statusy, files bazis-uploadable). The commands of `manage.py` run with
-  `.venv/bin/python manage.py`.
+  with bazis-users). The commands of `manage.py` run with `.venv/bin/python manage.py`.
 - Step 2: the specs describe {source}, with scenarios for the main tasks of every role,
-  including what a role may not do, the `languages` and `language` of the backend, and
-  the `navigation` in groups once it has more than five links; the users who do not log in
-  are an anonymous role, listed in `roles` of each screen they open (a public screen, as
-  the rules of the frontend say); run `front_check` and fix the errors of the shape and of
-  the references before the backend.
+  including what a role may not do, the `languages` and `language` of the backend, and the
+  `navigation` in groups once it has more than five links; the users who do not log in are
+  an anonymous role, listed in `roles` of each screen they open; run `front_check` and fix
+  the errors of the shape and of the references before the backend.
 - Step 3: the backend also has the tests and the translations that the rules require,
   `makemigrations` and `run_doctor` without errors.
-- Step 5 is `front_check`. Step 6: the screens are generated, never written as TSX: a
-  screen is its spec, `spec/screens/<id>.yaml` (its texts in the languages of the product),
-  then `front_check`, then `bazis_front screens` with `run_command`, and `npm install` when it
-  set npm dependencies of the components it copied. Only what a spec cannot say goes to the
-  extension of its screen (`extend`, `frontend/src/screens/<id>/extend.tsx`), and only a
-  screen that the generated one does not fit is written by hand (`custom`), their texts
-  through `t()`; `front_catalog` lists the components they compose.
+- Step 5 is `front_check`. Step 6: a screen is its spec, `spec/screens/<id>.yaml` (its texts
+  in the languages of the product), then `front_check`, then `bazis_front screens` with
+  `run_command`, and `npm install` when it set npm dependencies. Only what a spec cannot say
+  goes to an extension (`extend`, `frontend/src/screens/<id>/extend.tsx`), only a screen the
+  generated one does not fit is written by hand (`custom`), their texts through `t()`;
+  `front_catalog` lists the components.
 - Step 7: the palette, the fonts, the shape and the surface of the design fit {source}.
 - Step 8: install the browser once (`npx playwright install chromium` in `frontend/`), and
   fix the screens, the specs or the backend until the tests pass.
-- Step 9: with the backend running as for `npm run e2e` (its test data,
-  `.venv/bin/uvicorn {name}.main:app --port <backend>`), run `bazis_front shots` with
-  `run_command`, read `frontend/.scratch/shots/report.json` and look at the screenshots
-  (`front_screenshot`, the `file` of each shot: the screens with errors or warnings and the
-  main ones first, then one of each other screen up to the limit of 40 images of a run,
-  each `part` of a tall one) against the
-  checklist of "The visual check"; fix every error in the specs, the screens,
-  the design or the backend and run `shots` again until the report has no error, at most
-  three rounds; after the third, list each error left (`shot_errors` of `front_status`) in
-  Left for you, with its screen and code. Fix each warning of the report too, or list it
-  there with why it stays. The screens not looked at go to Left for you in one line, their
-  number and their ids; without a shell, `reviewed` of `front_status` names them
-  (`not_looked`). Exit 2 means nothing was shot: start the backend, or install the browser.
+- Step 9: with the backend running as for `npm run e2e` (its test data, `.venv/bin/uvicorn
+  {name}.main:app --port <backend>`), run `bazis_front shots` with `run_command`, read
+  `frontend/.scratch/shots/report.json` and look at the screenshots (`front_screenshot`, the
+  `file` of each shot: the screens with errors or warnings and the main ones first, then the
+  first shot of each other screen up to the limit of 40 images of a run, each `part` of a
+  tall one) against the checklist of "The visual check"; fix every error and run `shots`
+  again until the report has none, at most three rounds, then list each error left
+  (`shot_errors` of `front_status`) in Left for you, with its screen and code. Fix each
+  warning of the report too, or list it there with why it stays. The screens not looked at
+  go to Left for you in one line, their number and their ids; without a shell, `reviewed` of
+  `front_status` names them (`not_looked`). Exit 2 means nothing was shot: start the
+  backend, or install the browser.
 - Step 10 is a part of the final checks of the rules: run them once, at the end. Say how to
   run the backend (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend
   (`npm run dev -- --port <frontend>` in `frontend/`) with the ports of the project.
@@ -180,7 +175,8 @@ tests again (`bazis_front e2e`), extend `e2e_data`, and finish with the whole ro
 final checks of the rules, also the checks of what {change} does not touch: `run_doctor`, the
 tests, `front_check`, `front_status`, in `frontend/` `npm run format`, `npx tsc --noEmit`,
 `npm run lint`, `npm test`, `npm run build`, `bazis_front screens --check` and
-`bazis_front shots --check`, then `npm run e2e` and `bazis_front shots` against the running backend.
+`bazis_front shots --check`, then `npm run e2e` and `bazis_front shots` against the running backend,
+and look at the screens the change touched.
 """
 
 
