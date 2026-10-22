@@ -86,13 +86,12 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   the existing rows.
 - With bazis-ws, publish from the code of a write with `publish_changed(item)` of
   `bazis.contrib.ws.messages` (after the commit), never with a Redis client or `on_commit`
-  of your own, and route the socket with `router.register('bazis.contrib.ws.router')` in
-  the root router module. Notify a user with `notify` of bazis-notify when the project has
-  it (stored, in his language, and delivered live by bazis-notify itself: never a second
-  message of bazis-ws); without bazis-notify, with `notify(users, lambda user:
-  notification(...))` of `bazis.contrib.ws.messages` (in the language of each user). An
-  amount in its text is `number_format(amount, decimal_pos=2, force_grouping=True)`
-  (`django.utils.formats`).
+  of your own, and route the socket with `router.register('bazis.contrib.ws.router')` in the
+  root router module. Notify a user with `notify` of bazis-notify when the project has it
+  (stored, in his language, and delivered live by it: never a second message of bazis-ws);
+  without bazis-notify, with `notify(users, lambda user: notification(...))` of
+  `bazis.contrib.ws.messages` (in the language of each user). An amount in its text is
+  `number_format(amount, decimal_pos=2, force_grouping=True)` (`django.utils.formats`).
 - A route set of bazis-permit that restricts its objects with its own `restrict_queryset`
   and applies it in its `get_queryset` (`FileUploadRouteSet` of bazis-uploadable, the routes
   of bazis-bg, their subclasses) needs no `permit_public = True`: set it only on a route
@@ -132,16 +131,17 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   (bazis-statusy 2.15): grant `history` only to the roles that may read the payloads, and
   mark a secret field of a payload model `Annotated[..., NOT_IN_HISTORY]`
   (`bazis.contrib.statusy.schemas`, on the field or a member of its `Optional`, never inside
-  a list or a nested model): it is validated, not kept. The calculated field
-  `status_history` is the compact history under `view`, without the payloads.
+  a list or a nested model): it is validated and given to the methods, not kept. The
+  calculated field `status_history` is the compact history under `view`, without the
+  payloads.
 - With bazis-authing, the Google login of a browser is `POST /google-auth-init/` with the
   store token as the bearer token and the credentials of the browser, then a window of the
   same browser at the `url` of its answer (bazis-authing 2.8): never a URL with the store
   token. Its one-time ticket is bound to the browser by a SameSite=Lax cookie, so the page
   is same-site with the API (an API of another origin also answers CORS with credentials).
 - Temporary files (scripts, outputs, screenshots) go to `.scratch/` of the project, which
-  Git ignores; never to `/tmp` or other directories outside the project. `clean_project`
-  removes it with the outputs of the builds and the tests.
+  Git ignores; never to `/tmp` or elsewhere outside the project. `clean_project` removes it
+  with the outputs of the builds and the tests.
 - Never read, print or copy the values of `.env`. Never write a password, token or other
   secret, also of the test users, in your messages or the summary: say where it is set
   (such as `E2E_PASSWORD`). Never run git commands that change the repository (commit,
@@ -223,14 +223,14 @@ frontends of your own.
   (`bazis_front contract`), then fix the spec or the backend until `front_check` reports
   no errors.
 - With more than five links, the navigation is `navigation` of `spec/product.yaml` with
-  groups of related screens (`{group, title, items}`), a `label` shorter than the title of a
-  screen where it is long, and an `icon` (a name of lucide, D013) where that of its entity
-  does not fit. The top bar moves the links, from the first that does not fit, into its menu
-  `nav:more` (More) by itself; a group is shared by the row and the menu: choose
-  `navigation` of the theme by the look of the product, never drop or hide links for their
-  number, and never give a screen the id `more`, the mark of that menu (S055). The link of
-  the form of a custom action requires its action by itself (a public one is shown to all):
-  give it no `requires` (S030).
+  groups of related screens (`{group, title, items}`), a `label` shorter than a long title
+  of a screen, and an `icon` (a name of lucide, D013) where that of its entity does not fit.
+  The top bar moves the links, from the first that does not fit, into its menu `nav:more`
+  (More) by itself; a group is shared by the row and the menu: choose `navigation` of the
+  theme by the look of the product, never drop or hide links for their number, and never
+  give a screen the id `more`, the mark of that menu (S055). The link of the form of a
+  custom action requires its action by itself (a public one is shown to all): give it no
+  `requires` (S030).
 - The screens are generated from their specs, never written as TSX: describe each in
   `spec/screens/<id>.yaml` and run `bazis_front screens` after every change of `spec/`. What
   a spec cannot say goes to the extension of its screen (`extend: true`,
@@ -240,19 +240,19 @@ frontends of your own.
   request) is a spec too, `primitive: form` with `form.action`, never a custom screen.
   `screens` refuses to overwrite an edited generated file (`front.W010`): move the edit to
   the extension and leave `--force`, which drops it, to the user.
-- The numbers of a dashboard are the aggregates of the core (`meta=aggregates`): a sum, an
-  average, a minimum or a maximum is the `value` of a tile (`{sum: <field>}`, `avg`, `min`,
-  `max`) or of a chart (`sum`, `avg`). Never count or sum items in the browser: what a tile
-  or a chart cannot say (a sum by a category or a related item) is `useList` with
-  `meta: ['aggregates']`, `aggregate` and `group` in an extension. A sum or an average of
-  an amount or a quantity with a fraction is of a `DecimalField` (the format `decimal` in
-  the contract, S049), and the route set of the entity filters by the field (S050). The
-  core answers 400 `ERR_AGGREGATE` over more groups than `BAZIS_API_AGGREGATE_GROUPS_MAX`
-  (1000 by default, `BS_BAZIS_API_AGGREGATE_GROUPS_MAX`): a chart by day or by week groups
-  the days of its periods, so a long one is by `month` or has a smaller `last`. The axis of
-  a chart is in the time zone of the backend (`TIME_ZONE`), not of the browser. A tile of a
-  `value` takes the whole row of a phone, and an average shows the decimal places of its
-  field (`decimal_places`, `places` of the contract): no extension for them.
+- The numbers of a dashboard are the aggregates of the core (`meta=aggregates`): an
+  aggregate is the `value` of a tile (`{sum: <field>}`, `avg`, `min`, `max`) or of a chart
+  (`sum`, `avg`). Never count or sum items in the browser: what a tile or a chart cannot say
+  (a sum by a category or a related item) is `useList` with `meta: ['aggregates']`,
+  `aggregate` and `group` in an extension. A sum or an average of an amount or a quantity
+  with a fraction is of a `DecimalField` (the format `decimal` in the contract, S049), and
+  the route set of the entity filters by the field (S050). The core answers 400
+  `ERR_AGGREGATE` over more groups than `BAZIS_API_AGGREGATE_GROUPS_MAX` (1000 by default,
+  `BS_BAZIS_API_AGGREGATE_GROUPS_MAX`): a chart by day or by week groups the days of its
+  periods, so a long one is by `month` or has a smaller `last`. The axis of a chart is in
+  the time zone of the backend (`TIME_ZONE`), not of the browser. A tile of a `value` takes
+  the whole row of a phone, and an average shows the decimal places of its field
+  (`decimal_places`, `places` of the contract): no extension for them.
 - A field of the payload of a transit or of the body of a custom action has a type that a
   form asks for: an amount or a quantity with a fraction is a `Decimal` (typed with a point
   or the comma of the language and sent as `"2.5"`), else a text, a number, a date, a
@@ -284,14 +284,15 @@ frontends of your own.
   Each warning of the report is fixed as well, or listed in Left for you with its screen,
   its code and why it stays. The errors left after the third are `shot_errors` of
   `front_status` (not stale): the work is not done while it has one that Left for you does
-  not list. The screenshots are looked at, one of each screen while the limit of the client
-  lasts (`front_screenshot` gives 40 images of a run), the screens with errors or warnings
-  and the main ones first, then the others; of a screen its first shot (another where the
-  report names an error or a warning), after a change only the screens it touched: the
-  screens not looked at go to Left for you in one line, their number and their ids, not one
-  by one with a reason. Without a shell, `reviewed` of `front_status` counts those looked at
-  whole with `front_screenshot` and names the others (`not_looked`), and the work is not
-  done while it names one that that line does not list. Never commit `frontend/.scratch/`.
+  not list with its screen, its code and why it is left. The screenshots are looked at, one
+  of each screen while the limit of the client lasts (`front_screenshot` gives 40 images of
+  a run), the screens with errors or warnings and the main ones first, then the others; of a
+  screen its first shot (another where the report names an error or a warning), after a
+  change only the screens it touched: the screens not looked at go to Left for you in one
+  line, their number and their ids, not one by one with a reason. Without a shell,
+  `reviewed` of `front_status` counts those looked at whole with `front_screenshot` and
+  names the others (`not_looked`), and the work is not done while it names one that that
+  line does not list. Never commit `frontend/.scratch/`.
 - Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/src/screens/generated/`,
   `frontend/e2e/generated/`, the
   copies of `frontend/src/bazis/client/`, `frontend/src/bazis/react/`,

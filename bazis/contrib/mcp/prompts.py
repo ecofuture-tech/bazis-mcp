@@ -27,12 +27,13 @@ from . import scaffold
 #: description, the ports, the rounds of the screenshots, the final checks of the rules)
 FRONTEND_STEPS = """\
 Follow the steps of "Building the frontend of a product" in the introduction of the guide
-of bazis-front (`package_guide("bazis-front")`), each with its section read when you reach
-it, and with what this product adds to them:
+of bazis-front (`package_guide("bazis-front")`), with what this product adds to them:
 
 - Before step 1, read the introduction of the guide of the core (`package_guide("bazis")`)
   and choose the Bazis packages the product needs with `list_packages` (the frontend logs in
-  with bazis-users). The commands of `manage.py` run with `.venv/bin/python manage.py`.
+  with bazis-users, roles and access need bazis-permit, statuses and transits bazis-statusy,
+  files bazis-uploadable). The commands of `manage.py` run with `.venv/bin/python
+  manage.py`.
 - Step 2: the specs describe {source}, with scenarios for the main tasks of every role,
   including what a role may not do, the `languages` and `language` of the backend, and the
   `navigation` in groups once it has more than five links; the users who do not log in are
@@ -40,12 +41,12 @@ it, and with what this product adds to them:
   the errors of the shape and of the references before the backend.
 - Step 3: the backend also has the tests and the translations that the rules require,
   `makemigrations` and `run_doctor` without errors.
-- Step 5 is `front_check`. Step 6: a screen is its spec, `spec/screens/<id>.yaml` (its texts
-  in the languages of the product), then `front_check`, then `bazis_front screens` with
-  `run_command`, and `npm install` when it set npm dependencies. Only what a spec cannot say
-  goes to an extension (`extend`, `frontend/src/screens/<id>/extend.tsx`), only a screen the
-  generated one does not fit is written by hand (`custom`), their texts through `t()`;
-  `front_catalog` lists the components.
+- Step 5 is `front_check`. Step 6: a screen is its spec, `spec/screens/<id>.yaml`, then
+  `front_check`, then `bazis_front screens` with `run_command`, and `npm install` when it
+  set npm dependencies. Only what a spec cannot say goes to an extension (`extend`,
+  `frontend/src/screens/<id>/extend.tsx`), only a screen the generated one does not fit is
+  written by hand (`custom`), their texts through `t()`; `front_catalog` lists the
+  components.
 - Step 7: the palette, the fonts, the shape and the surface of the design fit {source}.
 - Step 8: install the browser once (`npx playwright install chromium` in `frontend/`), and
   fix the screens, the specs or the backend until the tests pass.
@@ -61,9 +62,9 @@ it, and with what this product adds to them:
   go to Left for you in one line, their number and their ids; without a shell, `reviewed` of
   `front_status` names them (`not_looked`). Exit 2 means nothing was shot: start the
   backend, or install the browser.
-- Step 10 is a part of the final checks of the rules: run them once, at the end. Say how to
-  run the backend (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend
-  (`npm run dev -- --port <frontend>` in `frontend/`) with the ports of the project.
+- Step 10 is a part of the final checks of the rules. Say how to run the backend
+  (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend (`npm run dev --
+  --port <frontend>` in `frontend/`) with the ports of the project.
 """
 
 

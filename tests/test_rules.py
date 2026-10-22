@@ -312,6 +312,22 @@ def test_rules_of_bazis_front_0_10_0():
     assert change.endswith('against the running backend, and look at the screens the change touched.')
 
 
+def test_the_shorter_rules_keep_their_claims():
+    """
+    The rules made shorter for the limit of the result of `create_project` (2.12.0) keep
+    what the agent needs: the reason of each error of the screenshots left, the secret field
+    of a payload given to the methods, and the packages of the usual needs of a product.
+    """
+    frontend = ' '.join(FRONTEND_RULES.split())
+    assert ('the work is not done while it has one that Left for you does not list with its '
+            'screen, its code and why it is left') in frontend
+    rules = ' '.join(RULES.split())
+    assert 'NOT_IN_HISTORY]` (' in rules and 'it is validated and given to the methods, not kept' in rules
+    steps = ' '.join(prompts.FRONTEND_STEPS.split())
+    assert ('(the frontend logs in with bazis-users, roles and access need bazis-permit, statuses '
+            'and transits bazis-statusy, files bazis-uploadable)') in steps
+
+
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the
