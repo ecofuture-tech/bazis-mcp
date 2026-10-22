@@ -62,7 +62,8 @@ The project of the conversation:
   directory; a temporary directory, the home directory and a directory inside another
   project are refused), served from then on: the skeleton (bazis-front in its requirements
   and apps unless `frontend` is false, which needs Node.js), `.venv` installed from PyPI,
-  the project package `name`, the slug of the product (default: from the name of the
+  the project package `name`, the name of the product normalized to an identifier
+  (`master-na-chas` is `master_na_chas`; default: from the name of the
   directory; without it a directory named `app`, `src`, `project`, `backend` or `service`,
   which names no product, is refused) checked against the modules of the Python of the
   project, the `language` of the product (a code of Django such as `ru`,

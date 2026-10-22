@@ -520,12 +520,14 @@ class ScaffoldError(Exception):
     pass
 
 
-def package_name(directory: Path) -> str:
+def package_name(source: Path | str) -> str:
     """
-    The name of the project package: the directory name as a Python identifier that does
-    not hide a module of this Python (`django`, `json`) or the tests.
+    The name of the project package: the name of the product or of its directory as a
+    Python identifier (`master-na-chas` is `master_na_chas`) that does not hide a module of
+    this Python (`django`, `json`) or the tests.
     """
-    name = re.sub(r'\W+', '_', directory.name.lower()).strip('_')
+    text = source.name if isinstance(source, Path) else source
+    name = re.sub(r'\W+', '_', text.lower()).strip('_')
     if not name or name[0].isdigit():
         name = f'project_{name}'.rstrip('_')
     if not valid_package_name(name):

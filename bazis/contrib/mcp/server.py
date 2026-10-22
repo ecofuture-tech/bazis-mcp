@@ -76,10 +76,11 @@ projects of the current directory to choose with `use_project`, and the catalog
 - Then ask for the directory of the application unless the user named one (a new
   directory, never a temporary one; else the current working directory of the
   conversation under a new name), and call `create_project` with it, the description of
-  the user, the `name` of the product (a slug in Latin letters), the `language` of the
-  description (its code, such as `ru`; `frontend` false only for a backend without
-  screens) and the PostgreSQL server the user chose as `database` (`host:port`; not when
-  the environment of the server names one, the tool says so).
+  the user, the `name` of the product in Latin letters (it becomes the package:
+  `master-na-chas` is `master_na_chas`), the `language` of the description (its code,
+  such as `ru`; `frontend` false only for a backend without screens) and the PostgreSQL
+  server the user chose as `database` (`host:port`; not when the environment of the server
+  names one, the tool says so).
   It writes the skeleton, installs `.venv`, creates the database and serves the new
   project: do its `next_steps` following its `rules`.
 - An existing project: `use_project(directory)`, then do what is asked following the
@@ -251,9 +252,10 @@ def create_project(
     """
     Creates a Bazis project and serves it from now on. `directory` is an absolute path to a
     new or empty directory, not a temporary one nor inside another project. Pass `name`, the
-    slug of the product, the project package (default: from the name of the directory; a
-    directory such as `app`, `src`, `project`, `backend` or `service` names no product and
-    is refused without it). `frontend` adds bazis-front
+    name of the product in Latin letters, normalized to the project package as a directory
+    name is (`master-na-chas` is `master_na_chas`; the result says `name`; default: from the
+    name of the directory; a directory such as `app`, `src`, `project`, `backend` or
+    `service` names no product and is refused without it). `frontend` adds bazis-front
     (it needs Node.js; false: a backend only), `language` is the language of the product,
     a code such as `ru`, `pt-br` (default: English, until the agent sets the language of
     the description). `database` is the PostgreSQL server of the project, `host:port`, the
@@ -625,7 +627,7 @@ Create a Bazis project: {description}
 Call `check_machine` first; if programs are `missing`, list them to the user and call
 `install_tools` only after the user agrees. Then ask for its directory unless it is named
 above (a new directory, never a temporary one), and call `create_project` with it, this
-description, the name of the product (a slug), the language of the description and the
+description, the name of the product in Latin letters, the language of the description and the
 PostgreSQL server of the user (`database`, unless the environment of the server names one).
 Do its `next_steps` following its `rules` in the project directory, with the commands of
 `run_command` and the servers of `start_server`.
