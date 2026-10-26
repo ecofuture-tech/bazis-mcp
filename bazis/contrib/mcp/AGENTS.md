@@ -110,7 +110,8 @@ The work on the project served (never a command or a path of the caller outside 
   the minimum, installs `requirements-dev.txt` from PyPI into `.venv`
   (`python -m pip install -r requirements-dev.txt`) and raises the minimums to the
   installed releases: `added`, `required` (named already), `installed` (their versions)
-  and `install` (the result of pip; when it fails or the call fails meanwhile,
+  and `install` (the result of pip, its last 20 lines when it succeeds; when it fails or
+  the call fails meanwhile,
   `requirements.txt` stays as it was). When bazis-users is added to a project without
   the app `users/` of the team (`create_project` writes it for a product with a frontend),
   it writes it (`users/routes.py`, `users/router.py`; a file the project has already is
@@ -150,7 +151,9 @@ The work on the project served (never a command or a path of the caller outside 
   module of the project, `E2E_PORT` of `.bazis/ports.json` and `E2E_PASSWORD` of `.env`
   (a new project has one), whose value is hidden in their output. Returns `command`,
   `directory`, `exit_code` (null after the timeout), `ok`, `timed_out` and the last 10,000
-  bytes of `stdout` and `stderr`.
+  bytes of `stdout` and `stderr`; of an installation that succeeds (`pip`, `npm install` or
+  `ci`, `npx playwright install`) only their last 20 lines, the lines of its packages
+  being of no use (a failure keeps the whole end).
 - `start_server(which)` — `backend` (`python -m uvicorn <project package>.main:app --port
   <backend>`) or `frontend` (`npm run dev -- --port <frontend> --strictPort` in
   `frontend/`), on the ports of `.bazis/ports.json`, in the background in a new process
@@ -234,7 +237,11 @@ The frontend layer of the project (bazis-front, its guide is `package_guide("baz
 - `front_check(layer)` — the issues of the specs in `spec/` (`manage.py bazis_front check
   --json`; check the specs with it, not with `run_command`): `ok`, `contract` (false: not checked against `contract/contract.json`),
   `errors`, `warnings` and `issues` with `code`, `severity`, `file`, `path` and `hint`;
-  `layer` (`product`, `screens`, `design`) reports one layer.
+  `layer` (`product`, `screens`, `design`) reports one layer. When the specs were checked
+  against a `contract/contract.json` that `bazis_front status` reports stale (the backend
+  changed since), a `notice` comes first: the issues may come from the old contract, export
+  it (`bazis_front contract`, after `migrate`) and check again; the tool never exports it
+  itself.
 - `front_status()` — what is stale, without Node: the issues of `bazis_front status --json`
   in `stale` by the `bazis_front` command that updates the part (`contract`, `design`,
   `screens`, `e2e`, `shots`, `update`), `spec_issues` (the number of messages of the check of the specs, `front.W002`: one for each error and one for all the warnings, folded; the issues are in `front_check`),

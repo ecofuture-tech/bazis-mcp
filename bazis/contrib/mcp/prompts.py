@@ -43,25 +43,23 @@ of bazis-front (`package_guide("bazis-front")`), with what this product adds to 
   `makemigrations` and `run_doctor` without errors.
 - Step 5 is `front_check`. Step 6: a screen is its spec, `spec/screens/<id>.yaml`, then
   `front_check`, then `bazis_front screens` with `run_command`, and `npm install` when it
-  set npm dependencies. Only what a spec cannot say goes to an extension (`extend`,
-  `frontend/src/screens/<id>/extend.tsx`), only a screen the generated one does not fit is
-  written by hand (`custom`), their texts through `t()`; `front_catalog` lists the
+  set npm dependencies. Only what a spec cannot say is an extension
+  (`frontend/src/screens/<id>/extend.tsx`), only a screen the generated one does not fit
+  is written by hand (`custom`), their texts through `t()`; `front_catalog` lists the
   components.
 - Step 7: the palette, the fonts, the shape and the surface of the design fit {source}.
 - Step 8: install the browser once (`npx playwright install chromium` in `frontend/`), and
   fix the screens, the specs or the backend until the tests pass.
-- Step 9: with the backend running as for `npm run e2e` (its test data, `.venv/bin/uvicorn
-  {name}.main:app --port <backend>`), run `bazis_front shots` with `run_command`, read
-  `frontend/.scratch/shots/report.json` and look at the screenshots (`front_screenshot`, the
-  `file` of each shot: the screens with errors or warnings and the main ones first, then the
-  first shot of each other screen up to the limit of 40 images of a run, each `part` of a
-  tall one) against the checklist of "The visual check"; fix every error and run `shots`
-  again until the report has none, at most three rounds, then list each error left
-  (`shot_errors` of `front_status`) in Left for you, with its screen and code. Fix each
-  warning of the report too, or list it there with why it stays. The screens not looked at
-  go to Left for you in one line, their number and their ids; without a shell, `reviewed` of
-  `front_status` names them (`not_looked`). Exit 2 means nothing was shot: start the
-  backend, or install the browser.
+- Step 9: with the backend running as for `npm run e2e` (`.venv/bin/uvicorn {name}.main:app
+  --port <backend>`), run `bazis_front shots`, read `frontend/.scratch/shots/report.json` and
+  look at the screenshots (`front_screenshot`, the `file` of each shot: the screens with
+  errors or warnings and the main ones first, then the first shot of each other screen up to
+  the limit of 40 images of a run) against "The visual check"; fix the errors and take them
+  again, at most three rounds, then list each error left (`shot_errors` of `front_status`) in
+  Left for you, with its screen and code. Fix each warning of the report too, or list it
+  there with why it stays. The screens not looked at go to Left for you in one line, their
+  number and their ids; without a shell, `reviewed` of `front_status` names them
+  (`not_looked`). Exit 2 means nothing was shot: start the backend, or install the browser.
 - Step 10 is a part of the final checks of the rules. Say how to run the backend
   (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend (`npm run dev --
   --port <frontend>` in `frontend/`) with the ports of the project.
@@ -88,8 +86,8 @@ def language_step(language: tuple[str, str] | None) -> str:
 The product is in {own_name} (`{code}`): `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of
 `project.env` are set. Follow the rules of the languages."""
     return """\
-The language of the product is the language of the description, and it has no other unless
-the description asks for more. `project.env` has English only: if the description is not in
+The language of the product is that of the description, the only one unless it asks for
+more. `project.env` has English only: if the description is not in
 English, first set there `BS_LANGUAGES='[["<code>", "<its own name>"]]'` and
 `BS_LANGUAGE_CODE=<code>` with the code of Django of that language (`ru`, `de`, `pt-br`),
 without English. Follow the rules of the languages."""
@@ -127,8 +125,8 @@ def new_prompt(
 Build this Bazis project: {description}
 
 The skeleton is ready: the project package `{name}` (settings, root router, ASGI app in
-`{name}/main.py`), `project.env`, `.env`, `requirements.txt`, `tests/` (its `conftest.py`
-keeps the cache keys of the tests apart), and `.venv` with Bazis installed.
+`{name}/main.py`), `project.env`, `.env`, `requirements.txt`, `tests/`, and `.venv` with
+Bazis installed.
 {database}{ports}
 {language_step(language)}
 """

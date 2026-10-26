@@ -317,7 +317,8 @@ def add_packages(names: list[str], ctx: Context) -> dict:
     version of the catalog as the minimum, installs `requirements-dev.txt` from PyPI into
     `.venv` and raises the minimums to the installed releases. `added` lists the lines
     written, `required` the packages named already, `installed` the installed versions and
-    `install` the result of pip; when pip fails, `requirements.txt` stays as it was. With
+    `install` the result of pip (its last 20 lines when it succeeds); when pip fails,
+    `requirements.txt` stays as it was. With
     bazis-users newly added to a project without them it writes `users/routes.py` and
     `users/router.py` (the route set of the team, `files` lists them). Then add the apps and
     settings their guides name (`BS_INSTALLED_APPS`) yourself. Refused
@@ -343,7 +344,8 @@ def run_command(kind: KINDS, ctx: Context, args: list[str] | None = None) -> dic
     arguments are plain words in the project: no character of a shell, no `..`. No stdin:
     pass `--noinput` where Django asks. `E2E_PORT` and `E2E_PASSWORD` are set, the password
     never shown. Returns `exit_code`, `ok`, `timed_out` and the ends of `stdout` and
-    `stderr`. The servers are started with `start_server`.
+    `stderr`, of an installation that succeeds (pip, `npm install` or `ci`, `npx playwright
+    install`) their last 20 lines. The servers are started with `start_server`.
     """
     return _project_call(commands.run, kind, args or [], _progress(ctx))
 
@@ -528,9 +530,11 @@ def front_check(layer: LAYERS | None = None) -> dict:
     Validates the specs of the frontend (spec/: product, screens, design) against each other
     and the contract (`manage.py bazis_front check --json`): `issues` with stable `code`,
     `severity`, `file`, `path` and the fix in `hint`; `ok` is false if there is an error,
-    `contract` false if they were not checked against contract/contract.json. `layer`
-    reports one layer only. Without bazis-front (installed, in INSTALLED_APPS) or spec/,
-    `checked` is false and `reason` says what to do.
+    `contract` false if they were not checked against contract/contract.json. A `notice`
+    comes first when that contract is stale (the backend changed since it was exported):
+    export it with `bazis_front contract` and check again. `layer` reports one layer only.
+    Without bazis-front (installed, in INSTALLED_APPS) or spec/, `checked` is false and
+    `reason` says what to do.
     """
     return _project_call(front.check, layer)
 

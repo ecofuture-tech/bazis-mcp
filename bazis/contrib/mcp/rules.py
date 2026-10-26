@@ -23,8 +23,8 @@ RULES = """\
 # Bazis
 
 You work on a Bazis project in the current directory. Bazis builds JSON:API services on
-Django, FastAPI and Pydantic; the core is the package `bazis`, every other feature is a
-separate package `bazis-<name>`. A project installs only the packages it needs.
+Django, FastAPI and Pydantic; the core is the package `bazis`, every other feature a
+package `bazis-<name>` that a project installs only if it needs it.
 
 - The MCP server `bazis` is the source of truth about Bazis, not your memory of it:
   `list_packages`, `package_guide` (also `bazis` for the core), `guide_search`,
@@ -35,10 +35,10 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   `.venv`, the copies in `frontend/src/bazis/` and `frontend/e2e/bazis/`, checkouts). Only
   when the guide lacks a fact you need, read the source, and name the gap in "Guide gaps" of
   the summary.
-- Read `AGENTS.md` (and `CLAUDE.md` if there is one) of the project first.
+- Read `AGENTS.md` (and `CLAUDE.md` if any) of the project first.
 - Without a shell, with the tools of the MCP server `bazis` only, run the commands of these
   rules with `run_command` (`.venv/bin/python manage.py <command>` is
-  `run_command("manage", ["<command>"])`; `"pytest"`, `"pip"`, and `"npm"` and `"npx"` in
+  `run_command("manage", ["<command>"])`; `pytest`, `pip`, and `npm` and `npx` in
   `frontend/`), start and stop the servers with `start_server` and `stop_server`, add
   packages with `add_packages`, and look at the screenshots of the frontend with
   `front_screenshot`.
@@ -57,7 +57,7 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   `front.W009` (the screenshots of the frontend not taken, or their errors) in a task that
   changes no screen, spec or design of the frontend. With the database of `.env` it also
   checks the data against the declarations (`permit.W005`, `statusy.W003`: migrate); the
-  info `bazis.database` says that they did not run (no database). The tests run with
+  info `bazis.database` says they did not run (no database). The tests run with
   `.venv/bin/python -m pytest` when PostgreSQL and Redis are available (`.env`); else say
   so, never skip them silently.
 - The tests (`tests/`, pytest, `bazis_test_utils`) cover the description: a test for every
@@ -73,9 +73,9 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   pgtrigger in the test database: never write a `django_db_setup`, a fixture that installs
   the triggers or one that creates the declared roles, statuses or transits.
 - The tests share Redis (`BS_CACHES__DEFAULT__LOCATION`) with the running backend and other
-  projects: never flush its database or call `cache.clear()`. The session fixture of
-  `tests/conftest.py` prefixes the cache keys of the tests and deletes only them at the end:
-  keep it, and delete only those keys (`cache.delete_pattern('*')`). A test with
+  projects: never flush its database or call `cache.clear()`. Keep the session fixture of
+  `tests/conftest.py`, which prefixes the cache keys of the tests and deletes them at the
+  end, and delete only those keys (`cache.delete_pattern('*')`). A test with
   `transaction=True` empties the tables after it; the flush applies the declarations again,
   the other data is made by the test or its fixtures.
 - The roles of bazis-permit (with their permission groups) are declared in `<app>/roles.py`
@@ -145,7 +145,7 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
 - Never read, print or copy the values of `.env`. Never write a password, token or other
   secret, also of the test users, in your messages or the summary: say where it is set
   (such as `E2E_PASSWORD`). Never run git commands that change the repository (commit,
-  push, reset): the user reviews and commits the changes.
+  push, reset): the user reviews and commits them.
 - The database of `.env` is created by `bazis new` when PostgreSQL is reachable, with
   PostGIS (the task says what it did). Never drop or recreate it: after the first `migrate`
   add new migrations, never delete or generate again the applied ones. You may create it
@@ -157,6 +157,10 @@ separate package `bazis-<name>`. A project installs only the packages it needs.
   databases were taken and left as they are and that `.env` sets another one, only the taken
   ones are not ready (never change them): the one `.env` sets is the database of the
   project, migrate it.
+- Build only what the task asks (no admin site, extra roles or read-only flags,
+  notifications or exports it does not name): the rest goes to Left for you. The ASGI app
+  serves no admin (`runserver` does): never test it or count on it; users come from
+  `e2e_data`, `createsuperuser`, the users route.
 - The final checks are `run_doctor`, the tests and, with a frontend, the checks of its
   rules. Run the final checks once, after the last change: fix what fails and run again only
   the checks that failed. A next change asked in the conversation ends with the whole round
@@ -191,8 +195,9 @@ language needs all its texts translated and a switch.
   the code). Keep the JSON file in the project and add to it after every `make`; keep the
   `.po` and the `.mo` files. Never write a script that edits the `.po` files, never run
   `makemessages` or `compilemessages` yourself.
-- `bazis_messages` needs GNU gettext. Without it, say in the summary that the catalogs were not made and that the user installs gettext; never
-  work around it (no `.po` or `.mo` written another way).
+- `bazis_messages` needs GNU gettext. Without it, say in the summary that the catalogs were
+  not made and the user installs gettext; never work around it (no `.po` or `.mo`
+  written another way).
 - `bazis.W004` of `run_doctor` (two Bazis packages translate a msgid differently): the
   project translates the msgid itself. Declare it in `<project>/translations.py` (the
   package of the settings) with `gettext_noop`, so that `make` keeps it, and translate it
@@ -206,18 +211,16 @@ FRONTEND_RULES = """\
 # The frontend (bazis-front)
 
 The product has a frontend made by bazis-front: its specs in `spec/`, the contract of the
-backend in `contract/`, the React app in `frontend/`. The
-guide is `package_guide("bazis-front")` (`frontend/AGENTS.md` only points to its
-sections): read its introduction before you change the frontend, then the section of a
-step when you reach it. Use its commands, never generators or
-frontends of your own.
+backend in `contract/`, the React app in `frontend/`. The guide is
+`package_guide("bazis-front")` (`frontend/AGENTS.md` only points to its sections): read
+its introduction before you change the frontend.
 
 - The frontend is changed with the subcommands of `.venv/bin/python manage.py bazis_front`
   (`init`, `contract`, `check`, `add`, `design`, `screens`, `e2e`, `shots`, `update`;
-  `status` only shows its state, `version` its release). The MCP tools read it: check the
-  specs with `front_check` (its issues have a `hint` each), never `bazis_front check`
-  through `run_command`; `front_status` says what is stale and `front_catalog` lists the
-  components.
+  `status` only shows its state, `version` its release), never generators or frontends of
+  your own. The MCP tools read it: check the specs with `front_check` (its issues have a
+  `hint` each), never `bazis_front check` through `run_command`; `front_status` says what is
+  stale and `front_catalog` lists the components.
 - The specs describe the product and the backend is built to satisfy them. After every
   change of the models, routes, roles, statuses or transits: migrate, export the contract
   (`bazis_front contract`), then fix the spec or the backend until `front_check` reports
@@ -253,11 +256,11 @@ frontends of your own.
   the time zone of the backend (`TIME_ZONE`), not of the browser. A tile of a `value` takes
   the whole row of a phone, and an average shows the decimal places of its field
   (`decimal_places`, `places` of the contract): no extension for them.
-- A field of the payload of a transit or of the body of a custom action has a type that a
-  form asks for: an amount or a quantity with a fraction is a `Decimal` (typed with a point
-  or the comma of the language and sent as `"2.5"`), else a text, a number, a date, a
-  choice, the id of a related item or a list of them; another union, an object or another
-  array is typed as JSON (S054). A choice of a body is the `TextChoices` of the model (its
+- A field of a payload of a transit or of a body of a custom action has a type a form asks
+  for: an amount or a quantity with a fraction is a `Decimal` (typed with a point or the
+  comma of the language and sent as `"2.5"`), else a text, a number, a date, a choice, the
+  id of a related item or a list of them; another union, object or array is typed as JSON
+  (S054). A choice of a body is the `TextChoices` of the model (its
   labels, bazis 2.21), never a `Literal` (S058), and so is one of a payload (bazis 2.22,
   P037); a long text has no `max_length`. A decimal in an extension or a custom screen is
   the `FieldInput` of its field (its `DecimalInput`), never an input or a parse of your own.
@@ -282,7 +285,8 @@ frontends of your own.
   shot of the report, a tall one in parts, each `part` of which is looked at): fix the
   specs, the screens, the design or the backend and take them again, at most three rounds.
   Each warning of the report is fixed as well, or listed in Left for you with its screen,
-  its code and why it stays. The errors left after the third are `shot_errors` of
+  its code and why it stays (on a component of bazis-front: its defect, never fixed in the
+  copies). The errors left after the third are `shot_errors` of
   `front_status` (not stale): the work is not done while it has one that Left for you does
   not list with its screen, its code and why it is left. The screenshots are looked at, one
   of each screen while the limit of the client lasts (`front_screenshot` gives 40 images of
@@ -361,7 +365,7 @@ frontends of your own.
   items of a list are `meta: ['for_transit']` of the list, those of an item `useTransits`).
 - The frontend is in the languages of the backend (`languages` and `language` of
   `spec/product.yaml` list exactly the codes of `BS_LANGUAGES` and the one of
-  `BS_LANGUAGE_CODE`, only the language of the request, P029): a text of a spec is a map
+  `BS_LANGUAGE_CODE`, P029): a text of a spec is a map
   of those languages or a key of the dictionaries, and every text of an extension or a
   custom screen goes through `t()` with a key in the dictionaries of the product,
   `frontend/src/i18n/<language>.ts`, one for each language (listed in

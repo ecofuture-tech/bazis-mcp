@@ -76,6 +76,17 @@ SPEC_CHECK = 'front.W002'
 #: the check of bazis-front whose issue is the errors of the report of the last screenshots
 #: (`bazis_front shots`): not stale, the screens are fixed instead
 SHOTS_CHECK = 'front.W009'
+#: the start of the message of the check of the contract (`front.W001`, `command`
+#: `contract`) when contract/contract.json differs from the backend; the files generated
+#: from it for the frontend, which the specs are not checked against, have another
+STALE_PREFIX = 'The contract in '
+#: what `check` says first when the specs were checked against a stale contract/contract.json:
+#: the issues of a field or a route added since come from it (P012, S032); the contract
+#: depends on the migrations and the database, so the tool never exports it itself
+STALE_CONTRACT = (
+    'The contract is stale: run `bazis_front contract` (from the migrated database), then '
+    '`front_check` again; the issues below may come from the old contract.'
+)
 
 
 def package() -> dict | None:
@@ -104,7 +115,8 @@ def _unavailable(installed: dict | None) -> dict | None:
 def check(layer: str | None = None) -> dict:
     """
     The issues of the specs, as `manage.py bazis_front check --json` reports them (`ok`
-    is false if there is an error), or why they are not checked.
+    is false if there is an error), first a `notice` when they were checked against a
+    contract that is stale (`stale_contract`), or why they are not checked.
     """
     if unavailable := _unavailable(package()):
         return unavailable
@@ -112,12 +124,30 @@ def check(layer: str | None = None) -> dict:
     data = project.parse_json(done.stdout)
     if data is not None:
         # the specs are checked; exit code 1 means they have errors
-        return {'checked': True, 'ok': not data['errors'], **data}
+        notice = {'notice': STALE_CONTRACT} if data['contract'] and stale_contract() else {}
+        return {**notice, 'checked': True, 'ok': not data['errors'], **data}
     lines = done.stderr.strip().splitlines()
     if lines and lines[-1].startswith(COMMAND_ERROR):
         # the command refused to check, such as without spec/
         return {'checked': False, 'reason': lines[-1].removeprefix(COMMAND_ERROR)}
     raise project.failure('bazis_front check', done)
+
+
+def stale_contract() -> bool:
+    """
+    Whether `manage.py bazis_front status --json` reports contract/contract.json stale
+    (STALE_PREFIX), `bazis_front contract` exports it again. False when the status cannot be
+    read, such as while a route of the backend fails to import: the specs, which need no
+    route, are checked all the same.
+    """
+    try:
+        issues = project.manage('bazis_front', 'status', '--json')['issues']
+    except project.ProjectError:
+        return False
+    return any(
+        issue['command'] == 'contract' and issue['message'].startswith(STALE_PREFIX)
+        for issue in issues
+    )
 
 
 def status() -> dict:

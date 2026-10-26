@@ -36,11 +36,11 @@ from urllib.parse import urlsplit, urlunsplit
 #: minimums are the latest releases, not older than those of the catalog of bazis-mcp
 #: (tests/test_scaffold.py compares them); `create_venv` raises them to the installed releases,
 #: whose guides the agent reads and whose API the project uses
-REQUIREMENTS = ['bazis>=2.22.0']
+REQUIREMENTS = ['bazis>=2.23.0']
 REQUIREMENTS_DEV = ['bazis-mcp>=2.4.5', 'bazis-test-utils>=2.5.2']
 
 #: the frontend layer of a product (`bazis new` without `--no-frontend`)
-FRONTEND_REQUIREMENT = 'bazis-front>=0.10.0'
+FRONTEND_REQUIREMENT = 'bazis-front>=0.10.1'
 FRONTEND_APP = 'bazis.contrib.front'
 #: replaces FRONTEND_REQUIREMENT in requirements.txt: a pip requirement such as a path to a
 #: wheel or a checkout, or `bazis-front @ <url>`, to try a bazis-front that is not on PyPI

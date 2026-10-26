@@ -328,6 +328,65 @@ def test_the_shorter_rules_keep_their_claims():
             'and transits bazis-statusy, files bazis-uploadable)') in steps
 
 
+def test_rules_of_bazis_mcp_2_13_0():
+    """
+    The branches that service3 spent outside its request (bazis-front 0.10.1): only what the
+    task asks is built, the rest goes to Left for you; the ASGI app serves no admin, so it is
+    neither tested nor counted on; a warning of the screenshots on a component of
+    bazis-front is its defect, never fixed in the copies.
+    """
+    rules = ' '.join(RULES.split())
+    for text in ('Build only what the task asks (no admin site, extra roles or read-only flags, '
+                 'notifications or exports it does not name): the rest goes to Left for you',
+                 'The ASGI app serves no admin (`runserver` does): never test it or count on it',
+                 'users come from `e2e_data`, `createsuperuser`, the users route'):
+        assert text in rules, text
+    # among the rules of every task, before the final checks and the summary
+    assert rules.index('Build only what the task asks') < rules.index('The final checks are')
+    frontend = ' '.join(FRONTEND_RULES.split())
+    assert ('Each warning of the report is fixed as well, or listed in Left for you with its screen, '
+            'its code and why it stays (on a component of bazis-front: its defect, never fixed in '
+            'the copies)') in frontend
+
+
+def test_the_rules_said_shorter_in_2_13_0_keep_their_claims():
+    """
+    What 2.13.0 says shorter, for the limit of the result of `create_project`, is said all the
+    same: in other words, or once in the rules instead of twice.
+    """
+    rules = ' '.join(RULES.split())
+    for text in ('every other feature a package `bazis-<name>` that a project installs only if it needs it',
+                 '`run_command("manage", ["<command>"])`; `pytest`, `pip`, and `npm` and `npx` in `frontend/`',
+                 'the info `bazis.database` says they did not run (no database)',
+                 # the conftest of the skeleton, no longer described by the task
+                 'Keep the session fixture of `tests/conftest.py`, which prefixes the cache keys of the '
+                 'tests and deletes them at the end, and delete only those keys',
+                 'the user reviews and commits them', 'Read `AGENTS.md` (and `CLAUDE.md` if any)',
+                 'not made and the user installs gettext',
+                 # the sections of a guide and the language of the request, for bazis-front too
+                 'read the introduction, then a section (`package_guide(name, section)`) when a step needs it',
+                 'those of the request, one unless it asks for more',
+                 # the commands without a shell, also `bazis_front shots` of the steps
+                 'run the commands of these rules with `run_command`'):
+        assert text in rules, text
+    frontend = ' '.join(FRONTEND_RULES.split())
+    for text in ('read its introduction before you change the frontend',
+                 '`version` its release), never generators or frontends of your own',
+                 'A field of a payload of a transit or of a body of a custom action has a type a form asks for',
+                 'another union, object or array is typed as JSON (S054)',
+                 # what the step of the screenshots no longer repeats
+                 'its screenshots pass the checklist of "The visual check"',
+                 'a tall one in parts, each `part` of which is looked at',
+                 'take them again, at most three rounds', 'migrate, run `e2e_data`, start',
+                 'What a spec cannot say goes to the extension of its screen (`extend: true`'):
+        assert text in frontend, text
+    steps = ' '.join(prompts.FRONTEND_STEPS.split())
+    for text in ('Only what a spec cannot say is an extension (`frontend/src/screens/<id>/extend.tsx`)',
+                 'against "The visual check"; fix the errors and take them again, at most three rounds'):
+        assert text in steps, text
+    assert 'the only one unless it asks for more' in prompts.language_step(None).replace('\n', ' ')
+
+
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the

@@ -344,6 +344,42 @@ async def test_run_command_keeps_the_end_of_a_long_output(client, shop):
     assert len(call_result.content[0].text.encode()) < catalog.RESULT_LIMIT
 
 
+#: the output of an installation: a line of each package, then its end
+INSTALL_OUTPUT = ''.join(f'Requirement already satisfied: package-{n}\n' for n in range(100))
+
+
+@pytest.mark.parametrize('kind, args', [
+    ('pip', ['install', '-r', 'requirements-dev.txt']),
+    ('npm', ['install']),
+    ('npm', ['ci']),
+    ('npx', ['playwright', 'install', 'chromium']),
+])
+async def test_run_command_keeps_the_end_of_an_installation(client, shop, fake_popen, kind, args):
+    """
+    An installation that succeeds gives its last lines only, the lines of its packages say
+    nothing the agent needs (service3: the output of pip and npm in the context); one that
+    fails keeps the whole end of its output, as every other command does.
+    """
+    fake_popen.stdout = INSTALL_OUTPUT
+
+    done = result(await client.call_tool('run_command', {'kind': kind, 'args': args}))
+
+    lines = INSTALL_OUTPUT.splitlines(keepends=True)
+    assert done['ok'] is True and done['stdout'] == ''.join(lines[-commands.INSTALL_LINES:])
+
+    fake_popen.returncode = 1
+    done = result(await client.call_tool('run_command', {'kind': kind, 'args': args}))
+    assert done['ok'] is False and done['stdout'] == INSTALL_OUTPUT
+
+
+async def test_run_command_keeps_the_output_of_another_command(client, shop, fake_popen):
+    fake_popen.stdout = INSTALL_OUTPUT
+
+    done = result(await client.call_tool('run_command', {'kind': 'npm', 'args': ['build']}))
+
+    assert done['ok'] is True and done['stdout'] == INSTALL_OUTPUT
+
+
 def test_closure():
     """
     The packages and those they require, each once, the packages named first.
@@ -371,9 +407,13 @@ async def test_add_packages(client, shop, fake_popen, monkeypatch):
     packages = commands.closure(['bazis-permit'])
     assert 'bazis-users' in packages and 'bazis' in packages
 
+    fake_popen.stdout = INSTALL_OUTPUT
+
     done = result(await client.call_tool('add_packages', {'names': ['bazis-permit']}))
 
     expected = [f'{name}>={known[name]["version"]}' for name in packages if name != 'bazis']
+    # pip succeeded: the end of its output
+    assert done['install']['stdout'].splitlines() == INSTALL_OUTPUT.splitlines()[-commands.INSTALL_LINES:]
     assert done['added'] == expected
     assert done['required'] == ['bazis']
     assert done['installed'] == {'bazis': metadata.version('bazis')}
