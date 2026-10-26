@@ -110,17 +110,72 @@ NOT_INSTALLED = probe_output(None, None, None)
 async def test_front_check_reports_the_issues(client, fake_run):
     report = {'contract': True, 'errors': 1, 'warnings': 0, 'issues': [SPEC_ISSUE]}
     fake_run.outputs = [
-        probe_output(), (1, json.dumps(report), 'CommandError: The specs have 1 errors.\n')
+        probe_output(), (1, json.dumps(report), 'CommandError: The specs have 1 errors.\n'),
+        status_output(),
     ]
 
     checked = result(await client.call_tool('front_check', {'layer': 'product'}))
 
+    # checked against the contract: the status says whether it is stale
     assert fake_run.calls[1:] == [
-        ['-m', 'django', 'bazis_front', 'check', '--json', '--layer', 'product']
+        ['-m', 'django', 'bazis_front', 'check', '--json', '--layer', 'product'],
+        ['-m', 'django', 'bazis_front', 'status', '--json'],
     ]
     # the probe reads the settings of the project
-    assert fake_run.settings == ['sample.settings', 'sample.settings']
+    assert fake_run.settings == ['sample.settings'] * 3
     assert checked == {'checked': True, 'ok': False, **report}
+
+
+#: the check of the contract in `bazis_front status --json` when contract.json is stale, and
+#: when only the files generated from it for the frontend are
+STALE = issue(
+    'front.W001',
+    'The contract in /app/contract is stale: contract.json differ from the backend. The generated '
+    'files of /app/frontend are stale: src/bazis/generated/contract.ts.',
+    'Export it with `manage.py bazis_front contract`; never edit it by hand.', command='contract',
+)
+STALE_GENERATED = issue(
+    'front.W001', 'The generated files of /app/frontend are stale: src/bazis/generated/schema.d.ts.',
+    'Export it with `manage.py bazis_front contract`; never edit it by hand.', command='contract',
+)
+
+
+async def test_front_check_against_a_stale_contract(client, fake_run):
+    """
+    Specs checked against a contract.json that the backend left behind (a field added, the
+    contract not exported) get a `notice` first, with the issues all the same (service3,
+    SECOND: P012 and S032 of the old contract); the tool never exports the contract.
+    """
+    report = {'contract': True, 'errors': 1, 'warnings': 0, 'issues': [SPEC_ISSUE]}
+    fake_run.outputs = [probe_output(), (1, json.dumps(report), ''), status_output(STALE)]
+
+    call_result = await client.call_tool('front_check', {})
+
+    checked = result(call_result)
+    assert checked == {'notice': front.STALE_CONTRACT, 'checked': True, 'ok': False, **report}
+    assert next(iter(checked)) == 'notice'  # the first thing the client reads
+    assert 'run `bazis_front contract`' in checked['notice']
+    assert len(fake_run.calls) == 3  # the probe, check and status: no contract command
+
+
+@pytest.mark.parametrize(
+    'status',
+    [status_output(STALE_GENERATED), status_output(),
+     (1, '', "ImportError: cannot import name 'x'\n")],
+    ids=['generated files', 'up to date', 'routes that do not import'],
+)
+async def test_front_check_without_a_notice(client, fake_run, status):
+    """
+    No notice when contract.json is current (also when only the files generated from it are
+    stale, which the specs are not checked against), nor when the status cannot be read: the
+    specs, which need no route, are checked all the same.
+    """
+    report = {'contract': True, 'errors': 0, 'warnings': 0, 'issues': []}
+    fake_run.outputs = [probe_output(), (0, json.dumps(report), ''), status]
+
+    checked = result(await client.call_tool('front_check', {}))
+
+    assert checked == {'checked': True, 'ok': True, **report}
 
 
 async def test_front_check_of_valid_specs(client, fake_run):
@@ -129,6 +184,7 @@ async def test_front_check_of_valid_specs(client, fake_run):
 
     checked = result(await client.call_tool('front_check', {}))
 
+    # not checked against a contract (none yet, such as before the backend): no status asked
     assert fake_run.calls[1:] == [['-m', 'django', 'bazis_front', 'check', '--json']]
     assert checked['checked'] is True and checked['ok'] is True
 
@@ -407,6 +463,17 @@ async def test_front_tools_on_a_project(client, front_project):
     assert 'bazis_front design' in status['stale']['design'][0]['hint']
     # without Node schema.d.ts is not generated: the contract stays stale
     assert 'schema.d.ts' in status['stale']['contract'][0]['message']
+    # but contract.json, which the specs are checked against, is current: no notice
+    assert 'notice' not in checked
+
+    # a field added to a model, the contract not exported: the same issues, a notice first
+    models = front_project / 'shop' / 'models.py'
+    models.write_text(models.read_text() + "    note = models.CharField('Note', max_length=100, blank=True)\n")
+    stale = result(await client.call_tool('front_check', {}))
+    assert stale == {'notice': front.STALE_CONTRACT, **checked}
+
+    bazis_front(front_project, 'contract', '--no-node')
+    assert result(await client.call_tool('front_check', {})) == checked
 
 
 @requires_front

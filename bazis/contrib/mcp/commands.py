@@ -35,6 +35,10 @@ TIMEOUT = 600
 PROGRESS_INTERVAL = 5
 #: the end of stdout and of stderr kept in a result, in bytes
 OUTPUT_LIMIT = 10_000
+#: the lines of stdout and of stderr kept when an installation succeeds (`installs`): the
+#: lines of its packages fill the context of the agent and say nothing it needs; a failure
+#: keeps the whole end
+INSTALL_LINES = 20
 #: the package whose app `users/` `add_packages` writes
 USERS = 'bazis-users'
 
@@ -230,28 +234,42 @@ def environment() -> tuple[dict[str, str], str | None]:
     return env, password
 
 
-def tail(text: str, secret: str | None = None) -> str:
+def tail(text: str, secret: str | None = None, lines: int | None = None) -> str:
     """
-    The end of an output within OUTPUT_LIMIT bytes, without the colors of a terminal and the
-    `secret`.
+    The end of an output within OUTPUT_LIMIT bytes, its last `lines` lines when given,
+    without the colors of a terminal and the `secret`.
     """
     text = ANSI_RE.sub('', text)
     if secret:
         text = text.replace(secret, '***')
+    if lines is not None:
+        text = ''.join(text.splitlines(keepends=True)[-lines:])
     return text.encode()[-OUTPUT_LIMIT:].decode(errors='ignore')
+
+
+def installs(kind: str, args: list[str]) -> bool:
+    """
+    Whether the command of `kind` with `args` (as `argv` accepts it) installs packages:
+    `pip install`, `npm install` or `ci`, `npx playwright install`.
+    """
+    return (
+        kind == 'pip'
+        or (kind == 'npm' and args in (['install'], ['ci']))
+        or (kind == 'npx' and args[:2] == ['playwright', 'install'])
+    )
 
 
 def execute(
     command: list[str], cwd: Path, env: dict[str, str], secret: str | None = None,
-    progress: Progress | None = None,
+    progress: Progress | None = None, success_lines: int | None = None,
 ) -> dict:
     """
     Runs `command` in `cwd` in a new process group, reporting the seconds it has run to
     `progress` every PROGRESS_INTERVAL, and kills the group after TIMEOUT seconds: the
     `exit_code` (null after the timeout), `ok`, `timed_out` and the ends of `stdout` and
-    `stderr` (`tail`). On an exception, such as one of `progress`, the group is killed too.
-    While it runs, the command is in `processes.COMMANDS`, stopped with the servers when this
-    server ends.
+    `stderr` (`tail`), of `success_lines` lines when it succeeds. On an exception, such as
+    one of `progress`, the group is killed too. While it runs, the command is in
+    `processes.COMMANDS`, stopped with the servers when this server ends.
     """
     with processes.LOCK:
         try:
@@ -285,24 +303,28 @@ def execute(
     finally:
         with processes.LOCK:
             processes.COMMANDS.discard(process)
+    ok = not timed_out and process.returncode == 0
+    lines = success_lines if ok else None
     return {
         'command': shlex.join(command),
         'directory': str(cwd),
         'exit_code': None if timed_out else process.returncode,
-        'ok': not timed_out and process.returncode == 0,
+        'ok': ok,
         'timed_out': timed_out,
-        'stdout': tail(stdout, secret),
-        'stderr': tail(stderr, secret),
+        'stdout': tail(stdout, secret, lines),
+        'stderr': tail(stderr, secret, lines),
     }
 
 
 def run(kind: str, args: list[str], progress: Progress | None = None) -> dict:
     """
-    Runs the command of `kind` with `args` (`argv`) with the `environment` of the project.
+    Runs the command of `kind` with `args` (`argv`) with the `environment` of the project;
+    of an installation that succeeds only the last INSTALL_LINES lines of its output.
     """
     command, cwd = argv(kind, args)
     env, password = environment()
-    return execute(command, cwd, env, password, progress)
+    lines = INSTALL_LINES if installs(kind, args) else None
+    return execute(command, cwd, env, password, progress, lines)
 
 
 def _name(requirement: str) -> str:
@@ -405,7 +427,7 @@ def add_packages(names: list[str], progress: Progress | None = None) -> dict:
     try:
         command, cwd = argv('pip', PIP)
         env, password = environment()
-        done = execute(command, cwd, env, password, progress)
+        done = execute(command, cwd, env, password, progress, INSTALL_LINES)
         installed = done['ok']
     finally:
         if not installed:
