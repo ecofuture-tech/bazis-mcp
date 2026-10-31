@@ -225,8 +225,7 @@ its introduction before you change the frontend.
 - The specs describe the product and the backend is built to satisfy them. After every
   change of the models, routes, roles, statuses or transits: migrate, export the contract
   (`bazis_front contract`), then fix the spec or the backend until `front_check` reports
-  no errors. With a shell, lint each spec file you write (`.venv/bin/python -m
-  bazis.contrib.front.spec.lint <file>`) before `front_check`.
+  no errors.
 - With more than five links, the navigation is `navigation` of `spec/product.yaml` with
   groups of related screens (`{group, title, items}`), a `label` shorter than a long title
   of a screen, and an `icon` (a name of lucide, D013) where that of its entity does not fit.
@@ -342,7 +341,7 @@ its introduction before you change the frontend.
   picker (`filter`, `filters`, S061), several files (`type: file`, `many: true`), a move
   with a payload and what a role may not do (`transit_absent`, `action_absent: edit`,
   `field_readonly`; else a pytest of the 403); since 0.11 the meta of an exported file
-  (`file_meta` of `http_post`, bazis 2.25: a flat model, no Enum, under 4096 bytes; S053),
+  (`file_meta` of `http_post`, bazis 2.25: a flat model, no Enum, at most 4096 bytes; S053),
   the photos of public objects (`display: image`, S062) and the days of the browser in a
   `filter` (`today`, `month_start`, `month_end+1`, S014). After the update to 0.9 (a contract
   of format 11) or 0.11 a custom screen or test of your own that did them becomes the spec.

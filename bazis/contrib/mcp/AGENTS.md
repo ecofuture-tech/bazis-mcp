@@ -180,9 +180,13 @@ The work on the project served (never a command or a path of the caller outside 
   A file read is UTF-8 text: its lines from `offset` (the first is 0), at most `limit`,
   in a result of about 40,000 bytes at most; `next_offset` is the line to read next, null
   at the end, so a longer file is read in parts. A file written has at most 1,000,000
-  bytes, its directories are created. `delete_file` deletes one file (`path`, `link`): a
-  symbolic link is deleted itself, never what it links to (a file of the project); never
-  a directory nor what is never written. `clean_project` removes the temporary files and
+  bytes, its directories are created. A file of `spec/` (`.yaml`, `.yml`, `.json`) is
+  linted once written by `python -m bazis.contrib.front.spec.lint --json` with the Python of
+  the project (bazis-front 0.11, without Django): `lint` is `{ok, issues}` (the YAML and the
+  shape, with the hints of `bazis_front check`), null when the lint cannot run (bazis-front
+  older or not installed) or says nothing (a file of no layer); the file stays written.
+  `delete_file` deletes one file (`path`, `link`): a symbolic link is deleted itself, never
+  what it links to (a file of the project); never a directory nor what is never written. `clean_project` removes the temporary files and
   the outputs of the builds and the tests, which the commands make again: `.scratch/`,
   `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/` and
   `frontend/node_modules/.vite-e2e/`, those the project has (`removed`; a symbolic link

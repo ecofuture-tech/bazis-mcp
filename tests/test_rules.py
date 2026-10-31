@@ -391,8 +391,7 @@ def test_rules_of_bazis_mcp_2_14_0():
     """
     What rental1 wrote as code of its own (bazis-front 0.11.0, bazis 2.25.0,
     bazis-uploadable 2.9.0) is said by the specs: the meta of an exported file, the photos of
-    public objects (never a `/media` URL) and the days of the browser in a filter; a spec
-    file is linted as it is written. A test of parallel requests asks for one success at
+    public objects (never a `/media` URL) and the days of the browser in a filter. A test of parallel requests asks for one success at
     least (all of them refused pass the invariant too).
     """
     rules = ' '.join(RULES.split())
@@ -401,10 +400,8 @@ def test_rules_of_bazis_mcp_2_14_0():
                  '(bazis-uploadable 2.9, `uploadable.W003`), never by `/media`'):
         assert text in rules, text
     frontend = ' '.join(FRONTEND_RULES.split())
-    for text in ('With a shell, lint each spec file you write (`.venv/bin/python -m '
-                 'bazis.contrib.front.spec.lint <file>`) before `front_check`',
-                 'since 0.11 the meta of an exported file (`file_meta` of `http_post`, bazis 2.25: a '
-                 'flat model, no Enum, under 4096 bytes; S053)',
+    for text in ('since 0.11 the meta of an exported file (`file_meta` of `http_post`, bazis 2.25: a '
+                 'flat model, no Enum, at most 4096 bytes; S053)',
                  'the photos of public objects (`display: image`, S062)',
                  'the days of the browser in a `filter` (`today`, `month_start`, `month_end+1`, S014)',
                  'After the update to 0.9 (a contract of format 11) or 0.11 a custom screen or test '
