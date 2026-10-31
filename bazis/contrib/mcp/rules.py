@@ -67,11 +67,11 @@ package `bazis-<name>` that a project installs only if it needs it.
   for every limit and uniqueness a test of parallel requests
   (`@pytest.mark.django_db(transaction=True)`; `parallel` of `bazis_test_utils` when its
   guide has it, else threads started together by a `threading.Barrier`, each closing its
-  database connections): the invariant holds, the answers that succeed are 201 or 200 (a
-  change or a transit), the others 409 or 422, never a 5xx. At least 10 tests; none of the
-  framework itself. The pytest plugin of `bazis_test_utils` installs the triggers of
-  pgtrigger in the test database: never write a `django_db_setup`, a fixture that installs
-  the triggers or one that creates the declared roles, statuses or transits.
+  database connections): the invariant holds, at least one succeeds, the answers that
+  succeed are 201 or 200 (a change or a transit), the others 409 or 422, never a 5xx. At
+  least 10 tests; none of the framework itself. Never write a `django_db_setup` or a fixture
+  of the triggers of pgtrigger (the pytest plugin of `bazis_test_utils` installs them) or of
+  the declared roles, statuses or transits.
 - The tests share Redis (`BS_CACHES__DEFAULT__LOCATION`) with the running backend and other
   projects: never flush its database or call `cache.clear()`. Keep the session fixture of
   `tests/conftest.py`, which prefixes the cache keys of the tests and deletes them at the
@@ -103,7 +103,9 @@ package `bazis-<name>` that a project installs only if it needs it.
   for you: `uploadable_clean_anonymous` in cron, `client_max_body_size` and
   `X-Forwarded-For` of the proxy. The limit of the uploads stays a few megabytes, also for
   the photos of phones (bazis-front 0.10 reduces a larger image, `fitImage`); with bazis
-  2.22 set `BS_BAZIS_API_MAX_BODY_SIZE` in `project.env` a megabyte above it.
+  2.22 set `BS_BAZIS_API_MAX_BODY_SIZE` in `project.env` a megabyte above it. A guest reads
+  the files of `files_visible` of the objects a route set shows him (bazis-uploadable 2.9,
+  `uploadable.W003`), never by `/media`.
 - `changes.user` of a guest (`validate_item`, a public action or transit) is the
   `AnonymousUser`, never None: test `is_authenticated`, not `pk`.
 - A location is a `PointField` of `django.contrib.gis.db.models` (`geography=True` when the
@@ -113,14 +115,14 @@ package `bazis-<name>` that a project installs only if it needs it.
   route, never by a distance computed in Python or SQL of your own; a distance in the code
   is `point_distance`/`point_within` of `bazis.core.utils.geo`.
 - The app `users/` of the team (`users/routes.py`, `users/router.py`) is in the skeleton of
-  a product with a frontend (`create_project`; `add_packages` writes it with bazis-users).
-  With bazis-users, add the package, the app `users` to `BS_INSTALLED_APPS` and
+  a product with a frontend (`add_packages` writes it with bazis-users). With bazis-users,
+  add the package, the app `users` to `BS_INSTALLED_APPS` and
   `router.register('users.router')` to the root router module; the app keeps its name and
-  these files (a user model of its own is in `users/models.py`, with `UserLanguageMixin`).
+  these files (a user model of its own in `users/models.py`, with `UserLanguageMixin`).
   That registration also declares the token endpoint (`users.E002`): never register the
   bundled `bazis.contrib.users.router`, and never only import `bazis.contrib.users.token`.
-  Without it a frontend labels the users by the start of an id, and `front_check` warns
-  P036. Widen only its `restrict_queryset` for `view`, never remove it. A picker of the
+  Without it `front_check` warns P036. Widen only its `restrict_queryset` for `view`, never
+  remove it. A picker of the
   users of a role (`roles__slug`) needs `router.register('bazis.contrib.permit.router')`
   too, which makes the roles a public catalog (say so in Left for you): never narrow it in
   the frontend, by the id of a role or in `restrict_queryset`.
@@ -140,8 +142,8 @@ package `bazis-<name>` that a project installs only if it needs it.
   token. Its one-time ticket is bound to the browser by a SameSite=Lax cookie, so the page
   is same-site with the API (an API of another origin also answers CORS with credentials).
 - Temporary files (scripts, outputs, screenshots) go to `.scratch/` of the project, which
-  Git ignores; never to `/tmp` or elsewhere outside the project. `clean_project` removes it
-  with the outputs of the builds and the tests.
+  Git ignores; never to `/tmp` or elsewhere. `clean_project` removes it with the outputs of
+  the builds and the tests.
 - Never read, print or copy the values of `.env`. Never write a password, token or other
   secret, also of the test users, in your messages or the summary: say where it is set
   (such as `E2E_PASSWORD`). Never run git commands that change the repository (commit,
@@ -153,7 +155,7 @@ package `bazis-<name>` that a project installs only if it needs it.
   When the task says that the database of `.env` already has data of another project or
   could not be inspected, it is not ready: never migrate it nor change its data, say that
   the user checks the access to it or sets another `BS_DATABASES__DEFAULT__NAME` in `.env`
-  (`database_name` of `project_status` is the one the project uses). When it says that
+  (`database_name` of `project_status` names the one in use). When it says that
   databases were taken and left as they are and that `.env` sets another one, only the taken
   ones are not ready (never change them): the one `.env` sets is the database of the
   project, migrate it.
@@ -175,9 +177,9 @@ package `bazis-<name>` that a project installs only if it needs it.
 # Languages
 
 The languages of the product are `BS_LANGUAGES` and `BS_LANGUAGE_CODE` of `project.env`:
-those of the request, one unless it asks for more. Never add English, the language of
-the msgids, for its own sake: bazis-front and Django fall back to it, and a second
-language needs all its texts translated and a switch.
+those of the request, one unless it asks for more. Never add English (the msgids) for its
+own sake: bazis-front and Django fall back to it, and a second language needs all its
+texts translated and a switch.
 
 - The texts of the code are English msgids through `gettext_lazy`: `verbose_name`,
   `help_text`, the labels of `choices`, the titles and the messages. Keep them lazy (no
@@ -186,12 +188,11 @@ language needs all its texts translated and a switch.
   into the column of each language with the catalog of the project.
 - Translate them into every other language in the catalogs of the project
   (`locale/<language>/LC_MESSAGES/django.po` of the project and of its apps) with
-  `.venv/bin/python manage.py bazis_messages`, run in the project root: `make` (it creates
-  `locale/`, runs makemessages with the ignores of a project and prints what is
-  `untranslated` or `fuzzy`), write the translations of those entries to
-  `locale/translations.json` (`{"<language>": {"<msgid>": "<msgstr>"}}`, a plural with the
-  list of its forms), then `apply locale/translations.json --check` (it compiles the
-  catalogs). Remove from the file the msgids that `apply` reports as `unknown` (no longer in
+  `.venv/bin/python manage.py bazis_messages`, run in the project root: `make` (it runs
+  makemessages into `locale/` and prints what is `untranslated` or `fuzzy`), write the
+  translations of those entries to `locale/translations.json`
+  (`{"<language>": {"<msgid>": "<msgstr>"}}`, a plural with the list of its forms), then
+  `apply locale/translations.json --check` (it compiles the catalogs). Remove from the file the msgids that `apply` reports as `unknown` (no longer in
   the code). Keep the JSON file in the project and add to it after every `make`; keep the
   `.po` and the `.mo` files. Never write a script that edits the `.po` files, never run
   `makemessages` or `compilemessages` yourself.
@@ -224,7 +225,8 @@ its introduction before you change the frontend.
 - The specs describe the product and the backend is built to satisfy them. After every
   change of the models, routes, roles, statuses or transits: migrate, export the contract
   (`bazis_front contract`), then fix the spec or the backend until `front_check` reports
-  no errors.
+  no errors. With a shell, lint each spec file you write (`.venv/bin/python -m
+  bazis.contrib.front.spec.lint <file>`) before `front_check`.
 - With more than five links, the navigation is `navigation` of `spec/product.yaml` with
   groups of related screens (`{group, title, items}`), a `label` shorter than a long title
   of a screen, and an `icon` (a name of lucide, D013) where that of its entity does not fit.
@@ -232,8 +234,7 @@ its introduction before you change the frontend.
   (More) by itself; a group is shared by the row and the menu: choose `navigation` of the
   theme by the look of the product, never drop or hide links for their number, and never
   give a screen the id `more`, the mark of that menu (S055). The link of the form of a
-  custom action requires its action by itself (a public one is shown to all): give it no
-  `requires` (S030).
+  custom action requires its action itself: give it no `requires` (S030).
 - The screens are generated from their specs, never written as TSX: describe each in
   `spec/screens/<id>.yaml` and run `bazis_front screens` after every change of `spec/`. What
   a spec cannot say goes to the extension of its screen (`extend: true`,
@@ -268,13 +269,12 @@ its introduction before you change the frontend.
   Enum or a Literal of strings is `string` as well, never `json` (an `IntEnum` is
   `integer`).
 - The YAML of the specs follows YAML 1.2: a text with `: ` or a special first character goes
-  in quotes (`summary: "Tasks: of the team"`), so does a text with `, ` in a flow mapping
+  in quotes, so does a text with `, ` in a flow mapping
   (`values: {note: "entrance 1, floor 3"}`, P002), and `summary` of `product` is a text or a
-  map of the languages of the product.
-- A file that a scenario uploads (`upload`, a payload) is a file of
-  `frontend/e2e/fixtures/`, which `npm run format` leaves byte for byte: an image is
-  `photo.png` of the template, another file of the product is written beside it; never one
-  made by a script or a test, never in a generated directory.
+  map of the languages.
+- A file that a scenario uploads (`upload`, a payload) is a file of `frontend/e2e/fixtures/`:
+  an image is `photo.png` of the template, another file of the product is written beside it;
+  never one made by a script or a test, never in a generated directory.
 - With bazis-authing, the login screen of the template offers Google only with bazis-authing
   2.8 or newer: `check` warns of the `GET` of an older one (C005): upgrade bazis-authing to
   2.8.0 (it requires bazis 2.19) and export the contract again; a login screen of your own
@@ -341,8 +341,11 @@ its introduction before you change the frontend.
   status (`when`, S059), the values a form starts with (`values`, S060), the items of a
   picker (`filter`, `filters`, S061), several files (`type: file`, `many: true`), a move
   with a payload and what a role may not do (`transit_absent`, `action_absent: edit`,
-  `field_readonly`; else a pytest of the 403). After the update to 0.9 (a contract of format
-  11) a custom screen or test of your own that did them becomes the spec.
+  `field_readonly`; else a pytest of the 403); since 0.11 the meta of an exported file
+  (`file_meta` of `http_post`, bazis 2.25: a flat model, no Enum, under 4096 bytes; S053),
+  the photos of public objects (`display: image`, S062) and the days of the browser in a
+  `filter` (`today`, `month_start`, `month_end+1`, S014). After the update to 0.9 (a contract
+  of format 11) or 0.11 a custom screen or test of your own that did them becomes the spec.
 - After `pip install -U bazis-front`, `bazis_front update` merges the copies and the
   template: a conflict of `frontend/src/app/router.tsx` is resolved by taking the file of
   the template, its pristine copy
@@ -354,15 +357,14 @@ its introduction before you change the frontend.
   contract is of format 10, and `check` reports C002 until `bazis_front contract` exports it
   again; with the capability `statusy`, the frontend needs `bazis-statusy>=2.13.0` (C004,
   `front.W006`). A custom screen that only sends a custom action becomes the form of the
-  action (its directory and end-to-end tests deleted, `custom: true` removed), an extension
-  that only widened a tile of a sum on a phone is removed, a screen with the id `more` is
-  renamed (S055), and code that read `CAPABILITIES.authing.token_param` (gone in format 10)
-  uses `loginInWindow`. The update to 0.10 adds `e2e/fixtures/photo.png` (rename a file of
-  the product of that name first, with its `upload` steps); then a step drops `created:
-  true` and `saved: true` (P002), a file of a payload is `type: file` (P017), and a transit
-  run on a card only for its payload may be a `move` on the board. `useTransitsOf` and the
-  message `board.no_moves` are gone since 0.5: never write code on them (the transits of the
-  items of a list are `meta: ['for_transit']` of the list, those of an item `useTransits`).
+  action (its directory and end-to-end tests deleted, `custom: true` removed), a screen with
+  the id `more` is renamed (S055), and code that read `CAPABILITIES.authing.token_param`
+  (gone in format 10) uses `loginInWindow`. The update to 0.10 adds `e2e/fixtures/photo.png`
+  (rename a file of the product of that name first, with its `upload` steps); then a step
+  drops `created: true` and `saved: true` (P002), a file of a payload is `type: file` (P017),
+  and a transit run on a card only for its payload may be a `move` on the board.
+  `useTransitsOf` and the message `board.no_moves` are gone since 0.5: never write code on
+  them.
 - The frontend is in the languages of the backend (`languages` and `language` of
   `spec/product.yaml` list exactly the codes of `BS_LANGUAGES` and the one of
   `BS_LANGUAGE_CODE`, P029): a text of a spec is a map
@@ -387,10 +389,10 @@ its introduction before you change the frontend.
   init` write `BAZIS_API_URL=http://localhost:<backend>` in `frontend/.env.local` (not committed), which `npm run dev` and `npm run e2e` read; the
   dev server is `npm run dev -- --port <frontend>`.
 - After a change of the frontend run `npx tsc --noEmit` in `frontend/` and fix what it
-  reports; format only with `npm run format` (the prettier pinned in its `package.json`,
-  which leaves the copies alone), never `npx prettier`. After the last edit of any file of
-  `frontend/` (also one made to fix a later check) run `npm run format` and `npm run lint`
-  again: a file edited after them is unformatted.
+  reports; format only with `npm run format` (its pinned prettier, which leaves the copies
+  alone), never `npx prettier`. After the last edit of any file of `frontend/` (also one
+  made to fix a later check) run `npm run format` and `npm run lint` again: a file edited
+  after them is unformatted.
 - The final checks of the frontend: `front_check` without errors, `front_status` with
   nothing stale and no `shot_errors` (or each of them in Left for you, after the three
   rounds of the screenshots), and in `frontend/` `npm run format`, `npx tsc --noEmit`,
@@ -401,6 +403,6 @@ its introduction before you change the frontend.
   <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm
   run e2e` and `bazis_front shots`, then stop the backend.
   A test that fails only sometimes gets one attempt at a fix, then goes to Left for you.
-- Without Node.js with npm (`npm install`, the build and the tests) or a migrated database
-  (the contract), do the other steps and say which ones did not run.
+- Without Node.js and npm, or a migrated database (the contract), do the other steps and
+  say which did not run.
 """
