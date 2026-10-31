@@ -62,7 +62,7 @@ PROBE_NAME = 'Reading bazis-front'
 #: the lint of a file of the specs (bazis-front 0.11), run by `write_file` on the files of
 #: `spec/` with SPEC_SUFFIXES
 LINT = 'bazis.contrib.front.spec.lint'
-SPEC_SUFFIXES = ('.yaml', '.yml', '.json')
+SPEC_SUFFIXES = ('.yaml', '.json')
 
 NOT_INSTALLED = (
     'bazis-front is not installed in the Python of the project: install it (`pip install '

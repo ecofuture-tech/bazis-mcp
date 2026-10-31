@@ -406,10 +406,13 @@ async def test_write_file_lints_a_spec_file(client, spec_project, fake_run):
     written = result(await client.call_tool('write_file', {'path': 'spec/product.yaml', 'content': 'x: 1\n'}))
     assert written['lint'] == {'ok': False, 'issues': [SPEC_ISSUE]}
     assert fake_run.calls == [['-m', front.LINT, 'spec/product.yaml', '--json']]
-    written = result(await client.call_tool('write_file', {'path': 'spec/screens/home.yml', 'content': 'x: 1\n'}))
+    written = result(await client.call_tool('write_file', {'path': 'spec/screens/home.yaml', 'content': 'x: 1\n'}))
     assert written['lint'] == {'ok': True, 'issues': [warning]}
 
     written = result(await client.call_tool('write_file', {'path': 'shop/settings.yaml', 'content': 'x: 1\n'}))
+    assert 'lint' not in written and len(fake_run.calls) == 2
+    # bazis-front rejects `.yml` as not a file of the specs: it is not linted
+    written = result(await client.call_tool('write_file', {'path': 'spec/screens/home.yml', 'content': 'x: 1\n'}))
     assert 'lint' not in written and len(fake_run.calls) == 2
 
 
