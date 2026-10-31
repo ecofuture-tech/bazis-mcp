@@ -138,7 +138,7 @@ limits protect from.
 | `add_packages(names)` | Adds Bazis packages and those they require to `requirements.txt` and installs them from PyPI into `.venv` |
 | `run_command(kind, args)` | Runs a command of a closed table (`manage`, `pytest`, `pip`, `npm`, `npx`) as argv without a shell |
 | `start_server(which)`, `stop_server(which)`, `server_logs(which, lines)` | The backend and the dev server of the frontend, in the background |
-| `read_file`, `write_file`, `delete_file`, `list_files` | The files of the project directory; `.env` is never read nor written |
+| `read_file`, `write_file`, `delete_file`, `list_files` | The files of the project directory; `.env` is never read nor written, a file of `spec/` is linted when written |
 | `clean_project()` | Removes the temporary files and the outputs of the builds and the tests, a fixed list |
 | `list_packages` | Every Bazis package: what it solves and requires, its installed and catalog versions |
 | `package_guide(name, section)` | The `AGENTS.md` and the manifest of a package, whole or by sections |

@@ -259,8 +259,8 @@ def test_rules_of_the_files_of_guests_the_exports_and_the_flows_of_several_users
                  'an export (the form of an action that answers a file, `access_action` view, the rows of '
                  'its `restrict_queryset`; bazis-bg only for a long one)',
                  '`as: <role>`', '`remember` of what the server made, a number or an id, never the echo '
-                 'of a text typed', 'After the update to 0.9 (a contract of format 11) a custom screen or test of your '
-                 'own that did them becomes the spec'):
+                 'of a text typed', 'After the update to 0.9 (a contract of format 11)',
+                 'a custom screen or test of your own that did them becomes the spec'):
         assert text in frontend, text
 
 
@@ -387,6 +387,28 @@ def test_the_rules_said_shorter_in_2_13_0_keep_their_claims():
     assert 'the only one unless it asks for more' in prompts.language_step(None).replace('\n', ' ')
 
 
+def test_rules_of_bazis_mcp_2_14_0():
+    """
+    What rental1 wrote as code of its own (bazis-front 0.11.0, bazis 2.25.0,
+    bazis-uploadable 2.9.0) is said by the specs: the meta of an exported file, the photos of
+    public objects (never a `/media` URL) and the days of the browser in a filter. A test of parallel requests asks for one success at
+    least (all of them refused pass the invariant too).
+    """
+    rules = ' '.join(RULES.split())
+    for text in ('the invariant holds, at least one succeeds',
+                 'A guest reads the files of `files_visible` of the objects a route set shows him '
+                 '(bazis-uploadable 2.9, `uploadable.W003`), never by `/media`'):
+        assert text in rules, text
+    frontend = ' '.join(FRONTEND_RULES.split())
+    for text in ('since 0.11 the meta of an exported file (`file_meta` of `http_post`, bazis 2.25: a '
+                 'flat model, no Enum, at most 4096 bytes; S053)',
+                 'the photos of public objects (`display: image`, S062)',
+                 'the days of the browser in a `filter` (`today`, `month_start`, `month_end+1`, S014)',
+                 'After the update to 0.9 (a contract of format 11) or 0.11 a custom screen or test '
+                 'of your own that did them becomes the spec'):
+        assert text in frontend, text
+
+
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     Every code of `check` that the rules of the frontend name is one of the table of the
@@ -396,7 +418,7 @@ def test_the_codes_of_the_rules_are_those_of_bazis_front():
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
     assert {'C002', 'C004', 'C005', 'P002', 'P017', 'P030', 'P035', 'P037', 'S030', 'S044', 'S045',
             'S046', 'S047', 'S048', 'S049', 'S050', 'S052', 'S053', 'S054', 'S055', 'S057', 'S058',
-            'S059', 'S060', 'S061'} <= named
+            'S059', 'S060', 'S061', 'S014', 'S062'} <= named
     for code in named:
         assert f'| `{code}` |' in guide, code
 

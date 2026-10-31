@@ -59,6 +59,11 @@ print(json.dumps({'version': version, 'registry': registry, 'enabled': enabled})
 
 PROBE_NAME = 'Reading bazis-front'
 
+#: the lint of a file of the specs (bazis-front 0.11), run by `write_file` on the files of
+#: `spec/` with SPEC_SUFFIXES
+LINT = 'bazis.contrib.front.spec.lint'
+SPEC_SUFFIXES = ('.yaml', '.json')
+
 NOT_INSTALLED = (
     'bazis-front is not installed in the Python of the project: install it (`pip install '
     'bazis-front`), add "bazis.contrib.front" to BS_INSTALLED_APPS and create the frontend '
@@ -98,6 +103,23 @@ def package() -> dict | None:
     env = {'DJANGO_SETTINGS_MODULE': settings} if settings else {}
     data = project.json_of(PROBE_NAME, project.run(PROBE_NAME, '-c', PROBE, **env))
     return data if data['version'] else None
+
+
+def lint(path: str) -> dict | None:
+    """
+    The YAML and the shape of the spec file `path` (relative to the project) as
+    `python -m bazis.contrib.front.spec.lint --json` of bazis-front 0.11 reports them, without
+    Django: `ok` (false if it has an error) and its `issues`. None when the lint says
+    nothing: bazis-front not installed or older, a file of no layer of the specs.
+    """
+    try:
+        done = project.run('Linting the spec', '-m', LINT, path, '--json')
+    except project.ProjectError:
+        return None
+    data = project.parse_json(done.stdout)
+    if data is None:
+        return None
+    return {'ok': not data['errors'], 'issues': data['issues']}
 
 
 def _unavailable(installed: dict | None) -> dict | None:

@@ -24,7 +24,7 @@ import os
 import shutil
 from pathlib import Path
 
-from . import catalog, project
+from . import catalog, front, project
 
 
 #: the top directories of the project that are never written, and why
@@ -110,7 +110,9 @@ def refusal(target: Path) -> str | None:
 def write(path: str, content: str) -> dict:
     """
     Writes `content` (UTF-8, at most WRITE_LIMIT bytes) to the file `path` of the project,
-    with its missing directories, unless `refusal` refuses it.
+    with its missing directories, unless `refusal` refuses it. A file of the specs (in
+    `spec/`) is linted once written: `lint` (`front.lint`, null when it cannot be linted);
+    the file stays written whatever the lint says.
     """
     target = project.inside(path)
     if problem := refusal(target):
@@ -121,7 +123,10 @@ def write(path: str, content: str) -> dict:
     created = not target.exists()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
-    return {'path': _relative(target), 'bytes': len(data), 'created': created}
+    written = {'path': _relative(target), 'bytes': len(data), 'created': created}
+    if Path(written['path']).parts[0] == 'spec' and target.suffix in front.SPEC_SUFFIXES:
+        written['lint'] = front.lint(written['path'])
+    return written
 
 
 def delete(path: str) -> dict:

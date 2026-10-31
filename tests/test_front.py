@@ -384,6 +384,80 @@ def test_probe_of_a_python_that_does_not_exist(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def spec_project(tmp_path, monkeypatch):
+    """A project directory served, with the Python of the tests (it has no `.venv`)."""
+    (tmp_path / 'manage.py').write_text('')
+    monkeypatch.setattr(project, 'project_dir', tmp_path)
+    return tmp_path
+
+
+async def test_write_file_lints_a_spec_file(client, spec_project, fake_run):
+    """
+    `write_file` lints a file of `spec/` once written (the lint of bazis-front 0.11, in the
+    Python of the project): `lint` has its issues with their hints and `ok`, false with an
+    error; a file outside `spec/` is not linted.
+    """
+    warning = {**SPEC_ISSUE, 'code': 'S027', 'severity': 'warning'}
+    fake_run.outputs = [
+        (1, json.dumps({'contract': False, 'errors': 1, 'warnings': 0, 'issues': [SPEC_ISSUE]}), ''),
+        (0, json.dumps({'contract': False, 'errors': 0, 'warnings': 1, 'issues': [warning]}), ''),
+    ]
+
+    written = result(await client.call_tool('write_file', {'path': 'spec/product.yaml', 'content': 'x: 1\n'}))
+    assert written['lint'] == {'ok': False, 'issues': [SPEC_ISSUE]}
+    assert fake_run.calls == [['-m', front.LINT, 'spec/product.yaml', '--json']]
+    written = result(await client.call_tool('write_file', {'path': 'spec/screens/home.yaml', 'content': 'x: 1\n'}))
+    assert written['lint'] == {'ok': True, 'issues': [warning]}
+
+    written = result(await client.call_tool('write_file', {'path': 'shop/settings.yaml', 'content': 'x: 1\n'}))
+    assert 'lint' not in written and len(fake_run.calls) == 2
+    # bazis-front rejects `.yml` as not a file of the specs: it is not linted
+    written = result(await client.call_tool('write_file', {'path': 'spec/screens/home.yml', 'content': 'x: 1\n'}))
+    assert 'lint' not in written and len(fake_run.calls) == 2
+
+
+async def test_write_file_without_the_lint(client, spec_project, monkeypatch):
+    """
+    A project whose Python has no lint (bazis-front older than 0.11 or none; here the
+    Python of the tests without its site-packages) gets `lint` null, the file written.
+    """
+    python = spec_project / 'python'
+    python.write_text(f'#!/bin/sh\nexec {sys.executable} -S "$@"\n')
+    python.chmod(0o755)
+    monkeypatch.setattr(project, 'python', str(python))
+
+    written = result(await client.call_tool('write_file', {'path': 'spec/product.yaml', 'content': 'x: 1\n'}))
+
+    assert written['lint'] is None and written['created'] is True
+    assert (spec_project / 'spec' / 'product.yaml').read_text() == 'x: 1\n'
+
+
+@requires_front
+async def test_write_file_lints_with_bazis_front(client, spec_project):
+    """
+    The lint of the installed bazis-front: the YAML error of a text with `: `, then the same
+    screen with the text quoted.
+    """
+    screen = (
+        'spec: bazis-screen/1\nid: tasks\ntitle: {title}\nroute: /tasks\nprimitive: list\n'
+        'entity: task\nstates: [loading, empty, error]\nlist:\n  columns: [title]\n'
+    )
+    path = 'spec/screens/tasks.yaml'
+
+    lint = result(await client.call_tool(
+        'write_file', {'path': path, 'content': screen.format(title='Tasks: of the team')}
+    ))['lint']
+    assert lint['ok'] is False
+    assert [(it['code'], it['file']) for it in lint['issues']] == [('S001', path)]
+    assert lint['issues'][0]['hint'].startswith('Quote the text')
+
+    lint = result(await client.call_tool(
+        'write_file', {'path': path, 'content': screen.format(title="'Tasks: of the team'")}
+    ))['lint']
+    assert lint == {'ok': True, 'issues': []}
+
+
+@pytest.fixture
 def front_project(tmp_path, monkeypatch):
     """
     A copy of the sample with bazis-front in its apps and a frontend made by
