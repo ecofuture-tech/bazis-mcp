@@ -94,8 +94,9 @@ ROUTER_PY = '''from bazis.core.routing import BazisRouter
 
 router = BazisRouter(prefix='/api/v1')
 # register the routers of the apps: router.register('<app>.router')
-# with bazis-permit, for a picker narrowed to a role (filter roles__slug):
-# router.register('bazis.contrib.permit.router')
+# with bazis-permit, a picker narrowed to a role (filter roles__slug) reads the roles by a
+# route set that requires the token (the rules), never bazis.contrib.permit.router, which
+# shows them to guests
 '''
 
 #: the route set of the users of a team (`write_users`), written when bazis-users is added:

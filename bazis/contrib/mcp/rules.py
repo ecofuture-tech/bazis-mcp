@@ -122,10 +122,11 @@ package `bazis-<name>` that a project installs only if it needs it.
   That registration also declares the token endpoint (`users.E002`): never register the
   bundled `bazis.contrib.users.router`, and never only import `bazis.contrib.users.token`.
   Without it `front_check` warns P036. Widen only its `restrict_queryset` for `view`, never
-  remove it. A picker of the
-  users of a role (`roles__slug`) needs `router.register('bazis.contrib.permit.router')`
-  too, which makes the roles a public catalog (say so in Left for you): never narrow it in
-  the frontend, by the id of a role or in `restrict_queryset`.
+  remove it. A picker of the users of a role (`roles__slug`) reads the roles by
+  `class RoleRouteSet(UserRequiredRouteBase, RoleRoute)` (`bazis.contrib.users.routes_abstract`,
+  `bazis.contrib.permit.routes`) registered in `users/router.py`, for the signed-in users
+  only: never the public `bazis.contrib.permit.router` (S061) nor another narrowing (the
+  frontend, the id of a role, `restrict_queryset`).
 - With bazis-statusy, the payload type of a transit is the classmethod
   `Model.get_transit_payload_type(transit)` (bazis-statusy 2.15): override it, never
   `transit_payload_type` of an item (its old name, which 2.14 calls). The history of an item
