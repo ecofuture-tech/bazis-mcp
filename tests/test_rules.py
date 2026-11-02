@@ -411,10 +411,10 @@ def test_the_roles_are_read_by_the_signed_in_users():
     neither the rules nor the skeleton offer the public router of bazis-permit.
     """
     rules = ' '.join(RULES.split())
-    assert ('A picker of the users of a role (`roles__slug`) reads the roles by '
+    assert ('A picker of the users of a role (`roles__slug`, S061) reads the roles by '
             '`class RoleRouteSet(UserRequiredRouteBase, RoleRoute)` (`bazis.contrib.users.routes_abstract`, '
             '`bazis.contrib.permit.routes`) registered in `users/router.py`, for the signed-in users '
-            'only: never the public `bazis.contrib.permit.router` (S061)') in rules
+            'only: never the public `bazis.contrib.permit.router`') in rules
     assert 'public catalog' not in rules
     assert "register('bazis.contrib.permit.router')" not in scaffold.ROUTER_PY
     assert ('reads the roles by a route set that requires the token (the rules), never '
