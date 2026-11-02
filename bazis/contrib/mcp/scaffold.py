@@ -40,7 +40,7 @@ REQUIREMENTS = ['bazis>=2.25.0']
 REQUIREMENTS_DEV = ['bazis-mcp>=2.4.5', 'bazis-test-utils>=2.5.2']
 
 #: the frontend layer of a product (`bazis new` without `--no-frontend`)
-FRONTEND_REQUIREMENT = 'bazis-front>=0.11.0'
+FRONTEND_REQUIREMENT = 'bazis-front>=0.11.2'
 FRONTEND_APP = 'bazis.contrib.front'
 #: replaces FRONTEND_REQUIREMENT in requirements.txt: a pip requirement such as a path to a
 #: wheel or a checkout, or `bazis-front @ <url>`, to try a bazis-front that is not on PyPI
@@ -94,8 +94,9 @@ ROUTER_PY = '''from bazis.core.routing import BazisRouter
 
 router = BazisRouter(prefix='/api/v1')
 # register the routers of the apps: router.register('<app>.router')
-# with bazis-permit, for a picker narrowed to a role (filter roles__slug):
-# router.register('bazis.contrib.permit.router')
+# with bazis-permit, a picker narrowed to a role (filter roles__slug) reads the roles by a
+# route set that requires the token (the rules), never bazis.contrib.permit.router, which
+# shows them to guests
 '''
 
 #: the route set of the users of a team (`write_users`), written when bazis-users is added:

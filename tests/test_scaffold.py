@@ -185,24 +185,29 @@ def test_users_app_never_writes_through_a_link(tmp_path):
     assert not outside.exists()
 
 
-def test_users_app_is_a_working_part_of_a_project(tmp_path):
+def users_project(tmp_path: Path, permit: bool = False) -> Path:
     """
-    The route set of the team registered in the root router of the skeleton: the checks of
-    the project pass (also `users.E002`, which the registration satisfies), the migrations
-    are made, and the user resource is a route of the application.
+    The skeleton with the app `users` of the team registered in its root router and a user
+    model of its own, with the permissions of bazis-permit if `permit`.
     """
-    pytest.importorskip('bazis.contrib.users')
     directory = tmp_path / 'store'
     scaffold.write_files(directory, 'store')
     scaffold.write_users(directory)
+    imports, user, anonymous, apps = '', '', '', '"users"'
+    if permit:
+        imports = ('from bazis.contrib.permit.models_abstract import (\n'
+                   '    AnonymousUserPermitMixin, PermitSelectorMixin, UserPermitMixin,\n'
+                   ')\n')
+        user, anonymous = 'UserPermitMixin, PermitSelectorMixin, ', 'AnonymousUserPermitMixin, '
+        apps += ', "bazis.contrib.permit"'
     (directory / 'users' / 'models.py').write_text(
-        'from bazis.contrib.users.models_abstract import (\n'
+        imports + 'from bazis.contrib.users.models_abstract import (\n'
         '    AnonymousUserAbstract, UserAbstract, UserLanguageMixin,\n'
         ')\n'
         'from bazis.core.models_abstract import JsonApiMixin, UuidMixin\n\n\n'
-        'class User(JsonApiMixin, UuidMixin, UserLanguageMixin, UserAbstract):\n'
+        f'class User({user}JsonApiMixin, UuidMixin, UserLanguageMixin, UserAbstract):\n'
         '    pass\n\n\n'
-        'class AnonymousUser(AnonymousUserAbstract):\n'
+        f'class AnonymousUser({anonymous}AnonymousUserAbstract):\n'
         '    pass\n'
     )
     (directory / 'users' / 'apps.py').write_text(
@@ -211,12 +216,23 @@ def test_users_app_is_a_working_part_of_a_project(tmp_path):
     )
     env = directory / 'project.env'
     env.write_text(
-        env.read_text().replace("BS_INSTALLED_APPS='[]'", "BS_INSTALLED_APPS='[\"users\"]'")
+        env.read_text().replace("BS_INSTALLED_APPS='[]'", f"BS_INSTALLED_APPS='[{apps}]'")
         + 'BS_AUTH_USER_MODEL=users.User\n'
         'BS_AUTH_ANONYMOUS_USER_MODEL=users.models.AnonymousUser\n'
     )
     router = directory / 'store' / 'router.py'
     router.write_text(router.read_text() + "router.register('users.router')\n")
+    return directory
+
+
+def test_users_app_is_a_working_part_of_a_project(tmp_path):
+    """
+    The route set of the team registered in the root router of the skeleton: the checks of
+    the project pass (also `users.E002`, which the registration satisfies), the migrations
+    are made, and the user resource is a route of the application.
+    """
+    pytest.importorskip('bazis.contrib.users')
+    directory = users_project(tmp_path)
 
     assert doctor(directory) == []
     done = manage(directory, 'makemigrations', 'users')
@@ -226,6 +242,34 @@ def test_users_app_is_a_working_part_of_a_project(tmp_path):
                   'from bazis.core.app import app; from bazis.core import introspect; '
                   "print(sorted({p for p, r in introspect.iter_routes_with_paths(app.routes) if '/user' in p})[:2])")
     assert "/api/v1/users/user/" in done.stdout, done.stderr[-2000:]
+
+
+def test_the_roles_of_a_picker_are_read_by_the_signed_in_users(tmp_path):
+    """
+    The route set of the roles that the rules give the picker of the users of a role
+    (`roles__slug`), in the app `users` with bazis-permit: the checks of the project pass (no
+    `permit.W002`), it is the default route of the roles, whose fields the filter of the
+    users reads, and it requires the token, which `bazis.contrib.permit.router` does not.
+    """
+    pytest.importorskip('bazis.contrib.permit')
+    directory = users_project(tmp_path, permit=True)
+    routes = directory / 'users' / 'routes.py'
+    routes.write_text(
+        routes.read_text() + '\n\nfrom bazis.contrib.permit.routes import RoleRoute\n'
+        'from bazis.contrib.users.routes_abstract import UserRequiredRouteBase\n\n\n'
+        'class RoleRouteSet(UserRequiredRouteBase, RoleRoute):\n    pass\n'
+    )
+    router = directory / 'users' / 'router.py'
+    router.write_text(router.read_text() + 'router.register(routes.RoleRouteSet.as_router())\n')
+
+    assert doctor(directory) == []
+    done = manage(directory, 'shell', '-c',
+                  'from bazis.core.app import app; from bazis.contrib.permit.models import Role; '
+                  "print(Role.get_default_route().__name__, app.openapi()['paths']"
+                  "['/api/v1/permit/role/']['get'].get('security'))")
+    assert done.stdout.split('\n')[-2] == "RoleRouteSet [{'OAuth2PasswordBearer': []}]", (
+        done.stdout[-2000:], done.stderr[-2000:]
+    )
 
 
 def test_project_ports(tmp_path):

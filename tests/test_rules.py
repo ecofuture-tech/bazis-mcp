@@ -270,19 +270,14 @@ def test_rules_of_bazis_front_0_10_0():
     scenarios is `photo.png` of the template, the user of a guest is the `AnonymousUser`, a
     comma in a flow mapping is quoted, the test data passes the validators, one shot of a
     screen is looked at and after a change only those it touched, the limits of the uploads
-    and of the bodies, the picker of a role through the router of bazis-permit, and what the
-    specs of 0.10 say instead of code.
+    and of the bodies, and what the specs of 0.10 say instead of code.
     """
     rules = ' '.join(RULES.split())
     for text in ('The limit of the uploads stays a few megabytes, also for the photos of phones '
                  '(bazis-front 0.10 reduces a larger image, `fitImage`)',
                  'with bazis 2.22 set `BS_BAZIS_API_MAX_BODY_SIZE` in `project.env` a megabyte above it',
                  '`changes.user` of a guest (`validate_item`, a public action or transit) is the '
-                 '`AnonymousUser`, never None: test `is_authenticated`, not `pk`',
-                 "A picker of the users of a role (`roles__slug`) needs "
-                 "`router.register('bazis.contrib.permit.router')` too, which makes the roles a public "
-                 'catalog (say so in Left for you): never narrow it in the frontend, by the id of a role '
-                 'or in `restrict_queryset`'):
+                 '`AnonymousUser`, never None: test `is_authenticated`, not `pk`'):
         assert text in rules, text
     frontend = ' '.join(FRONTEND_RULES.split())
     for text in ('`update`; `status` only shows its state, `version` its release',
@@ -304,7 +299,6 @@ def test_rules_of_bazis_front_0_10_0():
                  'its records pass the validators of the models (a refused one fails every test): run it '
                  'before every `npm run e2e`'):
         assert text in frontend, text
-    assert "router.register('bazis.contrib.permit.router')" in scaffold.ROUTER_PY
 
     steps = ' '.join(prompts.FRONTEND_STEPS.split())
     assert 'then the first shot of each other screen up to the limit of 40 images of a run' in steps
@@ -407,6 +401,24 @@ def test_rules_of_bazis_mcp_2_14_0():
                  'After the update to 0.9 (a contract of format 11) or 0.11 a custom screen or test '
                  'of your own that did them becomes the spec'):
         assert text in frontend, text
+
+
+def test_the_roles_are_read_by_the_signed_in_users():
+    """
+    The picker of the users of a role (`roles__slug`) reads the roles through a route set of
+    the team for the signed-in users (rental2 registered `bazis.contrib.permit.router`, as
+    2.12 said, and its guests read the roles although the task allowed them nothing else):
+    neither the rules nor the skeleton offer the public router of bazis-permit.
+    """
+    rules = ' '.join(RULES.split())
+    assert ('A picker of the users of a role (`roles__slug`, S061) reads the roles by '
+            '`class RoleRouteSet(UserRequiredRouteBase, RoleRoute)` (`bazis.contrib.users.routes_abstract`, '
+            '`bazis.contrib.permit.routes`) registered in `users/router.py`, for the signed-in users '
+            'only: never the public `bazis.contrib.permit.router`') in rules
+    assert 'public catalog' not in rules
+    assert "register('bazis.contrib.permit.router')" not in scaffold.ROUTER_PY
+    assert ('reads the roles by a route set that requires the token (the rules), never '
+            'bazis.contrib.permit.router') in ' '.join(scaffold.ROUTER_PY.replace('#', ' ').split())
 
 
 def test_the_codes_of_the_rules_are_those_of_bazis_front():
