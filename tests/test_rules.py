@@ -403,6 +403,16 @@ def test_rules_of_bazis_mcp_2_14_0():
         assert text in frontend, text
 
 
+def test_the_update_of_bazis_front_runs_design():
+    """
+    After `bazis_front update` the rules run `design` too: since bazis-front 0.12
+    `vite.config.ts` of the template imports the fonts that `design` writes (`front.W005`
+    until then).
+    """
+    frontend = ' '.join(FRONTEND_RULES.split())
+    assert 'Then `contract`, `design`, `check`, `screens`, `e2e` and `shots` again' in frontend
+
+
 def test_the_roles_are_read_by_the_signed_in_users():
     """
     The picker of the users of a role (`roles__slug`) reads the roles through a route set of
