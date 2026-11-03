@@ -353,7 +353,7 @@ its introduction before you change the frontend.
   the product to it again (taking the side of the product alone drops the public routes,
   S048). A product of bazis-front 0.3 that routed the screens of its guests by hand lists
   their anonymous role in `roles` of their specs and removes its routes and layout. Then
-  `contract`, `check`, `screens`, `e2e` and `shots` again: after the update to 0.7 the
+  `contract`, `design`, `check`, `screens`, `e2e` and `shots` again: after the update to 0.7 the
   contract is of format 10, and `check` reports C002 until `bazis_front contract` exports it
   again; with the capability `statusy`, the frontend needs `bazis-statusy>=2.13.0` (C004,
   `front.W006`). A custom screen that only sends a custom action becomes the form of the
