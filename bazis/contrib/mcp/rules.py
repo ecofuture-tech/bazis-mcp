@@ -304,7 +304,7 @@ its introduction before you change the frontend.
   `frontend/.bazis/`: generate them again with the commands, and wrap the copies in the
   product code.
 - The backend decides the permissions (bazis-permit): never encode roles or permission
-  rules in the frontend. The screens use the tokens of the design, never literal colors.
+  rules in the frontend. The look follows the guide `The design`: tokens, never colors.
 - The users who do not log in are an anonymous role of `spec/product.yaml` (`anonymous:
   true`, without a `test_user`). Its permit role is `Role(for_anonymous=True)` with
   permissions of the selector `all` only (anonymous users match no other), or none when the

@@ -638,3 +638,12 @@ def test_a_next_change_ends_with_all_the_final_checks():
                      'bazis_front shots --check', 'npm run e2e', 'bazis_front shots']
     for name in named:
         assert f'`{name}`' in frontend or f'`{name}`' in rules, name
+
+
+def test_the_look_follows_the_guide_of_the_design():
+    """
+    The rules send the look of the screens to the guide `The design` of bazis-front (since 0.13
+    the layers frost, golos and lifted of a new workspace): its tokens, never literal colors.
+    """
+    frontend = ' '.join(FRONTEND_RULES.split())
+    assert 'The look follows the guide `The design`: tokens, never colors.' in frontend
