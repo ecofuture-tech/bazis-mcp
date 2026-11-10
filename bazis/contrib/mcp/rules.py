@@ -295,8 +295,7 @@ its introduction before you change the frontend.
   change only the screens it touched: the screens not looked at go to Left for you in one
   line, their number and their ids, not one by one with a reason. Without a shell,
   `reviewed` of `front_status` counts those looked at whole with `front_screenshot` and
-  names the others (`not_looked`), and the work is not done while it names one that that
-  line does not list. Never commit `frontend/.scratch/`.
+  names the others (`not_looked`): the work is not done until that line lists them. Never commit `frontend/.scratch/`.
 - Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/src/screens/generated/`,
   `frontend/e2e/generated/`, the
   copies of `frontend/src/bazis/client/`, `frontend/src/bazis/react/`,
@@ -379,9 +378,9 @@ its introduction before you change the frontend.
   the roles, with its role and the password of `E2E_PASSWORD`, and the records the scenarios
   open. It can run again; its records pass the validators of the models (a refused one fails
   every test): run it before every `npm run e2e`. It only adds: never remove the test users
-  or the records it made, with an option of your own (`--clean`) or a delete: they stay for
-  the user to log in; recreate the database last (drop, `migrate`, `e2e_data`, no test
-  after). Its dates
+  or the records it made, with an option (`--clean`) or a delete: they stay for
+  the user to log in; recreate only a database `create_project` made in this session
+  (drop, `migrate`, `e2e_data`, last, no test after). Its dates
   are relative to the day of the run (`timezone.now() + timedelta(days=3)`, its date in UTC,
   the day that `expectDay` counts, never `timezone.localdate()`; some of them in the current
   month and the next days), never fixed (`2030-03-04`).
@@ -402,8 +401,8 @@ its introduction before you change the frontend.
   or the screens also `bazis_front e2e` and `npm run e2e` against the running backend:
   migrate, run `e2e_data`, start `.venv/bin/uvicorn <project package>.main:app --port
   <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm
-  run e2e` and `bazis_front shots`, then stop the backend by its PID (`kill <PID>`),
-  never `pkill`, `killall` or a pattern.
+  run e2e` and `bazis_front shots`, then stop the backend by `kill <PID>`, never
+  `pkill`, `killall` or a pattern.
   A test that fails only sometimes gets one attempt at a fix, then goes to Left for you.
 - Without Node.js and npm, or a migrated database (the contract), do the other steps and
   say which did not run.

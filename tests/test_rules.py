@@ -654,13 +654,16 @@ def test_the_look_follows_the_guide_of_the_design():
 def test_rules_of_bazis_mcp_2_16_0():
     """
     The trials of bazis-front 0.13: the records of the scenarios are left in the database of
-    the demo, and a `pkill` of the backend ended the processes of the user. The database is
-    made again after the last tests; the backend is stopped by its own PID, never by a pattern.
+    the demo, and a pattern of `pkill` ends the processes of the user. Only the database that
+    `create_project` made in the session is made again after the last tests (never one of a
+    product that exists or is shared); the backend is stopped by its own PID.
     """
     frontend = ' '.join(FRONTEND_RULES.split())
-    for text in ('they stay for the user to log in; recreate the database last (drop, `migrate`, '
-                 '`e2e_data`, no test after)',
-                 'then stop the backend by its PID (`kill <PID>`), never `pkill`, `killall` or a pattern'):
+    for text in ('they stay for the user to log in; recreate only a database `create_project` made in '
+                 'this session (drop, `migrate`, `e2e_data`, last, no test after)',
+                 'then stop the backend by `kill <PID>`, never `pkill`, `killall` or a pattern',
+                 # the screens not looked at: each in the line of Left for you
+                 '(`not_looked`): the work is not done until that line lists them'):
         assert text in frontend, text
     # the recreation replaces the old promise that nothing is removed at the end of a phase
     assert 'also at the end of a phase' not in frontend
