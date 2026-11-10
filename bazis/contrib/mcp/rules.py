@@ -150,12 +150,13 @@ package `bazis-<name>` that a project installs only if it needs it.
   (such as `E2E_PASSWORD`). Never run git commands that change the repository (commit,
   push, reset): the user reviews and commits them.
 - The database of `.env` is created by `bazis new` when PostgreSQL is reachable, with
-  PostGIS (the task says what it did). Never drop or recreate it: after the first `migrate`
-  add new migrations, never delete or generate again the applied ones. You may create it
+  PostGIS. Never drop or recreate it, but once after the last end-to-end tests if
+  `create_project` made it in this session (then `migrate` and `e2e_data`): after the first
+  `migrate` add new migrations, never delete or generate again the applied ones. You may create it
   when it is missing (`CREATE DATABASE`, then `CREATE EXTENSION postgis` in it); report it.
   When the task says that the database of `.env` already has data of another project or
-  could not be inspected, it is not ready: never migrate it nor change its data, say that
-  the user checks the access to it or sets another `BS_DATABASES__DEFAULT__NAME` in `.env`
+  could not be inspected, it is not ready: never migrate it nor change its data, ask
+  the user to check it or set another `BS_DATABASES__DEFAULT__NAME` in `.env`
   (`database_name` of `project_status` names the one in use). When it says that
   databases were taken and left as they are and that `.env` sets another one, only the taken
   ones are not ready (never change them): the one `.env` sets is the database of the
@@ -254,9 +255,9 @@ its introduction before you change the frontend.
   `ERR_AGGREGATE` over more groups than `BAZIS_API_AGGREGATE_GROUPS_MAX` (1000 by default,
   `BS_BAZIS_API_AGGREGATE_GROUPS_MAX`): a chart by day or by week groups the days of its
   periods, so a long one is by `month` or has a smaller `last`. The axis of a chart is in
-  the time zone of the backend (`TIME_ZONE`), not of the browser. A tile of a `value` takes
-  the whole row of a phone, and an average shows the decimal places of its field
-  (`decimal_places`, `places` of the contract): no extension for them.
+  the time zone of the backend (`TIME_ZONE`), not of the browser, and an average shows the
+  decimal places of its field (`decimal_places`, `places` of the contract): no extension
+  for it.
 - A field of a payload of a transit or of a body of a custom action has a type a form asks
   for: an amount or a quantity with a fraction is a `Decimal` (typed with a point or the
   comma of the language and sent as `"2.5"`), else a text, a number, a date, a choice, the
@@ -295,8 +296,7 @@ its introduction before you change the frontend.
   change only the screens it touched: the screens not looked at go to Left for you in one
   line, their number and their ids, not one by one with a reason. Without a shell,
   `reviewed` of `front_status` counts those looked at whole with `front_screenshot` and
-  names the others (`not_looked`), and the work is not done while it names one that that
-  line does not list. Never commit `frontend/.scratch/`.
+  names the others (`not_looked`): the work is not done until that line lists them. Never commit `frontend/.scratch/`.
 - Never edit `contract/`, `frontend/src/bazis/generated/`, `frontend/src/screens/generated/`,
   `frontend/e2e/generated/`, the
   copies of `frontend/src/bazis/client/`, `frontend/src/bazis/react/`,
@@ -304,7 +304,7 @@ its introduction before you change the frontend.
   `frontend/.bazis/`: generate them again with the commands, and wrap the copies in the
   product code.
 - The backend decides the permissions (bazis-permit): never encode roles or permission
-  rules in the frontend. The screens use the tokens of the design, never literal colors.
+  rules in the frontend. The look follows the guide `The design`: tokens, never colors.
 - The users who do not log in are an anonymous role of `spec/product.yaml` (`anonymous:
   true`, without a `test_user`). Its permit role is `Role(for_anonymous=True)` with
   permissions of the selector `all` only (anonymous users match no other), or none when the
@@ -379,8 +379,8 @@ its introduction before you change the frontend.
   the roles, with its role and the password of `E2E_PASSWORD`, and the records the scenarios
   open. It can run again; its records pass the validators of the models (a refused one fails
   every test): run it before every `npm run e2e`. It only adds: never remove the test users
-  or the records it made, with an option of your own (`--clean`) or a delete, also at the
-  end of a phase: they stay for the user to log in and for the next `npm run e2e`. Its dates
+  or the records it made, with an option (`--clean`) or a delete: they stay for
+  the user to log in (but for the recreation above). Its dates
   are relative to the day of the run (`timezone.now() + timedelta(days=3)`, its date in UTC,
   the day that `expectDay` counts, never `timezone.localdate()`; some of them in the current
   month and the next days), never fixed (`2030-03-04`).
@@ -401,7 +401,8 @@ its introduction before you change the frontend.
   or the screens also `bazis_front e2e` and `npm run e2e` against the running backend:
   migrate, run `e2e_data`, start `.venv/bin/uvicorn <project package>.main:app --port
   <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm
-  run e2e` and `bazis_front shots`, then stop the backend.
+  run e2e` and `bazis_front shots`, then stop the backend by `kill <PID>`, never
+  `pkill`, `killall` or a pattern.
   A test that fails only sometimes gets one attempt at a fix, then goes to Left for you.
 - Without Node.js and npm, or a migrated database (the contract), do the other steps and
   say which did not run.
