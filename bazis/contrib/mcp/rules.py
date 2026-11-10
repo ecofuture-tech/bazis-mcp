@@ -254,9 +254,9 @@ its introduction before you change the frontend.
   `ERR_AGGREGATE` over more groups than `BAZIS_API_AGGREGATE_GROUPS_MAX` (1000 by default,
   `BS_BAZIS_API_AGGREGATE_GROUPS_MAX`): a chart by day or by week groups the days of its
   periods, so a long one is by `month` or has a smaller `last`. The axis of a chart is in
-  the time zone of the backend (`TIME_ZONE`), not of the browser. A tile of a `value` takes
-  the whole row of a phone, and an average shows the decimal places of its field
-  (`decimal_places`, `places` of the contract): no extension for them.
+  the time zone of the backend (`TIME_ZONE`), not of the browser, and an average shows the
+  decimal places of its field (`decimal_places`, `places` of the contract): no extension
+  for it.
 - A field of a payload of a transit or of a body of a custom action has a type a form asks
   for: an amount or a quantity with a fraction is a `Decimal` (typed with a point or the
   comma of the language and sent as `"2.5"`), else a text, a number, a date, a choice, the
@@ -379,8 +379,9 @@ its introduction before you change the frontend.
   the roles, with its role and the password of `E2E_PASSWORD`, and the records the scenarios
   open. It can run again; its records pass the validators of the models (a refused one fails
   every test): run it before every `npm run e2e`. It only adds: never remove the test users
-  or the records it made, with an option of your own (`--clean`) or a delete, also at the
-  end of a phase: they stay for the user to log in and for the next `npm run e2e`. Its dates
+  or the records it made, with an option of your own (`--clean`) or a delete: they stay for
+  the user to log in; recreate the database last (drop, `migrate`, `e2e_data`, no test
+  after). Its dates
   are relative to the day of the run (`timezone.now() + timedelta(days=3)`, its date in UTC,
   the day that `expectDay` counts, never `timezone.localdate()`; some of them in the current
   month and the next days), never fixed (`2030-03-04`).
@@ -401,7 +402,8 @@ its introduction before you change the frontend.
   or the screens also `bazis_front e2e` and `npm run e2e` against the running backend:
   migrate, run `e2e_data`, start `.venv/bin/uvicorn <project package>.main:app --port
   <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm
-  run e2e` and `bazis_front shots`, then stop the backend.
+  run e2e` and `bazis_front shots`, then stop the backend by its PID (`kill <PID>`),
+  never `pkill`, `killall` or a pattern.
   A test that fails only sometimes gets one attempt at a fix, then goes to Left for you.
 - Without Node.js and npm, or a migrated database (the contract), do the other steps and
   say which did not run.

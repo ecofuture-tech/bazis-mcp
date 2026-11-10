@@ -159,7 +159,8 @@ def test_rules_of_the_forms_of_the_actions():
     bazis-front 0.6.0: the form of a guest is the spec of the form of a public custom action
     (its fields named as those of the entity, the result with the answer), its throttle leaves
     room for the end-to-end tests, a decimal is typed by the form (`FieldInput` in code), an
-    average shows the decimal places of its field, the top bar folds its links into a menu no
+    average shows the decimal places of its field (bazis-front 0.13 lays out the tiles: no
+    extension for them either), the top bar folds its links into a menu no
     screen is named as, and the link of the form requires its action; the update replaces
     the custom code that the specs now say.
     """
@@ -173,7 +174,6 @@ def test_rules_of_the_forms_of_the_actions():
                  'typed with a point or the comma of the language and sent as `"2.5"`',
                  'is typed as JSON (S054)',
                  'is the `FieldInput` of its field (its `DecimalInput`), never an input or a parse of your own',
-                 'A tile of a `value` takes the whole row of a phone',
                  'an average shows the decimal places of its field (`decimal_places`, `places` of the contract)',
                  'into its menu `nav:more` (More) by itself',
                  'never drop or hide links for their number',
@@ -182,6 +182,8 @@ def test_rules_of_the_forms_of_the_actions():
                  'A custom screen that only sends a custom action becomes the form of the action',
                  'a screen with the id `more` is renamed (S055)'):
         assert text in rules, text
+    # since bazis-front 0.13 only the last of an odd number of tiles takes the whole row of a phone
+    assert 'whole row of a phone' not in rules
 
 
 def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
@@ -647,3 +649,18 @@ def test_the_look_follows_the_guide_of_the_design():
     """
     frontend = ' '.join(FRONTEND_RULES.split())
     assert 'The look follows the guide `The design`: tokens, never colors.' in frontend
+
+
+def test_rules_of_bazis_mcp_2_16_0():
+    """
+    The trials of bazis-front 0.13: the records of the scenarios are left in the database of
+    the demo, and a `pkill` of the backend ended the processes of the user. The database is
+    made again after the last tests; the backend is stopped by its own PID, never by a pattern.
+    """
+    frontend = ' '.join(FRONTEND_RULES.split())
+    for text in ('they stay for the user to log in; recreate the database last (drop, `migrate`, '
+                 '`e2e_data`, no test after)',
+                 'then stop the backend by its PID (`kill <PID>`), never `pkill`, `killall` or a pattern'):
+        assert text in frontend, text
+    # the recreation replaces the old promise that nothing is removed at the end of a phase
+    assert 'also at the end of a phase' not in frontend
