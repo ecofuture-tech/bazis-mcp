@@ -150,12 +150,13 @@ package `bazis-<name>` that a project installs only if it needs it.
   (such as `E2E_PASSWORD`). Never run git commands that change the repository (commit,
   push, reset): the user reviews and commits them.
 - The database of `.env` is created by `bazis new` when PostgreSQL is reachable, with
-  PostGIS (the task says what it did). Never drop or recreate it: after the first `migrate`
-  add new migrations, never delete or generate again the applied ones. You may create it
+  PostGIS. Never drop or recreate it, but once after the last end-to-end tests if
+  `create_project` made it in this session (then `migrate` and `e2e_data`): after the first
+  `migrate` add new migrations, never delete or generate again the applied ones. You may create it
   when it is missing (`CREATE DATABASE`, then `CREATE EXTENSION postgis` in it); report it.
   When the task says that the database of `.env` already has data of another project or
-  could not be inspected, it is not ready: never migrate it nor change its data, say that
-  the user checks the access to it or sets another `BS_DATABASES__DEFAULT__NAME` in `.env`
+  could not be inspected, it is not ready: never migrate it nor change its data, ask
+  the user to check it or set another `BS_DATABASES__DEFAULT__NAME` in `.env`
   (`database_name` of `project_status` names the one in use). When it says that
   databases were taken and left as they are and that `.env` sets another one, only the taken
   ones are not ready (never change them): the one `.env` sets is the database of the
@@ -379,8 +380,7 @@ its introduction before you change the frontend.
   open. It can run again; its records pass the validators of the models (a refused one fails
   every test): run it before every `npm run e2e`. It only adds: never remove the test users
   or the records it made, with an option (`--clean`) or a delete: they stay for
-  the user to log in; recreate only a database `create_project` made in this session
-  (drop, `migrate`, `e2e_data`, last, no test after). Its dates
+  the user to log in (but for the recreation above). Its dates
   are relative to the day of the run (`timezone.now() + timedelta(days=3)`, its date in UTC,
   the day that `expectDay` counts, never `timezone.localdate()`; some of them in the current
   month and the next days), never fixed (`2030-03-04`).

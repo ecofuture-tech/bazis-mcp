@@ -659,11 +659,25 @@ def test_rules_of_bazis_mcp_2_16_0():
     product that exists or is shared); the backend is stopped by its own PID.
     """
     frontend = ' '.join(FRONTEND_RULES.split())
-    for text in ('they stay for the user to log in; recreate only a database `create_project` made in '
-                 'this session (drop, `migrate`, `e2e_data`, last, no test after)',
+    for text in ('they stay for the user to log in (but for the recreation above)',
                  'then stop the backend by `kill <PID>`, never `pkill`, `killall` or a pattern',
                  # the screens not looked at: each in the line of Left for you
                  '(`not_looked`): the work is not done until that line lists them'):
         assert text in frontend, text
     # the recreation replaces the old promise that nothing is removed at the end of a phase
     assert 'also at the end of a phase' not in frontend
+
+
+def test_the_database_is_recreated_only_by_the_exception_of_its_ban():
+    """
+    The ban on dropping the database of `.env` and the recreation after the end-to-end tests
+    are one rule: the exception is in the sentence of the ban, the rules of the frontend only
+    refer to it, and say it nowhere else.
+    """
+    rules = ' '.join(RULES.split())
+    ban = next(it for it in re.split(r'(?<=\.) ', rules) if 'Never drop or recreate it' in it)
+    assert ('Never drop or recreate it, but once after the last end-to-end tests if `create_project` '
+            'made it in this session (then `migrate` and `e2e_data`)') in ban
+    frontend = ' '.join(FRONTEND_RULES.split())
+    assert frontend.count('recreat') == 1 and '(but for the recreation above)' in frontend
+    assert 'create_project` made' not in frontend
