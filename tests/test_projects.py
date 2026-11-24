@@ -308,13 +308,14 @@ async def test_the_result_of_create_project_with_a_frontend_fits_the_limit(
     """
     The result of a product, the largest with the rules of the frontend (about 33,700 bytes in
     2.9.0), keeps a tenth of the limit of the results of the clients free: a rule added later
-    fails here before a client cuts the result.
+    fails here before a client cuts the result. Since 2.17.0 it keeps 2,000 bytes more (about
+    33,970 bytes): the room of the rules that a release adds.
     """
     call_result = await client.call_tool(
         'create_project', {'directory': str(tmp_path / 'desk'), 'description': 'A help desk'}
     )
     assert result(call_result)['frontend'] is True
-    assert len(text_of(call_result).encode()) < catalog.RESULT_LIMIT * 0.9
+    assert len(text_of(call_result).encode()) < catalog.RESULT_LIMIT * 0.9 - 2_000
 
 
 async def test_create_project_needs_the_name_of_the_product(client, no_project, machine, tmp_path):

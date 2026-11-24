@@ -24,7 +24,7 @@ from . import scaffold
 
 #: the order of the work on a product with a frontend made by bazis-front: the steps of the
 #: guide of bazis-front, with what the tasks add to them (the packages, `.venv`, the
-#: description, the ports, the rounds of the screenshots, the final checks of the rules)
+#: description, the ports, the screenshots and the final checks of the rules)
 FRONTEND_STEPS = """\
 Follow the steps of "Building the frontend of a product" in the introduction of the guide
 of bazis-front (`package_guide("bazis-front")`), with what this product adds to them:
@@ -32,13 +32,13 @@ of bazis-front (`package_guide("bazis-front")`), with what this product adds to 
 - Before step 1, read the introduction of the guide of the core (`package_guide("bazis")`)
   and choose the Bazis packages the product needs with `list_packages` (the frontend logs in
   with bazis-users, roles and access need bazis-permit, statuses and transits bazis-statusy,
-  files bazis-uploadable). The commands of `manage.py` run with `.venv/bin/python
-  manage.py`.
+  files bazis-uploadable), then read their introductions in one answer (parallel calls of
+  `package_guide`). The commands of `manage.py` run with `.venv/bin/python manage.py`.
 - Step 2: the specs describe {source}, with scenarios for the main tasks of every role,
   including what a role may not do, the `languages` and `language` of the backend, and the
-  `navigation` in groups once it has more than five links; the users who do not log in are
-  an anonymous role, listed in `roles` of each screen they open; run `front_check` and fix
-  the errors of the shape and of the references before the backend.
+  `navigation` in groups once it has more links than the top bar shows ("The top bar"); the
+  users who do not log in are an anonymous role, listed in `roles` of each screen they open;
+  run `front_check` and fix the errors of the shape and of the references before the backend.
 - Step 3: the backend also has the tests and the translations that the rules require,
   `makemigrations` and `run_doctor` without errors.
 - Step 5 is `front_check`. Step 6: a screen is its spec, `spec/screens/<id>.yaml`, then
@@ -51,15 +51,9 @@ of bazis-front (`package_guide("bazis-front")`), with what this product adds to 
 - Step 8: install the browser once (`npx playwright install chromium` in `frontend/`), and
   fix the screens, the specs or the backend until the tests pass.
 - Step 9: with the backend running as for `npm run e2e` (`.venv/bin/uvicorn {name}.main:app
-  --port <backend>`), run `bazis_front shots`, read `frontend/.scratch/shots/report.json` and
-  look at the screenshots (`front_screenshot`, the `file` of each shot: the screens with
-  errors or warnings and the main ones first, then the first shot of each other screen up to
-  the limit of 40 images of a run) against "The visual check"; fix the errors and take them
-  again, at most three rounds, then list each error left (`shot_errors` of `front_status`) in
-  Left for you, with its screen and code. Fix each warning of the report too, or list it
-  there with why it stays. The screens not looked at go to Left for you in one line, their
-  number and their ids; without a shell, `reviewed` of `front_status` names them
-  (`not_looked`). Exit 2 means nothing was shot: start the backend, or install the browser.
+  --port <backend>`), run `bazis_front shots` and look at the screenshots against "The
+  visual check" until the screens are done as the rules say. Exit 2 means nothing was shot:
+  start the backend, or install the browser.
 - Step 10 is a part of the final checks of the rules. Say how to run the backend
   (`.venv/bin/uvicorn {name}.main:app --port <backend>`) and the frontend (`npm run dev --
   --port <frontend>` in `frontend/`) with the ports of the project.

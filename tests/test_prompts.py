@@ -22,6 +22,9 @@ def test_new_prompt_of_a_product():
     The prompt of a product with a frontend follows the steps of the guide of bazis-front
     (never a copy of them), with what bazis-cli adds: the packages, `.venv`, the
     description, the rounds of the screenshots, the final checks of the rules and the ports.
+    Since 2.17.0 the guides of the packages are read in one answer, the number of the links
+    of the top bar is that of the guide, and the rounds of the screenshots are those of the
+    rules, which step 9 no longer repeats (the limit of the result of `create_project`).
     """
     ports = {'backend': 8123, 'frontend': 5199, 'e2e': 5201}
     prompt = ' '.join(prompts.new_prompt('A help desk', 'helpdesk', frontend=True, ports=ports).split())
@@ -29,21 +32,19 @@ def test_new_prompt_of_a_product():
     order = [
         'backend 8123, the dev server of the frontend 5199, the dev server of the end-to-end tests 5201',
         '"Building the frontend of a product"', 'package_guide("bazis-front")',
-        'package_guide("bazis")', 'list_packages', '.venv/bin/python manage.py',
+        'package_guide("bazis")', 'list_packages',
+        'then read their introductions in one answer (parallel calls of `package_guide`)',
+        '.venv/bin/python manage.py',
         'Step 2', 'the specs describe the description', 'what a role may not do',
-        'the `navigation` in groups once it has more than five links', 'front_check',
+        'the `navigation` in groups once it has more links than the top bar shows ("The top bar")',
+        'front_check',
         'Step 3', 'the tests and the translations that the rules require', 'run_doctor',
         'Step 6', 'spec/screens/<id>.yaml', 'bazis_front screens', '`run_command`', '`npm install`',
         'frontend/src/screens/<id>/extend.tsx', '(`custom`)', 't()', 'front_catalog', 'Step 7',
         'npx playwright install chromium',
         'Step 9', 'uvicorn helpdesk.main:app --port <backend>', 'bazis_front shots',
-        'frontend/.scratch/shots/report.json', '`front_screenshot`',
-        'the screens with errors or warnings and the main ones first', '"The visual check"',
-        'at most three rounds',
-        '`shot_errors` of `front_status`', 'Left for you',
-        'Fix each warning of the report too, or list it there with why it stays',
-        'The screens not looked at go to Left for you in one line, their number and their ids; '
-        'without a shell, `reviewed` of `front_status` names them (`not_looked`)', 'Exit 2 means nothing was shot',
+        'look at the screenshots against "The visual check" until the screens are done as the rules say',
+        'Exit 2 means nothing was shot',
         'Step 10', 'the final checks of the rules',
         'npm run dev -- --port <frontend>',
     ]
