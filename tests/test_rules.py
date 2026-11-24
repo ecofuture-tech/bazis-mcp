@@ -14,8 +14,6 @@
 
 import re
 
-import pytest
-
 from bazis.contrib.mcp import catalog, prompts, scaffold
 from bazis.contrib.mcp.rules import FRONTEND_RULES, RULES
 
@@ -466,12 +464,10 @@ def test_the_sections_that_the_rules_name_are_those_of_the_guide_of_bazis_front(
     """
     The rules and the tasks send the agent to sections of the guide of bazis-front by their
     names (the number of the links of the top bar, the rest of an update): each is named by
-    them and is a section, or a subsection, of the guide installed.
+    them and is a section, or a subsection, of the guide of bazis-front in the catalog, the
+    guide that the agent reads.
     """
-    pytest.importorskip('bazis.contrib.front')
-    from importlib.resources import files
-
-    guide = (files('bazis.contrib.front') / 'AGENTS.md').read_text(encoding='utf-8')
+    guide = catalog.catalog()['bazis-front']['agents_md']
     headings = {
         '##': {title for title, _ in catalog.sections(guide)},
         '###': {

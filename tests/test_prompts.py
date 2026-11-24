@@ -36,7 +36,8 @@ def test_new_prompt_of_a_product():
         'then read their introductions in one answer (parallel calls of `package_guide`)',
         '.venv/bin/python manage.py',
         'Step 2', 'the specs describe the description', 'what a role may not do',
-        'the `navigation` in groups once it has more links than the top bar shows ("The top bar")',
+        'the `navigation` in groups once it has more links than the top bar shows ("The top bar" of '
+        '`The design`)',
         'front_check',
         'Step 3', 'the tests and the translations that the rules require', 'run_doctor',
         'Step 6', 'spec/screens/<id>.yaml', 'bazis_front screens', '`run_command`', '`npm install`',

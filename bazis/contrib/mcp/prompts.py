@@ -36,9 +36,10 @@ of bazis-front (`package_guide("bazis-front")`), with what this product adds to 
   `package_guide`). The commands of `manage.py` run with `.venv/bin/python manage.py`.
 - Step 2: the specs describe {source}, with scenarios for the main tasks of every role,
   including what a role may not do, the `languages` and `language` of the backend, and the
-  `navigation` in groups once it has more links than the top bar shows ("The top bar"); the
-  users who do not log in are an anonymous role, listed in `roles` of each screen they open;
-  run `front_check` and fix the errors of the shape and of the references before the backend.
+  `navigation` in groups once it has more links than the top bar shows ("The top bar" of
+  `The design`); the users who do not log in are an anonymous role, listed in `roles` of each
+  screen they open; run `front_check` and fix the errors of the shape and of the references
+  before the backend.
 - Step 3: the backend also has the tests and the translations that the rules require,
   `makemigrations` and `run_doctor` without errors.
 - Step 5 is `front_check`. Step 6: a screen is its spec, `spec/screens/<id>.yaml`, then
