@@ -12,10 +12,14 @@ How the tools work and what they refuse is in the guide,
 
 - `bazis/contrib/mcp/server.py` — the tools, the resources, the prompts and `main()`;
 - `bazis/contrib/mcp/catalog.py` — the installed packages, the snapshot `catalog.json` and
-  the guides by sections, within the result limits of the MCP clients;
+  the guides by sections, within the result limits of the MCP clients (a part of a cut
+  section is titled `(n/m)`, `PART_RE`; the sections of the API reference of bazis-front
+  that list their files in parentheses, `(a, b)`, are sections of their own);
 - `bazis/contrib/mcp/search.py` — `guide_search` (BM25 over the guides and manifests);
 - `bazis/contrib/mcp/project.py` — the project served (global state, changed under
   `CHANGE_LOCK`), its creation, status and boundary (`inside`), introspection and checks;
+  `create_project` refuses a temporary directory (`refusal`: the system empties it), so
+  run a trial of it in a directory of the home;
 - `bazis/contrib/mcp/machine.py` — `check_machine` and `install_tools` (the closed table
   `COMMANDS`, the consent of the user);
 - `bazis/contrib/mcp/commands.py` — `run_command` (the closed table `KINDS`) and
@@ -61,6 +65,12 @@ those that create the database of a project (also when its name is taken:
 `create_project`) with `BAZIS_CLI_TEST_POSTGRES=host:port` (a PostgreSQL server with
 PostGIS, user and password `postgres`; they drop what they create).
 
+The result of `create_project` with a frontend must stay under `RESULT_LIMIT` by a tenth
+and 2,000 bytes more (the room of the rules that a release adds): the test measures it with
+the directory of the project replaced by one of a fixed length, so that the temporary
+directory of the run does not change it. A guide section is limited in bytes of its JSON
+string (`GUIDE_LIMIT`), `BUDGETS` of the guide tests of the packages count characters.
+
 Lint: `ruff check bazis tests sample scripts`.
 
 ## Releasing
@@ -72,7 +82,12 @@ A release is the tag `vX.Y.Z` on `main`: the Build and Publish workflow builds t
 Claude Code sessions cannot push tags. Release through the **Release** workflow instead:
 
 1. Rebuild the catalog with `python scripts/update_catalog.py` after the releases of the
-   other Bazis packages, and commit it.
+   other Bazis packages, and commit it. Then edit `rules.py` and `prompts.py` against it:
+   a phrase that repeats the guide of bazis-front is deleted only when its fact is in the
+   guide of the version that the catalog now serves; a `###` subsection is named together
+   with its `##` section (`"The top bar" of "The design"`), because `package_guide` takes
+   section names only. `tests/test_rules.py` reads the guide from the snapshot of the
+   catalog and must be green.
 2. Make sure the changes are merged into `main` and the Tests workflow is green on the
    `main` head commit (the Release workflow checks this and refuses otherwise).
 3. Add the release notes as `docs/releases/X.Y.Z.md` in the change being released.
