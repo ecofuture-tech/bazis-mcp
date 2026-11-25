@@ -52,8 +52,9 @@ def test_frontend_rules():
                  'a text of a spec is a map of those languages or a key of the dictionaries',
                  # the menu of a larger product, the screenshots without a shell, the dates of
                  # the test data that the calendars and the boards show
-                 'With more than five links, the navigation is `navigation` of `spec/product.yaml` with '
-                 'groups of related screens (`{group, title, items}`)', 'an `icon` (a name of lucide, D013)',
+                 'With more links than the top bar shows (how many: "The top bar" of `The design`), the '
+                 'navigation is `navigation` of `spec/product.yaml` with groups of related screens '
+                 '(`{group, title, items}`)', 'an `icon` (a name of lucide, D013)',
                  'without a shell, `front_screenshot` shows the `file` of a shot of the report',
                  'a tall one in parts, each `part` of which is looked at',
                  'Its dates are relative to the day of the run (`timezone.now() + timedelta(days=3)`',
@@ -89,6 +90,8 @@ def test_frontend_rules():
                  '(`--clean`)', 'they stay for the user to log in'):
         assert text in rules, text
     assert '--port 8000' not in rules
+    # how many links the top bar shows is said by the guide alone (it said five, the guide 8)
+    assert 'five links' not in rules and 'five links' not in ' '.join(prompts.FRONTEND_STEPS.split())
     assert rules.index('`npm run format`, `npx tsc --noEmit`') < rules.index('`npm run lint`, `npm test`')
 
 
@@ -116,11 +119,11 @@ def test_rules_of_the_public_screens():
                  '`permit.W007`', '`permit.W008`', 'BS_BAZIS_WS_ANONYMOUS_COMMON_CHANNEL=true',
                  'a guest who needs an account is given one, say so in Left for you',
                  # the router of a product of bazis-front 0.3: the template, never the side of
-                 # the product alone, and no route of the guests by hand
+                 # the product alone; the routes of the guests by hand are in the guide (2.17.0)
                  'a conflict of `frontend/src/app/router.tsx` is resolved by taking the file of the template',
                  '`frontend/.bazis/base/template@<version>/src/app/router.tsx`',
                  'taking the side of the product alone drops the public routes, S048',
-                 'lists their anonymous role in `roles` of their specs and removes its routes and layout'):
+                 'the rest is in "Updating the copies"'):
         assert text in rules, text
     steps = ' '.join(prompts.FRONTEND_STEPS.split())
     assert 'the users who do not log in are an anonymous role, listed in `roles` of each screen' in steps
@@ -133,7 +136,10 @@ def test_rules_of_the_dashboards():
     aggregates of a list in an extension: a decimal field for a sum or an average, a field
     the route set filters by, the setting that limits the groups (a chart by week groups its
     days) and the time zone of the axis; after the update the contract is exported again
-    with bazis-statusy 2.13, and the removed hook and message are not used.
+    with bazis-statusy 2.13, and the removed hook and message are not used. Since 2.17.0 the
+    limit of the groups and the time zone of the axis are those of the guide of bazis-front
+    (`ERR_AGGREGATE`, `TIME_ZONE`), the update that of "Updating the copies": the rules no
+    longer repeat them, for the limit of the result of `create_project`.
     """
     rules = ' '.join(FRONTEND_RULES.split())
     for text in ('The numbers of a dashboard are the aggregates of the core (`meta=aggregates`)',
@@ -142,14 +148,7 @@ def test_rules_of_the_dashboards():
                  "is `useList` with `meta: ['aggregates']`, `aggregate` and `group` in an extension",
                  '`DecimalField` (the format `decimal` in the contract, S049)',
                  'the route set of the entity filters by the field (S050)',
-                 '400 `ERR_AGGREGATE` over more groups than `BAZIS_API_AGGREGATE_GROUPS_MAX` '
-                 '(1000 by default, `BS_BAZIS_API_AGGREGATE_GROUPS_MAX`)',
-                 'a chart by day or by week groups the days of its periods, so a long one is by '
-                 '`month` or has a smaller `last`',
-                 'The axis of a chart is in the time zone of the backend (`TIME_ZONE`), not of the browser',
-                 'until `bazis_front contract` exports it again',
-                 'with the capability `statusy`, the frontend needs `bazis-statusy>=2.13.0` (C004, `front.W006`)',
-                 '`useTransitsOf` and the message `board.no_moves` are gone since 0.5: never write code on them'):
+                 'the rest is in "Updating the copies"'):
         assert text in rules, text
     assert 'a longer `bucket`' not in rules
 
@@ -159,10 +158,11 @@ def test_rules_of_the_forms_of_the_actions():
     bazis-front 0.6.0: the form of a guest is the spec of the form of a public custom action
     (its fields named as those of the entity, the result with the answer), its throttle leaves
     room for the end-to-end tests, a decimal is typed by the form (`FieldInput` in code), an
-    average shows the decimal places of its field (bazis-front 0.13 lays out the tiles: no
-    extension for them either), the top bar folds its links into a menu no
-    screen is named as, and the link of the form requires its action; the update replaces
-    the custom code that the specs now say.
+    average is rounded to the decimal places of its field (bazis-front 0.13 lays out the
+    tiles: no extension for them either; 0.14 drops its trailing zeros), the top bar folds
+    its links into a menu no screen is named as, and the link of the form requires its
+    action; the update replaces the custom code that the specs now say (since 2.17.0 as
+    "Updating the copies" of the guide says).
     """
     rules = ' '.join(FRONTEND_RULES.split())
     for text in ('is a spec too, `primitive: form` with `form.action`, never a custom screen',
@@ -174,16 +174,17 @@ def test_rules_of_the_forms_of_the_actions():
                  'typed with a point or the comma of the language and sent as `"2.5"`',
                  'is typed as JSON (S054)',
                  'is the `FieldInput` of its field (its `DecimalInput`), never an input or a parse of your own',
-                 'an average shows the decimal places of its field (`decimal_places`, `places` of the contract)',
-                 'into its menu `nav:more` (More) by itself',
+                 'An average is rounded to the decimal places of its field (`decimal_places`, `places` '
+                 'of the contract): no extension for it',
                  'never drop or hide links for their number',
-                 'never give a screen the id `more`, the mark of that menu (S055)',
+                 'never give a screen the id `more`, the mark of the menu `nav:more` (S055)',
                  'give it no `requires` (S030)',
-                 'A custom screen that only sends a custom action becomes the form of the action',
-                 'a screen with the id `more` is renamed (S055)'):
+                 'the rest is in "Updating the copies"'):
         assert text in rules, text
     # since bazis-front 0.13 only the last of an odd number of tiles takes the whole row of a phone
     assert 'whole row of a phone' not in rules
+    # since bazis-front 0.14 an average has no trailing zeros: it is rounded, not shown with them
+    assert 'an average shows' not in rules
 
 
 def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
@@ -208,13 +209,14 @@ def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
                  'so the page is same-site with the API (an API of another origin also answers CORS with credentials)'):
         assert text in rules, text
     frontend = ' '.join(FRONTEND_RULES.split())
-    for text in ('offers Google only with bazis-authing 2.8 or newer',
-                 '`check` warns of the `GET` of an older one (C005): upgrade bazis-authing to 2.8.0 (it requires bazis 2.19)',
-                 'a login screen of your own opens Google with `loginInWindow`',
-                 'after the update to 0.7 the contract is of format 10',
-                 'code that read `CAPABILITIES.authing.token_param` (gone in format 10) uses `loginInWindow`'):
+    for text in ('offers Google only with bazis-authing 2.8 or newer (C005); a login screen of your own opens Google with `loginInWindow`',
+                 # the update to 0.7 (format 10, without `token_param`): "Updating the copies"
+                 'the rest is in "Updating the copies"'):
         assert text in frontend, text
     assert 'format 9' not in frontend and 'format 8' not in frontend
+    # what to do about C005 is in its row of the guide, which `check` gives as the hint too
+    assert ('upgrade bazis-authing to 2.8.0 (it requires bazis 2.19) and export the contract again'
+            in catalog.catalog()['bazis-front']['agents_md'])
 
 
 def test_rules_of_bazis_front_0_8_0():
@@ -229,8 +231,8 @@ def test_rules_of_bazis_front_0_8_0():
                  'the type of such a decimal is `string` (`number` is allowed too, P017), and an Enum '
                  'or a Literal of strings is `string` as well, never `json` (an `IntEnum` is `integer`)',
                  'a file of `frontend/e2e/fixtures/`',
-                 'from the first that does not fit',
-                 'a group is shared by the row and the menu'):
+                 # how the top bar cuts its links is "The top bar" of the guide (2.17.0)
+                 'With more links than the top bar shows (how many: "The top bar" of `The design`)'):
         assert text in frontend, text
     assert '`front_check` warns P036' in ' '.join(RULES.split())
 
@@ -261,8 +263,9 @@ def test_rules_of_the_files_of_guests_the_exports_and_the_flows_of_several_users
                  'an export (the form of an action that answers a file, `access_action` view, the rows of '
                  'its `restrict_queryset`; bazis-bg only for a long one)',
                  '`as: <role>`', '`remember` of what the server made, a number or an id, never the echo '
-                 'of a text typed', 'After the update to 0.9 (a contract of format 11)',
-                 'a custom screen or test of your own that did them becomes the spec'):
+                 'of a text typed',
+                 # the update to 0.9: a custom screen or test that did them becomes the spec
+                 'the rest is in "Updating the copies"'):
         assert text in frontend, text
 
 
@@ -294,16 +297,15 @@ def test_rules_of_bazis_front_0_10_0():
                  '(`values`, S060), the items of a picker (`filter`, `filters`, S061), several files '
                  '(`type: file`, `many: true`), a move with a payload and what a role may not do '
                  '(`transit_absent`, `action_absent: edit`, `field_readonly`; else a pytest of the 403)',
-                 'The update to 0.10 adds `e2e/fixtures/photo.png` (rename a file of the product of that '
-                 'name first, with its `upload` steps)',
-                 'a step drops `created: true` and `saved: true` (P002), a file of a payload is `type: file` '
-                 '(P017), and a transit run on a card only for its payload may be a `move` on the board',
+                 # the update to 0.10 (`photo.png`, `created`, `saved`): "Updating the copies"
+                 'the rest is in "Updating the copies"',
                  'its records pass the validators of the models (a refused one fails every test): run it '
                  'before every `npm run e2e`'):
         assert text in frontend, text
 
     steps = ' '.join(prompts.FRONTEND_STEPS.split())
-    assert 'then the first shot of each other screen up to the limit of 40 images of a run' in steps
+    # the screens looked at, their first shot each, are those of the rules (2.17.0)
+    assert 'until the screens are done as the rules say' in steps
     change = ' '.join(prompts.frontend_change('the change').split())
     assert change.endswith('against the running backend, and look at the screens the change touched.')
 
@@ -373,12 +375,14 @@ def test_the_rules_said_shorter_in_2_13_0_keep_their_claims():
                  # what the step of the screenshots no longer repeats
                  'its screenshots pass the checklist of "The visual check"',
                  'a tall one in parts, each `part` of which is looked at',
-                 'take them again, at most three rounds', 'migrate, run `e2e_data`, start',
+                 'take them again, at most three rounds',
+                 # the order of the end-to-end tests, said once (2.17.0): the data before them
+                 'run it before every `npm run e2e`', '`npm run e2e`: start `.venv/bin/uvicorn',
                  'What a spec cannot say goes to the extension of its screen (`extend: true`'):
         assert text in frontend, text
     steps = ' '.join(prompts.FRONTEND_STEPS.split())
     for text in ('Only what a spec cannot say is an extension (`frontend/src/screens/<id>/extend.tsx`)',
-                 'against "The visual check"; fix the errors and take them again, at most three rounds'):
+                 'against "The visual check" until the screens are done as the rules say'):
         assert text in steps, text
     assert 'the only one unless it asks for more' in prompts.language_step(None).replace('\n', ' ')
 
@@ -400,8 +404,8 @@ def test_rules_of_bazis_mcp_2_14_0():
                  'flat model, no Enum, at most 4096 bytes; S053)',
                  'the photos of public objects (`display: image`, S062)',
                  'the days of the browser in a `filter` (`today`, `month_start`, `month_end+1`, S014)',
-                 'After the update to 0.9 (a contract of format 11) or 0.11 a custom screen or test '
-                 'of your own that did them becomes the spec'):
+                 # the code of the product after the update: "Updating the copies" (2.17.0)
+                 'the rest is in "Updating the copies"'):
         assert text in frontend, text
 
 
@@ -409,10 +413,12 @@ def test_the_update_of_bazis_front_runs_design():
     """
     After `bazis_front update` the rules run `design` too: since bazis-front 0.12
     `vite.config.ts` of the template imports the fonts that `design` writes (`front.W005`
-    until then).
+    until then). Since 2.17.0 `front_status` names it with the other stale parts, after
+    `npm install` for a `package.json` that the update changed.
     """
     frontend = ' '.join(FRONTEND_RULES.split())
-    assert 'Then `contract`, `design`, `check`, `screens`, `e2e` and `shots` again' in frontend
+    assert ('Then `npm install` if `package.json` changed, `front_status` and the subcommands it '
+            'names') in frontend
 
 
 def test_the_roles_are_read_by_the_signed_in_users():
@@ -440,11 +446,58 @@ def test_the_codes_of_the_rules_are_those_of_bazis_front():
     """
     guide = catalog.catalog()['bazis-front']['agents_md']
     named = set(re.findall(r'\b([CDPSV]\d{3})\b', FRONTEND_RULES))
-    assert {'C002', 'C004', 'C005', 'P002', 'P017', 'P030', 'P035', 'P037', 'S030', 'S044', 'S045',
+    assert {'C005', 'P002', 'P017', 'P030', 'P035', 'P037', 'S030', 'S044', 'S045',
             'S046', 'S047', 'S048', 'S049', 'S050', 'S052', 'S053', 'S054', 'S055', 'S057', 'S058',
             'S059', 'S060', 'S061', 'S014', 'S062'} <= named
     for code in named:
         assert f'| `{code}` |' in guide, code
+
+
+#: the sections of the guide of bazis-front that the rules and the tasks name, by the level of
+#: their headings: `##` a section of `package_guide`, `###` a subsection of one
+GUIDE_SECTIONS = {
+    '##': ('The design', 'The visual check', 'Updating the copies'),
+    '###': ('Building the frontend of a product', 'The top bar'),
+}
+
+
+def test_the_sections_that_the_rules_name_are_those_of_the_guide_of_bazis_front():
+    """
+    The rules and the tasks send the agent to sections of the guide of bazis-front by their
+    names (the number of the links of the top bar, the rest of an update): each is named by
+    them and is a section, or a subsection, of the guide of bazis-front in the catalog, the
+    guide that the agent reads.
+    """
+    guide = catalog.catalog()['bazis-front']['agents_md']
+    headings = {
+        '##': {title for title, _ in catalog.sections(guide)},
+        '###': {
+            line[4:].strip() for line, heading in catalog.markdown_lines(guide.splitlines())
+            if heading and line.startswith('### ')
+        },
+    }
+    texts = ' '.join(f'{RULES} {FRONTEND_RULES} {prompts.FRONTEND_STEPS}'.split())
+    for level, names in GUIDE_SECTIONS.items():
+        for name in names:
+            assert f'"{name}"' in texts or f'`{name}`' in texts, name
+            assert name in headings[level], (level, name)
+
+
+def test_the_demo_database_is_said_alike_by_the_rules_and_the_guide():
+    """
+    The rules and the guide of bazis-front (the section "The end-to-end tests") name the
+    database that is recreated after the last end-to-end tests in the same words, so that
+    what the agent reads in the one never differs from what it reads in the other.
+    """
+    fragment = ('the database of `.env` created in this session for the new product '
+                '(by `create_project`, or by you when it was missing)')
+    guide = catalog.catalog()['bazis-front']
+    section = ' '.join(
+        body for title, body in catalog.guide_parts(guide)
+        if catalog.base_title(title) == 'The end-to-end tests'
+    )
+    assert fragment in ' '.join(section.split())
+    assert fragment in ' '.join(RULES.split())
 
 
 def test_the_declarations_and_the_test_data_are_said_once():
@@ -533,11 +586,19 @@ def test_rules_of_the_packages_and_of_what_the_agent_leaves():
 def test_rules_of_the_guides():
     """
     A guide is read by its introduction and the sections a step needs; the sources of the
-    packages only for a fact the guide lacks, named in the summary.
+    packages only for a fact the guide lacks, named in the summary. The introductions of the
+    packages chosen, and the sections that one step names, are read in one answer of parallel
+    calls (the trials of bazis-front 0.13: 17 to 22 answers of the model called
+    `package_guide`, at most 4 calls in one).
     """
     rules = ' '.join(RULES.split())
+    steps = ' '.join(prompts.FRONTEND_STEPS.split())
+    assert ('choose the Bazis packages the product needs with `list_packages`' in steps
+            and 'then read their introductions in one answer (parallel calls of `package_guide`)' in steps)
     for text in ('read the introduction, then a section (`package_guide(name, section)`) '
                  'when a step needs it, never all of them in advance',
+                 'the introductions of the packages chosen and the sections of one step in one '
+                 'answer (parallel calls)',
                  'do not read the sources of its packages',
                  '`frontend/src/bazis/` and `frontend/e2e/bazis/`',
                  'Only when the guide lacks a fact you need, read the source',
@@ -676,8 +737,10 @@ def test_the_database_is_recreated_only_by_the_exception_of_its_ban():
     """
     rules = ' '.join(RULES.split())
     ban = next(it for it in re.split(r'(?<=\.) ', rules) if 'Never drop or recreate it' in it)
-    assert ('Never drop or recreate it, but once after the last end-to-end tests if `create_project` '
-            'made it in this session (then `migrate` and `e2e_data`)') in ban
+    assert ('Never drop or recreate it, but once after the last end-to-end tests when it is the '
+            'database of `.env` created in this session for the new product (by `create_project`, '
+            'or by you when it was missing) and holds nothing but its demo data (then `migrate` and '
+            '`e2e_data`)') in ban
     frontend = ' '.join(FRONTEND_RULES.split())
     assert frontend.count('recreat') == 1 and '(but for the recreation above)' in frontend
     assert 'create_project` made' not in frontend

@@ -30,7 +30,8 @@ package `bazis-<name>` that a project installs only if it needs it.
   `list_packages`, `package_guide` (also `bazis` for the core), `guide_search`,
   `project_info` and `run_doctor`. Read the guide of a package before you use it and follow
   it exactly: read the introduction, then a section (`package_guide(name, section)`) when a
-  step needs it, never all of them in advance.
+  step needs it, never all of them in advance; the introductions of the packages chosen and
+  the sections of one step in one answer (parallel calls).
 - The guides are the documentation of Bazis: do not read the sources of its packages (in
   `.venv`, the copies in `frontend/src/bazis/` and `frontend/e2e/bazis/`, checkouts). Only
   when the guide lacks a fact you need, read the source, and name the gap in "Guide gaps" of
@@ -150,10 +151,11 @@ package `bazis-<name>` that a project installs only if it needs it.
   (such as `E2E_PASSWORD`). Never run git commands that change the repository (commit,
   push, reset): the user reviews and commits them.
 - The database of `.env` is created by `bazis new` when PostgreSQL is reachable, with
-  PostGIS. Never drop or recreate it, but once after the last end-to-end tests if
-  `create_project` made it in this session (then `migrate` and `e2e_data`): after the first
-  `migrate` add new migrations, never delete or generate again the applied ones. You may create it
-  when it is missing (`CREATE DATABASE`, then `CREATE EXTENSION postgis` in it); report it.
+  PostGIS. Never drop or recreate it, but once after the last end-to-end tests when it is the
+  database of `.env` created in this session for the new product (by `create_project`, or
+  by you when it was missing) and holds nothing but its demo data (then `migrate` and
+  `e2e_data`): after the first `migrate` add new migrations, never delete or generate again
+  the applied ones. You may create it when it is missing (`CREATE DATABASE`, then `CREATE EXTENSION postgis` in it); report it.
   When the task says that the database of `.env` already has data of another project or
   could not be inspected, it is not ready: never migrate it nor change its data, ask
   the user to check it or set another `BS_DATABASES__DEFAULT__NAME` in `.env`
@@ -228,13 +230,12 @@ its introduction before you change the frontend.
   change of the models, routes, roles, statuses or transits: migrate, export the contract
   (`bazis_front contract`), then fix the spec or the backend until `front_check` reports
   no errors.
-- With more than five links, the navigation is `navigation` of `spec/product.yaml` with
-  groups of related screens (`{group, title, items}`), a `label` shorter than a long title
-  of a screen, and an `icon` (a name of lucide, D013) where that of its entity does not fit.
-  The top bar moves the links, from the first that does not fit, into its menu `nav:more`
-  (More) by itself; a group is shared by the row and the menu: choose `navigation` of the
-  theme by the look of the product, never drop or hide links for their number, and never
-  give a screen the id `more`, the mark of that menu (S055). The link of the form of a
+- With more links than the top bar shows (how many: "The top bar" of `The design`), the
+  navigation is `navigation` of `spec/product.yaml` with groups of related screens (`{group,
+  title, items}`), a `label` shorter than a long title of a screen, and an `icon` (a name of
+  lucide, D013) where that of its entity does not fit. Choose `navigation` of the theme by
+  the look of the product, never drop or hide links for their number, and never give a
+  screen the id `more`, the mark of the menu `nav:more` (S055). The link of the form of a
   custom action requires its action itself: give it no `requires` (S030).
 - The screens are generated from their specs, never written as TSX: describe each in
   `spec/screens/<id>.yaml` and run `bazis_front screens` after every change of `spec/`. What
@@ -251,11 +252,7 @@ its introduction before you change the frontend.
   (a sum by a category or a related item) is `useList` with `meta: ['aggregates']`,
   `aggregate` and `group` in an extension. A sum or an average of an amount or a quantity
   with a fraction is of a `DecimalField` (the format `decimal` in the contract, S049), and
-  the route set of the entity filters by the field (S050). The core answers 400
-  `ERR_AGGREGATE` over more groups than `BAZIS_API_AGGREGATE_GROUPS_MAX` (1000 by default,
-  `BS_BAZIS_API_AGGREGATE_GROUPS_MAX`): a chart by day or by week groups the days of its
-  periods, so a long one is by `month` or has a smaller `last`. The axis of a chart is in
-  the time zone of the backend (`TIME_ZONE`), not of the browser, and an average shows the
+  the route set of the entity filters by the field (S050). An average is rounded to the
   decimal places of its field (`decimal_places`, `places` of the contract): no extension
   for it.
 - A field of a payload of a transit or of a body of a custom action has a type a form asks
@@ -277,9 +274,7 @@ its introduction before you change the frontend.
   an image is `photo.png` of the template, another file of the product is written beside it;
   never one made by a script or a test, never in a generated directory.
 - With bazis-authing, the login screen of the template offers Google only with bazis-authing
-  2.8 or newer: `check` warns of the `GET` of an older one (C005): upgrade bazis-authing to
-  2.8.0 (it requires bazis 2.19) and export the contract again; a login screen of your own
-  opens Google with `loginInWindow`.
+  2.8 or newer (C005); a login screen of your own opens Google with `loginInWindow`.
 - The screens are done when `bazis_front shots` (the backend running as for `npm run e2e`)
   reports no error in `frontend/.scratch/shots/report.json` and its screenshots pass the
   checklist of "The visual check" (without a shell, `front_screenshot` shows the `file` of a
@@ -344,27 +339,14 @@ its introduction before you change the frontend.
   `field_readonly`; else a pytest of the 403); since 0.11 the meta of an exported file
   (`file_meta` of `http_post`, bazis 2.25: a flat model, no Enum, at most 4096 bytes; S053),
   the photos of public objects (`display: image`, S062) and the days of the browser in a
-  `filter` (`today`, `month_start`, `month_end+1`, S014). After the update to 0.9 (a contract
-  of format 11) or 0.11 a custom screen or test of your own that did them becomes the spec.
+  `filter` (`today`, `month_start`, `month_end+1`, S014).
 - After `pip install -U bazis-front`, `bazis_front update` merges the copies and the
   template: a conflict of `frontend/src/app/router.tsx` is resolved by taking the file of
   the template, its pristine copy
   `frontend/.bazis/base/template@<version>/src/app/router.tsx`, and applying the changes of
   the product to it again (taking the side of the product alone drops the public routes,
-  S048). A product of bazis-front 0.3 that routed the screens of its guests by hand lists
-  their anonymous role in `roles` of their specs and removes its routes and layout. Then
-  `contract`, `design`, `check`, `screens`, `e2e` and `shots` again: after the update to 0.7 the
-  contract is of format 10, and `check` reports C002 until `bazis_front contract` exports it
-  again; with the capability `statusy`, the frontend needs `bazis-statusy>=2.13.0` (C004,
-  `front.W006`). A custom screen that only sends a custom action becomes the form of the
-  action (its directory and end-to-end tests deleted, `custom: true` removed), a screen with
-  the id `more` is renamed (S055), and code that read `CAPABILITIES.authing.token_param`
-  (gone in format 10) uses `loginInWindow`. The update to 0.10 adds `e2e/fixtures/photo.png`
-  (rename a file of the product of that name first, with its `upload` steps); then a step
-  drops `created: true` and `saved: true` (P002), a file of a payload is `type: file` (P017),
-  and a transit run on a card only for its payload may be a `move` on the board.
-  `useTransitsOf` and the message `board.no_moves` are gone since 0.5: never write code on
-  them.
+  S048). Then `npm install` if `package.json` changed, `front_status` and the subcommands it
+  names; the rest is in "Updating the copies".
 - The frontend is in the languages of the backend (`languages` and `language` of
   `spec/product.yaml` list exactly the codes of `BS_LANGUAGES` and the one of
   `BS_LANGUAGE_CODE`, P029): a text of a spec is a map
@@ -398,9 +380,8 @@ its introduction before you change the frontend.
   rounds of the screenshots), and in `frontend/` `npm run format`, `npx tsc --noEmit`,
   `npm run lint`, `npm test`, `npm run build`, `bazis_front screens --check` and `bazis_front shots
   --check`; after a change of the specs
-  or the screens also `bazis_front e2e` and `npm run e2e` against the running backend:
-  migrate, run `e2e_data`, start `.venv/bin/uvicorn <project package>.main:app --port
-  <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm
+  or the screens also `bazis_front e2e` and `npm run e2e`: start `.venv/bin/uvicorn <project
+  package>.main:app --port <backend>` in the background, run `E2E_PORT=<e2e> E2E_PASSWORD=<the same password> npm
   run e2e` and `bazis_front shots`, then stop the backend by `kill <PID>`, never
   `pkill`, `killall` or a pattern.
   A test that fails only sometimes gets one attempt at a fix, then goes to Left for you.
