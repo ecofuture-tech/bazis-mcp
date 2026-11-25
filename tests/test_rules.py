@@ -209,13 +209,14 @@ def test_rules_of_the_login_with_google_and_the_history_of_the_transits():
                  'so the page is same-site with the API (an API of another origin also answers CORS with credentials)'):
         assert text in rules, text
     frontend = ' '.join(FRONTEND_RULES.split())
-    for text in ('offers Google only with bazis-authing 2.8 or newer',
-                 '`check` warns of the `GET` of an older one (C005): upgrade bazis-authing to 2.8.0 (it requires bazis 2.19)',
-                 'a login screen of your own opens Google with `loginInWindow`',
+    for text in ('offers Google only with bazis-authing 2.8 or newer (C005); a login screen of your own opens Google with `loginInWindow`',
                  # the update to 0.7 (format 10, without `token_param`): "Updating the copies"
                  'the rest is in "Updating the copies"'):
         assert text in frontend, text
     assert 'format 9' not in frontend and 'format 8' not in frontend
+    # what to do about C005 is in its row of the guide, which `check` gives as the hint too
+    assert ('upgrade bazis-authing to 2.8.0 (it requires bazis 2.19) and export the contract again'
+            in catalog.catalog()['bazis-front']['agents_md'])
 
 
 def test_rules_of_bazis_front_0_8_0():

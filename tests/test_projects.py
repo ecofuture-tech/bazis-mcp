@@ -48,6 +48,15 @@ PRODUCT_DIRECTORY = (
     '/home/developer/projects/bazis/products/the-help-desk-of-the-support-team-of-a-small-company/my-desk'
 )
 
+#: what `create_project` says of a database that cannot be reached (`machine`), with the error
+#: of libpq on Linux, the longer one: that of macOS is 33 bytes shorter, and the result has it
+#: twice (`database`, `next_steps`)
+DATABASE_UNREACHABLE = (
+    'PostgreSQL 127.0.0.1:9 cannot be reached (connection failed: connection to server at '
+    '"127.0.0.1", port 9 failed: Connection refused Is the server running on that host and '
+    'accepting TCP/IP connections?): the database `store` is not created.'
+)
+
 #: the existing tools, which need a project
 PROJECT_TOOLS = {
     'project_info': {},
@@ -316,9 +325,10 @@ async def test_the_result_of_create_project_with_a_frontend_fits_the_limit(
     The result of a product, the largest with the rules of the frontend (about 33,700 bytes in
     2.9.0), keeps a tenth of the limit of the results of the clients free: a rule added later
     fails here before a client cuts the result. Since 2.17.0 it keeps 2,000 bytes more (about
-    33,967 bytes): the room of the rules that a release adds. It is measured with the
-    directory of the project replaced by `PRODUCT_DIRECTORY`, a path of 100 bytes, so that
-    the temporary directory of the run does not change it.
+    33,896 bytes): the room of the rules that a release adds. It is measured with the
+    directory of the project replaced by `PRODUCT_DIRECTORY`, a path of 100 bytes, and the
+    message of the database by `DATABASE_UNREACHABLE`, so that neither the temporary directory
+    nor the system of the run changes it.
     """
     call_result = await client.call_tool(
         'create_project', {'directory': str(tmp_path / 'desk'), 'description': 'A help desk'}
@@ -326,9 +336,10 @@ async def test_the_result_of_create_project_with_a_frontend_fits_the_limit(
     created = result(call_result)
     assert created['frontend'] is True
     text = text_of(call_result)
-    directory = json.dumps(created['directory'])[1:-1]
-    assert directory in text
-    text = text.replace(directory, PRODUCT_DIRECTORY)
+    for key, fixed in (('directory', PRODUCT_DIRECTORY), ('database', DATABASE_UNREACHABLE)):
+        value = json.dumps(created[key], ensure_ascii=False)[1:-1]
+        assert value in text, key
+        text = text.replace(value, json.dumps(fixed)[1:-1])
     assert len(text.encode()) < catalog.RESULT_LIMIT * 0.9 - 2_000
 
 

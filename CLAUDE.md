@@ -67,8 +67,9 @@ PostGIS, user and password `postgres`; they drop what they create).
 
 The result of `create_project` with a frontend must stay under `RESULT_LIMIT` by a tenth
 and 2,000 bytes more (the room of the rules that a release adds): the test measures it with
-the directory of the project replaced by one of a fixed length, so that the temporary
-directory of the run does not change it. A guide section is limited in bytes of its JSON
+the directory of the project and the message of the database replaced by fixed ones, so that
+neither the temporary directory nor the system of the run changes it (the error of libpq
+differs). A guide section is limited in bytes of its JSON
 string (`GUIDE_LIMIT`), `BUDGETS` of the guide tests of the packages count characters.
 
 Lint: `ruff check bazis tests sample scripts`.

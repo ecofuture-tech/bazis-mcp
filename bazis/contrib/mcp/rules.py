@@ -274,9 +274,7 @@ its introduction before you change the frontend.
   an image is `photo.png` of the template, another file of the product is written beside it;
   never one made by a script or a test, never in a generated directory.
 - With bazis-authing, the login screen of the template offers Google only with bazis-authing
-  2.8 or newer: `check` warns of the `GET` of an older one (C005): upgrade bazis-authing to
-  2.8.0 (it requires bazis 2.19) and export the contract again; a login screen of your own
-  opens Google with `loginInWindow`.
+  2.8 or newer (C005); a login screen of your own opens Google with `loginInWindow`.
 - The screens are done when `bazis_front shots` (the backend running as for `npm run e2e`)
   reports no error in `frontend/.scratch/shots/report.json` and its screenshots pass the
   checklist of "The visual check" (without a shell, `front_screenshot` shows the `file` of a
