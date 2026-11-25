@@ -483,6 +483,23 @@ def test_the_sections_that_the_rules_name_are_those_of_the_guide_of_bazis_front(
             assert name in headings[level], (level, name)
 
 
+def test_the_demo_database_is_said_alike_by_the_rules_and_the_guide():
+    """
+    The rules and the guide of bazis-front (the section "The end-to-end tests") name the
+    database that is recreated after the last end-to-end tests in the same words, so that
+    what the agent reads in the one never differs from what it reads in the other.
+    """
+    fragment = ('the database of `.env` created in this session for the new product '
+                '(by `create_project`, or by you when it was missing)')
+    guide = catalog.catalog()['bazis-front']
+    section = ' '.join(
+        body for title, body in catalog.guide_parts(guide)
+        if catalog.base_title(title) == 'The end-to-end tests'
+    )
+    assert fragment in ' '.join(section.split())
+    assert fragment in ' '.join(RULES.split())
+
+
 def test_the_declarations_and_the_test_data_are_said_once():
     """
     Roles, statuses and transits are declared in `roles.py` and `workflow.py` (the rules of
